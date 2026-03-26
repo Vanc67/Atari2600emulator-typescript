@@ -1,0 +1,5 @@
+{
+  "name": "Atari 2600 Emulator",
+  "description": "A mobile-friendly Atari 2600 emulator starting with the 6507 CPU, TIA video controller, and joystick input.",
+  "requestFramePermissions": []
+}
