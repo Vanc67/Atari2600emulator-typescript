@@ -1,0 +1,8 @@
+#
+# system.prop for zerofltexx
+#
+ro.product.model=SM-G920F
+ro.product.device=zeroflte
+ro.build.product=zeroflte
+ro.telephony.default_network=9
+telephony.lteOnGsmDevice=1
