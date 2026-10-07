@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Flat screen display settings (no curved corners) -->
+    <dimen name="rounded_corner_radius">0dp</dimen>
+    <bool name="config_hasRecents">true</bool>
+    <!-- S6 Flat battery capacity 2550 mAh -->
+    <integer name="config_batteryCapacity">2550</integer>
+</resources>
