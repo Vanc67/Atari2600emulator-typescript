@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Atari2600 } from './emulator/Atari2600';
+import { Atari2600 } from './Atari2600';
 import { Play, Square, Upload } from 'lucide-react';
 
 export default function App() {
