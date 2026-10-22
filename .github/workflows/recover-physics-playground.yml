@@ -39,7 +39,7 @@ jobs:
               --recover="$PWD/PhysicsPlayground.pck" \
               --output="$PWD/physics-playground-j2me/original/recovered"
             find physics-playground-j2me/original/recovered -type f -printf '%p %s bytes\n'
-          } 2>&1 | tee physics-playground-j2me/original/recovery.log
+          } 2>&1 | tee physics-playground-j2me/original/recovery.txt
 
       - name: Return recovered sources and diagnostics to this branch
         if: always()
