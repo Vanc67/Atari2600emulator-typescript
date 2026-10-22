@@ -1,0 +1,61 @@
+name: Run original Physics Playground reference tests
+
+on:
+  push:
+    branches:
+      - arena/a254aa0f-atari2600emulator-typescript
+    paths:
+      - .github/workflows/physics-playground-reference.yml
+
+permissions:
+  contents: write
+
+jobs:
+  reference:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arena/a254aa0f-atari2600emulator-typescript
+
+      - name: Run the original Godot 4.7.2 test scenes
+        run: |
+          set -o pipefail
+          mkdir -p /tmp/godot physics-playground-j2me/original/reference
+          curl -fL --retry 3 \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip \
+            -o /tmp/godot/godot.zip
+          unzip -q /tmp/godot/godot.zip -d /tmp/godot/bin
+          GODOT=$(find /tmp/godot/bin -type f -name 'Godot_v4.7.2-stable_linux.x86_64' -print -quit)
+          test -n "$GODOT"
+          chmod +x "$GODOT"
+          STATUS=0
+          : > physics-playground-j2me/original/reference/summary.txt
+          for TEST in smoke_test ragdoll_test weapons_test reliability_test; do
+            echo "=== $TEST ===" | tee -a physics-playground-j2me/original/reference/summary.txt
+            set +e
+            "$GODOT" --headless --fixed-fps 60 \
+              --path "$PWD/physics-playground-j2me/original/recovered" \
+              "res://tests/$TEST.tscn" \
+              > "physics-playground-j2me/original/reference/$TEST.txt" 2>&1
+            CODE=$?
+            set -e
+            echo "$TEST exit=$CODE" | tee -a physics-playground-j2me/original/reference/summary.txt
+            tail -n 8 "physics-playground-j2me/original/reference/$TEST.txt" | tee -a physics-playground-j2me/original/reference/summary.txt
+            if [ "$CODE" -ne 0 ]; then STATUS=1; fi
+          done
+          exit "$STATUS"
+
+      - name: Return original reference results to this branch
+        if: always()
+        run: |
+          mkdir -p physics-playground-j2me/original/reference
+          git add -A physics-playground-j2me/original/reference
+          if git diff --cached --quiet; then
+            echo "No reference reports were produced"
+            exit 0
+          fi
+          git config user.name "Arena Reference Bot"
+          git config user.email "arena-reference@users.noreply.github.com"
+          git commit -m "Add original Physics Playground reference results"
+          git push origin HEAD:arena/a254aa0f-atari2600emulator-typescript
