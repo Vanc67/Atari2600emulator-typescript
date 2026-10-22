@@ -34,7 +34,6 @@ jobs:
             GDRE=$(find /tmp/gdre/bin -type f -name 'gdre_tools.x86_64' -print -quit)
             test -n "$GDRE"
             chmod +x "$GDRE"
-            "$GDRE" --headless --version
             "$GDRE" --headless \
               --recover="$PWD/PhysicsPlayground.pck" \
               --output="$PWD/physics-playground-j2me/original/recovered"
