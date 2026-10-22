@@ -51,6 +51,8 @@ public final class BodyStore {
     restTime[i] = 0.0f;
   }
   public void kill(int i) { flags[i] |= F_DEAD; hp[i] = 0.0f; }
+  /** Removes a prop without interpreting its removal as explosive damage. */
+  public void remove(int i) { fuse[i] = -999.0f; kill(i); }
 
   public void wakeArea(CellGrid grid, float cx, float cy, float radius) {
     float r2 = radius * radius;
@@ -112,19 +114,31 @@ public final class BodyStore {
       if (x[i] < width[i] * 0.5f) { x[i] = width[i] * 0.5f; vx[i] = Math.abs(vx[i]) * 0.2f; }
       float right = grid.width * 6.0f - width[i] * 0.5f;
       if (x[i] > right) { x[i] = right; vx[i] = -Math.abs(vx[i]) * 0.2f; }
-      float bottom = y[i] + height[i] * 0.5f;
-      int gx = (int)(x[i] / 6.0f), gy = -1;
+      float bottom = y[i] + height[i] * 0.5f, floorY = Float.MAX_VALUE;
+      int gx = (int)(x[i] / 6.0f), gy = -1, support = -1;
       if (vy[i] >= 0.0f) {
         int first = Math.max(0, (int)Math.floor(oldBottom / 6.0f));
         int last = Math.min(CellGrid.HEIGHT - 1, (int)Math.floor(bottom / 6.0f));
-        for (int scan = first; scan <= last; scan++) if (grid.solid(gx, scan)) { gy = scan; break; }
+        for (int scan = first; scan <= last; scan++) if (grid.solid(gx, scan)) { gy = scan; floorY = gy * 6.0f; break; }
+        // Generated stacks are real bodies, not grid cells. Sweep the falling
+        // bottom against a lower body's top before damaging the terrain.
+        for (int j = 0; j < count; j++) {
+          if (j == i || !alive(j) || (flags[j] & F_HELD) != 0) continue;
+          if (Math.abs(x[i] - x[j]) >= (width[i] + width[j]) * 0.42f) continue;
+          float top = y[j] - height[j] * 0.5f;
+          if (oldBottom <= top + 0.5f && bottom >= top && top < floorY) { floorY = top; support = j; }
+        }
       }
-      if (gy >= 0) {
+      if (floorY != Float.MAX_VALUE) {
         float impact = vy[i];
-        y[i] = gy * 6.0f - height[i] * 0.5f - 0.01f;
+        y[i] = floorY - height[i] * 0.5f - 0.01f;
         if (impact > 115.0f) {
-          int index = grid.index(gx, Math.min(CellGrid.HEIGHT - 1, gy));
-          grid.damage(index, (impact - 80.0f) * mass[i] * 0.035f);
+          float transferred = (impact - 80.0f) * mass[i] * 0.035f;
+          if (support >= 0) { hp[support] -= transferred * 0.23f; wake(support); }
+          else {
+            int index = grid.index(gx, Math.min(CellGrid.HEIGHT - 1, gy));
+            grid.damage(index, transferred);
+          }
           hp[i] -= (impact - 80.0f) * fragile(i) * 0.06f;
           if (hp[i] <= 0.0f) { kill(i); debris.spawnDust(x[i], y[i], 0x888888, 5); continue; }
         }
@@ -141,8 +155,15 @@ public final class BodyStore {
 
   private boolean hasSupport(CellGrid grid, int i) {
     float bottom = y[i] + height[i] * 0.5f + 1.0f;
-    return grid.solidPixel(x[i], bottom) || grid.solidPixel(x[i] - width[i] * 0.35f, bottom)
-        || grid.solidPixel(x[i] + width[i] * 0.35f, bottom);
+    if (grid.solidPixel(x[i], bottom) || grid.solidPixel(x[i] - width[i] * 0.35f, bottom)
+        || grid.solidPixel(x[i] + width[i] * 0.35f, bottom)) return true;
+    for (int j = 0; j < count; j++) {
+      if (j == i || !alive(j) || (flags[j] & F_HELD) != 0) continue;
+      if (Math.abs(x[i] - x[j]) >= (width[i] + width[j]) * 0.42f) continue;
+      float top = y[j] - height[j] * 0.5f;
+      if (bottom >= top - 1.0f && bottom <= top + 4.0f) return true;
+    }
+    return false;
   }
 
   private float fragile(int i) { return type[i] >= 0 ? Props.FRAGILE[type[i]] : 0.5f; }

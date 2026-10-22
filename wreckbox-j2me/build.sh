@@ -37,4 +37,7 @@ SIZE=$(wc -c < "$RELEASE/Wreckbox-K510i.jar" | tr -d ' ')
     echo 'MicroEdition-Profile: MIDP-2.0'
     echo 'MicroEdition-Configuration: CLDC-1.1'
 } | awk '{printf "%s\r\n", $0}' > "$RELEASE/Wreckbox-K510i.jad"
+if command -v sha256sum >/dev/null 2>&1; then
+    (cd "$RELEASE" && sha256sum Wreckbox-K510i.jar Wreckbox-K510i.jad > SHA256SUMS.txt)
+fi
 printf 'Built %s (%s bytes)\n' "$RELEASE/Wreckbox-K510i.jar" "$SIZE"

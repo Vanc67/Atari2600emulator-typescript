@@ -30,7 +30,7 @@ public final class CoreTest {
   private static final int[] TINT_HASHES = {0x0b777286, 0x21a86b22, 0x218e87aa, 0x9001a2f3, 0xb1cad0f9, 0x0c6a9629, 0xf0ed4208, 0x9980d3cf};
 
   public static void main(String[] args) {
-    content(); mathAndCells(); maps(); structure(); debris(); strikeOracle(); effects(); radiation(); reactorEmergency(); residents(); fluidsAndServices(); hudCaching();
+    content(); mathAndCells(); maps(); initialPhysics(); naturalStability(); structure(); debris(); strikeOracle(); effects(); radiation(); reactorEmergency(); sirenRouting(); residents(); fluidsAndServices(); hudCaching();
     System.out.println("Wreckbox CoreTest: " + checks + " checks, " + failures + " failures");
     if (failures != 0) throw new RuntimeException("FAILED " + failures);
   }
@@ -67,6 +67,20 @@ public final class CoreTest {
     CellGrid cow = new CellGrid(8); int emptyBytes = cow.memoryBytes();
     cow.set(10, 4, 0, 0); check(cow.memoryBytes() >= emptyBytes + 8 * 4, "changed row expands on demand");
     cow.clear(10); eq(emptyBytes, cow.memoryBytes(), "fully cleared row releases storage");
+
+    CellGrid sparse = new CellGrid(256);
+    sparse.beginLoad(1); sparse.addLoadRun(4 * 256, 256, 3, 0, 0); sparse.finishLoad();
+    int sparseEmptyBytes = sparse.memoryBytes();
+    for (int x = 8; x < 16; x++) sparse.setHealth(sparse.index(x, 4), 40.0f + x);
+    int sparseBytes = sparse.memoryBytes();
+    check(sparseBytes - sparseEmptyBytes < 256 * 2, "sparse HP overlay stays compact");
+    sparse.compactRows();
+    for (int x = 0; x < 256; x++) {
+      float expected = x >= 8 && x < 16 ? 40.0f + x : 150.0f;
+      near(expected, sparse.health(sparse.index(x, 4)), 0.07f, "sparse HP value " + x);
+    }
+    for (int x = 0; x < 256; x++) sparse.clear(sparse.index(x, 4));
+    sparse.compactRows(); eq(0, sparse.countSolid(), "compacted rows clear completely");
   }
 
   private static void maps() {
@@ -86,6 +100,33 @@ public final class CoreTest {
       for (int b = 0; b < game.bodies.count; b++) if (game.bodies.type[b] < 0) unknown++;
       System.out.println("MAP " + Maps.IDS[i] + " solid=" + SOLID[i] + " bodies=" + BODIES[i] + " people=" + PEOPLE[i] + " generic=" + unknown + " grid=" + game.grid.memoryBytes() + "B");
     }
+  }
+
+  private static void initialPhysics() {
+    for (int mode = 0; mode < 3; mode++) for (int map = 0; map < Maps.COUNT; map++) {
+      Game game = new Game(); game.loadMap(map);
+      long before = hpTotal(game.grid); int solid = game.grid.countSolid();
+      game.structure.solve(game.grid, game.debris, 450.0f, false, mode, game.metadata);
+      eq(0, game.structure.collapsedCells, "initial collapse " + Maps.IDS[map] + " mode=" + mode);
+      eq(0, game.structure.overloadedCells, "initial overload " + Maps.IDS[map] + " mode=" + mode);
+      check(before == hpTotal(game.grid) && solid == game.grid.countSolid(), "initial HP/solid stability " + Maps.IDS[map] + " mode=" + mode);
+    }
+  }
+
+  private static void naturalStability() {
+    for (int mode = 0; mode < 3; mode++) for (int map = 0; map < Maps.COUNT; map++) {
+      Game game = new Game(); game.loadMap(map); game.physicsMode = mode;
+      long before = hpTotal(game.grid); int solid = game.grid.countSolid();
+      for (int tick = 0; tick < 900; tick++) game.update(0.05f);
+      eq(0, game.people.deaths, "natural residents " + Maps.IDS[map] + " mode=" + mode);
+      check(before == hpTotal(game.grid) && solid == game.grid.countSolid(),
+          "natural grid/HP stability " + Maps.IDS[map] + " mode=" + mode);
+      eq(0, game.debris.chunkCount, "natural debris " + Maps.IDS[map] + " mode=" + mode);
+    }
+  }
+
+  private static long hpTotal(CellGrid grid) {
+    long total = 0; for (int i = 0; i < grid.size; i++) total += grid.hp16(i); return total;
   }
 
   private static int mapHash(CellGrid grid) {
@@ -116,11 +157,14 @@ public final class CoreTest {
     solver.solve(grid, debris, 450.0f);
     eq(8, solver.collapsedCells, "unsupported pillar collapses");
     check(debris.chunkCount > 0, "rigid chunk created");
+    eq(8, debris.shapeCount[0], "detached chunk retains its cell mask");
+    near(0.0f, debris.vx[0], 0.0f, "detached chunk starts without random horizontal impulse");
+    near(0.0f, debris.spin[0], 0.0f, "detached chunk starts without random spin");
     eq(0, grid.materialAt(16, 250), "collapsed cell removed");
 
     CellGrid weak = new CellGrid(24); DebrisSystem weakDebris = new DebrisSystem(); solver = new StructuralSolver();
     for (int x = 0; x < 24; x++) weak.set(weak.index(x, 259), 9, 0, 0);
-    weak.set(weak.index(12, 258), 6, 0, 1);
+    weak.set(weak.index(12, 258), 7, 0, 1);
     for (int y = 200; y <= 257; y++) weak.set(weak.index(12, y), 4, 6, 1);
     boolean fractured = false;
     for (int i = 0; i < 8; i++) {
@@ -137,6 +181,28 @@ public final class CoreTest {
     growing.solve(large, largeDebris, 450.0f);
     eq(0, growing.collapsedCells, "large supported component stable");
     eq(8192 * 3 + Materials.COUNT * 4, growing.memoryBytes(), "solver queue grows on demand");
+
+    // A weakened floor supported at both ends is not a free cantilever.
+    CellGrid beam = new CellGrid(50); DebrisSystem beamDebris = new DebrisSystem();
+    for (int x = 0; x < 50; x++) beam.set(beam.index(x, 255), 9, 0, 0);
+    for (int y = 240; y < 255; y++) {
+      beam.set(beam.index(10, y), 3, 0, 0); beam.set(beam.index(30, y), 3, 0, 0);
+    }
+    for (int x = 10; x <= 30; x++) {
+      beam.set(beam.index(x, 239), 3, 0, 0); beam.set(beam.index(x, 238), 3, 0, 0);
+    }
+    int beamMiddle = beam.index(20, 239); beam.setHealth(beamMiddle, 0.5f);
+    StructuralSolver detailed = new StructuralSolver();
+    detailed.solve(beam, beamDebris, 450.0f, false, StructuralSolver.DETAILED);
+    eq(0, detailed.collapsedCells, "supported detailed beam remains attached");
+    eq(0, detailed.overloadedCells, "supported detailed beam is not sheared");
+    check(beam.material(beamMiddle) != 0, "supported detailed beam keeps weakened cell");
+
+    Game port = new Game(); check(port.loadMap(4), "port stability map");
+    StructuralSolver portSolver = new StructuralSolver();
+    portSolver.solve(port.grid, port.debris, 450.0f, false, StructuralSolver.DETAILED, port.metadata);
+    check(port.metadata.sea, "port sea support metadata");
+    eq(0, portSolver.collapsedCells, "port ship remains water supported");
   }
 
   private static void debris() {
@@ -200,6 +266,19 @@ public final class CoreTest {
     }
     eq(20, cells, "fracture conserves cells"); near(4.0f, mass, 0.0001f, "fracture conserves mass");
     check(smaller, "fracture children are smaller");
+
+    DebrisSystem shaped = new DebrisSystem();
+    int shapedParent = shaped.spawnChunk(80.0f, 80.0f, 18.0f, 12.0f, 2, 6, 12.0f, 5.0f);
+    shaped.setShapeOrigin(shapedParent, 9.0f, 6.0f);
+    for (int n = 0; n < 6; n++) shaped.setShapeCell(shapedParent, n, n % 3, n / 3, 2, n);
+    shaped.hp[shapedParent] = 1.0f; shaped.applyExplosion(80.0f, 80.0f, 50.0f, 200.0f);
+    int shapedCells = 0, shapedChildren = 0; float shapedMass = 0.0f;
+    for (int i = 0; i < shaped.chunkCount; i++) if (shaped.active[i]) {
+      shapedCells += shaped.cells[i]; shapedMass += shaped.mass[i];
+      if (shaped.shapeCount[i] > 0) shapedChildren++;
+    }
+    eq(6, shapedCells, "shaped fracture conserves cells"); near(12.0f, shapedMass, 0.0001f, "shaped fracture conserves mass");
+    check(shapedChildren >= 2, "shaped fracture children keep masks");
   }
 
   private static int activeChunks(DebrisSystem debris) {
@@ -308,11 +387,31 @@ public final class CoreTest {
     check(probe.civil >= 2, "release repeats the civil-defence siren");
   }
 
+  private static void sirenRouting() {
+    Game ordinary = new Game(); SoundProbe ordinaryProbe = new SoundProbe(); ordinary.listener = ordinaryProbe;
+    ordinary.loadMap(0); ordinary.explode(ordinary.cameraX, ordinary.cameraY, 90.0f, 100.0f, 0.0f);
+    eq(0, ordinaryProbe.civil, "ordinary explosion has no civil siren");
+
+    Game service = new Game(); SoundProbe serviceProbe = new SoundProbe(); service.listener = serviceProbe;
+    service.loadMap(0); service.services.notifyIncident(ServiceSystem.FIRE, service.cameraX, service.cameraY);
+    service.services.update(service, 0.9f);
+    check(serviceProbe.service > 0, "fire dispatch has separate service sound");
+    eq(0, serviceProbe.civil, "fire dispatch does not raise civil siren");
+
+    Game nuclear = new Game(); SoundProbe nuclearProbe = new SoundProbe(); nuclear.listener = nuclearProbe;
+    nuclear.loadMap(0); nuclear.nuclearExplode(nuclear.cameraX, nuclear.cameraY, 1.0f, 30.0f, 100.0f, 0.0f, false);
+    eq(1, nuclearProbe.civil, "nuclear event raises one civil warning");
+    nuclear.nuclearExplode(nuclear.cameraX, nuclear.cameraY, 1.0f, 30.0f, 100.0f, 0.0f, false);
+    eq(1, nuclearProbe.civil, "nuclear warning cooldown prevents duplicates");
+  }
+
   private static final class SoundProbe implements GameListener {
-    int sirens, civil;
+    int sirens, civil, service, med;
     public void sound(String id, float volume) {
       if (id.equals("reactorSiren")) sirens++;
       if (id.equals("siren")) civil++;
+      if (id.equals("serviceSiren")) service++;
+      if (id.equals("medSiren")) med++;
     }
     public void message(String text) { }
   }
@@ -436,6 +535,21 @@ public final class CoreTest {
         "generic body damage has no prop explosion");
     check(!bodyGame.bodies.alive(0), "generic body can be destroyed safely");
 
+    CellGrid stackGrid = new CellGrid(16);
+    for (int x = 0; x < 16; x++) stackGrid.set(stackGrid.index(x, 200), 9, 0, 0);
+    int stackFloor = stackGrid.index(8, 200), stackFloorHp = stackGrid.hp16(stackFloor);
+    BodyStore stack = new BodyStore(); stack.allocate(2); DebrisSystem stackDebris = new DebrisSystem();
+    int lower = stack.add(1, -1, 48.0f, 1191.0f, 48.0f, 18.0f, 22.0f, 260.0f);
+    int upper = stack.add(1, -1, 48.0f, 1173.0f, 48.0f, 18.0f, 22.0f, 260.0f);
+    stack.flags[lower] = BodyStore.F_SLEEPING; stack.flags[upper] = BodyStore.F_SLEEPING;
+    for (int i = 0; i < 40; i++) stack.update(stackGrid, null, null, stackDebris, 0.05f, 450.0f);
+    near(1173.0f, stack.y[upper], 0.02f, "sleeping body stack remains supported");
+    eq(stackFloorHp, stackGrid.hp16(stackFloor), "sleeping stack does not damage terrain");
+    stack.wake(upper); stack.vy[upper] = 200.0f;
+    for (int i = 0; i < 10; i++) stack.update(stackGrid, null, null, stackDebris, 0.05f, 450.0f);
+    check(stack.y[upper] <= 1173.01f && stack.y[upper] > 1160.0f, "falling body lands on lower body");
+    eq(stackFloorHp, stackGrid.hp16(stackFloor), "body-to-body impact does not tunnel into terrain");
+
     Game serviceGame = new Game(); serviceGame.loadMap(0);
     serviceGame.services.notifyIncident(ServiceSystem.FIRE, serviceGame.cameraX, serviceGame.cameraY);
     serviceGame.services.notifyIncident(ServiceSystem.MED, serviceGame.people.x[0], serviceGame.people.y[0]);
@@ -444,6 +558,9 @@ public final class CoreTest {
     check(serviceGame.services.activeCount(ServiceSystem.FIRE) == 1
         && serviceGame.services.activeCount(ServiceSystem.MED) == 1
         && serviceGame.services.activeCount(ServiceSystem.POLICE) == 1, "automatic emergency dispatch");
+    int serviceSolid = serviceGame.grid.countSolid();
+    for (int i = 0; i < 4; i++) serviceGame.update(0.05f);
+    eq(serviceSolid, serviceGame.grid.countSolid(), "departing service vehicles do not explode");
     for (int i = 0; i < 12; i++) serviceGame.services.notifyIncident(ServiceSystem.FIRE, serviceGame.cameraX, serviceGame.cameraY);
     serviceGame.services.update(serviceGame, 0.9f);
     check(serviceGame.services.activeCount(ServiceSystem.FIRE) == 1 && serviceGame.services.memoryBytes() < 1024,

@@ -249,7 +249,7 @@ public final class Game {
     float structureInterval = physicsMode == StructuralSolver.ECONOMY ? 0.48f : physicsMode == StructuralSolver.DETAILED ? 0.20f : 0.32f;
     if (structuralDirty && structureClock >= structureInterval) {
       structuralDirty = false; structureClock = 0.0f;
-      int changed = structure.solve(grid, debris, gravity, showStress, physicsMode);
+      int changed = structure.solve(grid, debris, gravity, showStress, physicsMode, metadata);
       if (changed > 0) {
         structuralDirty = true;
         bodies.wakeArea(grid, cameraX, cameraY, 420.0f / zoom);
@@ -412,6 +412,9 @@ public final class Game {
       people.airRaid(grid, metadata, x, targetY, warning);
       setMessage("Бомбардировщик на подлёте · " + powerText());
       sound("bomber", 0.65f); sound("siren", 0.45f);
+      // One civil-defence warning for the actual nuclear sortie. Ordinary
+      // bombs, charges and collapsing buildings must not raise it.
+      incidentSirenClock = Math.max(incidentSirenClock, warning + 12.0f);
       return;
     }
     int i = effects.spawn(EffectSystem.BOMB, x, startY, 8.0f);
@@ -519,7 +522,7 @@ public final class Game {
       }
     }
     for (int i = 0; i < bodies.count; i++) if (bodies.alive(i)) {
-      float dx = bodies.x[i] - x, dy = bodies.y[i] - y; if (dx * dx + dy * dy < r2) bodies.kill(i);
+      float dx = bodies.x[i] - x, dy = bodies.y[i] - y; if (dx * dx + dy * dy < r2) bodies.remove(i);
     }
     for (int i = 0; i < debris.chunkCount; i++) if (debris.active[i]) {
       float dx = debris.x[i] - x, dy = debris.y[i] - y; if (dx * dx + dy * dy < r2) debris.active[i] = false;
@@ -586,6 +589,7 @@ public final class Game {
       if (grid.damage(at, amount) && random.chance(0.12f)) debris.spawnDust(gx * 6.0f + 3.0f, gy * 6.0f + 3.0f, Materials.DUST[m], 1);
     }
     bodies.wakeArea(grid, x, y, radius * 1.5f);
+    if (blast) grid.compactRows();
     structuralDirty = true;
     return first;
   }
@@ -607,16 +611,15 @@ public final class Game {
       people.igniteArea(x, y, radius * fireAmount);
     }
     effects.spawnBlast(x, y, radius, radius > 250.0f ? 2.2f : 0.65f);
-    if (radius >= 42.0f && incidentSirenClock <= 0.0f) {
-      sound("siren", Math.min(0.7f, 0.28f + radius / 900.0f));
-      incidentSirenClock = 9.0f;
-    }
     alarmFlash = Math.max(alarmFlash, radius > 250.0f ? 0.42f : 0.18f);
     int smoke = effects.spawn(EffectSystem.SMOKE, x, y, 1.5f);
     if (smoke >= 0) { effects.vy[smoke] = -30.0f; effects.radius[smoke] = radius * 0.5f; }
     shake = Math.max(shake, Math.min(1.2f, radius / 180.0f));
     if (radius > 250.0f) radiation = Math.max(radiation, radius / 800.0f);
-    structuralDirty = true; services.notifyIncident(ServiceSystem.POLICE, x, y);
+    structuralDirty = true;
+    // The recovered blast incident ignores sub-18 px pops; larger blasts can
+    // still bring police, but never the civil-defence siren by themselves.
+    if (radius >= 18.0f) services.notifyIncident(ServiceSystem.POLICE, x, y);
     sound(radius > 250.0f ? "nuke" : "boom", Math.min(1.0f, 0.3f + radius / 300.0f));
   }
 
@@ -625,6 +628,12 @@ public final class Game {
   }
   public void nuclearExplode(float x, float y, float kt, float radius, float power, float fireAmount, boolean groundBurst) {
     explode(x, y, radius, power, fireAmount);
+    if (incidentSirenClock <= 0.0f) {
+      // A nuclear blast without a preceding bomber still gets one warning;
+      // the sortie path above already supplied it and must not double-play it.
+      sound("siren", 0.55f);
+      incidentSirenClock = 20.0f;
+    }
     float fireball = Math2.clamp(92.0f * Math2.pow(kt / 15.0f, 0.4f), 7.0f, 1100.0f);
     boolean touch = groundBurst || firstSolidY(x) - y < 0.9f * fireball;
     radiationSystem.addNuclear(x, time, kt, touch, radius);
@@ -716,7 +725,7 @@ public final class Game {
         if (d2 < holeRadius * holeRadius) {
           bodies.wake(i); float d = Math2.sqrt(d2) + 2.0f;
           bodies.vx[i] += dx / d * 240.0f * dt; bodies.vy[i] += dy / d * 240.0f * dt;
-          if (d < eat) bodies.kill(i);
+          if (d < eat) bodies.remove(i);
         }
       }
       for (int i = 0; i < debris.chunkCount; i++) if (debris.active[i]) {

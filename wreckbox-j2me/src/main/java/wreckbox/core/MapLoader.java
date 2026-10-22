@@ -29,6 +29,9 @@ public final class MapLoader {
     int special = in.readInt();
     metadata.river = (special & 1) != 0; metadata.volcano = (special & 2) != 0;
     metadata.npp = (special & 4) != 0; metadata.base = (special & 8) != 0;
+    // WBMP/1 predates an explicit sea bit. The recovered port is the only
+    // river region reaching the right map edge with a 250-cell seabed.
+    metadata.sea = (special & 16) != 0 || (metadata.river && metadata.riverX1 >= grid.width - 1 && metadata.riverBottom >= 250.0f);
     // Recovered 1.8 military bunker: entrance at the surface, rooms at rows 230..237.
     if (metadata.base) {
       metadata.shelter = true;

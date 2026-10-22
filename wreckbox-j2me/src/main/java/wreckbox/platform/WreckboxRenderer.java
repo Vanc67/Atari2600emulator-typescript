@@ -606,6 +606,7 @@ public final class WreckboxRenderer {
   }
 
   private void drawChunk(Graphics g, DebrisSystem debris, int i, int x, int y, int w, int h) {
+    if (debris.shapeCount[i] > 0) { drawShapedChunk(g, debris, i, x, y); return; }
     int material = debris.material[i], color = Materials.COLORS[material];
     float health = debris.hp[i] / Math.max(1.0f, debris.maxHp[i]);
     if (health < 0.75f) color = scaleColor(color, 0.55f + health * 0.45f);
@@ -628,6 +629,44 @@ public final class WreckboxRenderer {
     g.setColor(scaleColor(color, 1.28f)); g.drawLine(ax, ay, bx, by);
     g.setColor(scaleColor(color, 0.48f)); g.drawLine(dx, dy, cx, cy); g.drawLine(bx, by, cx, cy);
     if (health < 0.65f) g.drawLine((ax + dx) / 2, (ay + dy) / 2, (bx + cx) / 2, (by + cy) / 2);
+  }
+
+  /** Draws the detached cell mask, rather than filling its bounding box. */
+  private void drawShapedChunk(Graphics g, DebrisSystem debris, int i, int x, int y) {
+    float angle = debris.angle[i], cs = Math2.cos(angle), sn = Math2.sin(angle);
+    boolean axis = Math.abs(angle) < 0.035f;
+    int cellSize = Math.max(1, (int)Math.ceil(6.0f * game.zoom));
+    float half = cellSize * 0.5f, health = debris.hp[i] / Math.max(1.0f, debris.maxHp[i]);
+    int base = i * DebrisSystem.MAX_SHAPE_CELLS, count = debris.shapeCount[i];
+    for (int n = 0; n < count; n++) {
+      int position = debris.shapePos[base + n], encoded = debris.shapeMatTint[base + n];
+      int localCellX = position & 255, localCellY = (position >>> 8) & 255;
+      float localX = localCellX * 6.0f + 3.0f - debris.shapeOriginX[i];
+      float localY = localCellY * 6.0f + 3.0f - debris.shapeOriginY[i];
+      float rx = localX * cs - localY * sn, ry = localX * sn + localY * cs;
+      int cx = sx(debris.x[i] + rx), cy = sy(debris.y[i] + ry);
+      int material = encoded & 31, tint = (encoded >>> 5) & 31;
+      int color = Materials.COLORS[material];
+      if (tint != 0) color = tintColor(color, tint, localCellX, localCellY);
+      if (health < 0.75f) color = scaleColor(color, 0.55f + health * 0.45f);
+      if (game.night && (material == 5 || material == 17) && ((localCellX * 11 + localCellY * 7 + tint) & 7) < 3) color = 0xd2b56a;
+      else if (game.night && material != 12) color = scaleColor(color, 0.58f);
+      if (axis) {
+        int left = cx - cellSize / 2, top = cy - cellSize / 2;
+        g.setColor(color); g.fillRect(left, top, cellSize, cellSize);
+        if (cellSize >= 4 && !game.showStress) drawMaterialDetail(g, material, left, top, cellSize, color, localCellX, localCellY);
+        if (health < 0.65f && cellSize >= 3 && (n & 3) == 0) {
+          g.setColor(scaleColor(color, 0.42f)); g.drawLine(left, top, left + cellSize - 1, top + cellSize - 1);
+        }
+      } else {
+        int ax = cx + (int)(-half * cs + half * sn), ay = cy + (int)(-half * sn - half * cs);
+        int bx = cx + (int)(half * cs + half * sn), by = cy + (int)(half * sn - half * cs);
+        int cx2 = cx + (int)(half * cs - half * sn), cy2 = cy + (int)(half * sn + half * cs);
+        int dx = cx + (int)(-half * cs - half * sn), dy = cy + (int)(-half * sn + half * cs);
+        g.setColor(color); g.fillTriangle(ax, ay, bx, by, cx2, cy2); g.fillTriangle(ax, ay, cx2, cy2, dx, dy);
+        if (cellSize >= 4) { g.setColor(scaleColor(color, 1.18f)); g.drawLine(ax, ay, bx, by); }
+      }
+    }
   }
 
   private void drawFire(Graphics g) {

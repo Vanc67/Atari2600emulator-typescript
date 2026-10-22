@@ -23,7 +23,13 @@ public final class CellGrid {
   public final int width;
   public final int size;
   private final int[][] rows = new int[HEIGHT][];
+  /* 0 = direct row, 2 = row-local (start,value) runs. */
+  private final byte[] rowFormat = new byte[HEIGHT];
+  private boolean rowsDirty;
   private final short[][] healthRows = new short[HEIGHT][];
+  /* 0 = direct HP row, 2 = sorted (cell,hp+1) pairs. */
+  private final byte[] healthFormat = new byte[HEIGHT];
+  private boolean healthDirty;
   private final short[] healthUsed = new short[HEIGHT];
   private final short[] rowSolid = new short[HEIGHT];
   private final int[] rowRun = new int[HEIGHT + 1];
@@ -178,7 +184,7 @@ public final class CellGrid {
 
   /** Approximate primitive array payload, excluding JVM object headers. */
   public int memoryBytes() {
-    int bytes = runStart.length * 12 + HEIGHT * 16 + 4 + (marks == null ? 0 : marks.length);
+    int bytes = runStart.length * 12 + HEIGHT * 18 + 4 + (marks == null ? 0 : marks.length);
     for (int i = 0; i < HEIGHT; i++) {
       if (rows[i] != null && rows[i].length != 0) bytes += rows[i].length * 4;
       if (healthRows[i] != null) bytes += healthRows[i].length * 2;
@@ -193,12 +199,17 @@ public final class CellGrid {
 
   private int valueAt(int x, int y) {
     int[] row = rows[y];
-    if (row != null) return row.length == 0 ? 0 : row[x];
+    if (row != null) {
+      if (rowFormat[y] == 2) return encodedValue(row, x);
+      return row.length == 0 ? 0 : row[x];
+    }
     int index = y * width + x;
     int value = baselineValue(index, y);
     short[] health = healthRows[y];
-    if (health != null && health[x] != 0)
-      value = (value & ~(HP_MASK << 5)) | ((health[x] - 1) << 5);
+    if (health != null) {
+      int encoded = healthFormat[y] == 2 ? sparseHealthAt(y, x) : health[x];
+      if (encoded != 0) value = (value & ~(HP_MASK << 5)) | ((encoded - 1) << 5);
+    }
     return value;
   }
 
@@ -238,18 +249,67 @@ public final class CellGrid {
       row = new int[width];
       for (int i = 0; i < width; i++) row[i] = valueAt(i, y);
       rows[y] = row;
+    } else if (rowFormat[y] == 2) {
+      int[] expanded = new int[width];
+      for (int i = 0; i < width; i++) expanded[i] = encodedValue(row, i);
+      row = expanded; rows[y] = row; rowFormat[y] = 0;
     } else if (row.length == 0) {
       row = new int[width];
       rows[y] = row;
     }
-    healthRows[y] = null; healthUsed[y] = 0;
+    healthRows[y] = null; healthFormat[y] = 0; healthUsed[y] = 0;
     row[x] = newValue;
+    rowsDirty = true;
     int oldMaterial = oldValue & MATERIAL_MASK, newMaterial = newValue & MATERIAL_MASK;
     if (oldMaterial == 12 && newMaterial != 12) lavaCells--;
     else if (oldMaterial != 12 && newMaterial == 12) lavaCells++;
     if (oldMaterial == 0 && newMaterial != 0) rowSolid[y]++;
     else if (oldMaterial != 0 && newMaterial == 0) rowSolid[y]--;
-    if (rowSolid[y] == 0) rows[y] = EMPTY_ROW;
+    if (rowSolid[y] == 0) { rows[y] = EMPTY_ROW; rowFormat[y] = 0; }
+  }
+
+  /** Recompresses changed direct rows after a destruction pass. This keeps
+   * the lossless WBMP representation instead of retaining one int[width]
+   * allocation for every scratched row. No cell data or HP is discarded. */
+  public void compactRows() {
+    if (!rowsDirty && !healthDirty) return;
+    for (int y = 0; y < HEIGHT; y++) {
+      int[] row = rows[y];
+      if (row == null || row.length == 0 || rowFormat[y] == 2) continue;
+      int runs = 1;
+      for (int x = 1; x < row.length; x++) if (row[x] != row[x - 1]) runs++;
+      if (runs * 2 >= row.length) continue;
+      int[] encoded = new int[runs * 2];
+      int run = 0, start = 0;
+      for (int x = 1; x <= row.length; x++) {
+        if (x == row.length || row[x] != row[start]) {
+          encoded[run * 2] = start; encoded[run * 2 + 1] = row[start];
+          run++; start = x;
+        }
+      }
+      rows[y] = encoded; rowFormat[y] = 2;
+    }
+    for (int y = 0; y < HEIGHT; y++) {
+      short[] full = healthRows[y];
+      int count = healthUsed[y];
+      if (full == null || healthFormat[y] == 2 || count <= 0 || count * 4 >= width * 2) continue;
+      short[] sparse = new short[count * 2]; int at = 0;
+      for (int x = 0; x < width; x++) if (full[x] != 0) {
+        sparse[at * 2] = (short)x; sparse[at * 2 + 1] = full[x]; at++;
+      }
+      healthRows[y] = sparse; healthFormat[y] = 2;
+    }
+    rowsDirty = false; healthDirty = false;
+  }
+
+  private int encodedValue(int[] row, int x) {
+    int low = 0, high = (row.length >>> 1) - 1;
+    while (low < high) {
+      int middle = (low + high + 1) >>> 1;
+      if (row[middle * 2] <= x) low = middle;
+      else high = middle - 1;
+    }
+    return row[low * 2 + 1];
   }
 
   private void writeHealth(int index, int y, int x, int newValue) {
@@ -258,13 +318,89 @@ public final class CellGrid {
     short[] health = healthRows[y];
     if (health == null) {
       if (encoded == 0) return;
-      health = new short[width]; healthRows[y] = health;
+      int capacity = Math.min(width, 32);
+      health = new short[Math.max(1, capacity) * 2];
+      healthRows[y] = health; healthFormat[y] = 2; healthUsed[y] = 0;
     }
-    int old = health[x];
+    if (healthFormat[y] == 2) writeSparseHealth(y, x, encoded);
+    else writeFullHealth(y, x, encoded);
+  }
+
+  private int sparseHealthAt(int y, int x) {
+    short[] row = healthRows[y]; int count = healthUsed[y];
+    if (row == null || count == 0 || x < row[0] || x > row[(count - 1) * 2]) return 0;
+    int low = 0, high = count - 1;
+    while (low <= high) {
+      int middle = (low + high) >>> 1, cell = row[middle * 2];
+      if (cell < x) low = middle + 1;
+      else if (cell > x) high = middle - 1;
+      else return row[middle * 2 + 1];
+    }
+    return 0;
+  }
+
+  private void writeSparseHealth(int y, int x, int encoded) {
+    short[] row = healthRows[y]; int count = healthUsed[y];
+    int low = 0, high = count - 1, found = -1;
+    while (low <= high) {
+      int middle = (low + high) >>> 1, cell = row[middle * 2];
+      if (cell < x) low = middle + 1;
+      else if (cell > x) high = middle - 1;
+      else { found = middle; break; }
+    }
+    if (found >= 0) {
+      int at = found * 2, old = row[at + 1];
+      if (old == encoded) return;
+      if (encoded != 0) row[at + 1] = (short)encoded;
+      else {
+        for (int i = found + 1; i < count; i++) {
+          row[(i - 1) * 2] = row[i * 2]; row[(i - 1) * 2 + 1] = row[i * 2 + 1];
+        }
+        count--; healthUsed[y] = (short)count;
+        if (count == 0) { healthRows[y] = null; healthFormat[y] = 0; }
+      }
+      healthDirty = true;
+      return;
+    }
+    if (encoded == 0) return;
+    // Four bytes per sparse entry versus two for a direct HP row. Promote
+    // dense damage instead of allowing sparse storage to become a pessimization.
+    if (count + 1 >= (width + 1) / 2) {
+      promoteHealth(y);
+      writeFullHealth(y, x, encoded);
+      return;
+    }
+    int capacity = row.length >>> 1;
+    if (count >= capacity) {
+      int expandedCapacity = Math.min((width - 1) / 2, Math.max(count + 1, capacity * 2));
+      if (expandedCapacity <= capacity) {
+        promoteHealth(y); writeFullHealth(y, x, encoded); return;
+      }
+      short[] expanded = new short[expandedCapacity * 2];
+      System.arraycopy(row, 0, expanded, 0, count * 2);
+      row = expanded; healthRows[y] = row;
+    }
+    for (int i = count; i > low; i--) {
+      row[i * 2] = row[(i - 1) * 2]; row[i * 2 + 1] = row[(i - 1) * 2 + 1];
+    }
+    row[low * 2] = (short)x; row[low * 2 + 1] = (short)encoded;
+    healthUsed[y] = (short)(count + 1); healthDirty = true;
+  }
+
+  private void promoteHealth(int y) {
+    short[] sparse = healthRows[y], full = new short[width];
+    int count = healthUsed[y];
+    for (int i = 0; i < count; i++) full[sparse[i * 2]] = sparse[i * 2 + 1];
+    healthRows[y] = full; healthFormat[y] = 0;
+  }
+
+  private void writeFullHealth(int y, int x, int encoded) {
+    short[] health = healthRows[y]; int old = health[x];
     if (old == encoded) return;
     health[x] = (short)encoded;
     if (old == 0) healthUsed[y]++;
     else if (encoded == 0) healthUsed[y]--;
-    if (healthUsed[y] == 0) healthRows[y] = null;
+    if (healthUsed[y] == 0) { healthRows[y] = null; healthFormat[y] = 0; }
+    healthDirty = true;
   }
 }

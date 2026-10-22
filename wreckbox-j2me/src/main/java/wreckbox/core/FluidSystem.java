@@ -170,6 +170,11 @@ public final class FluidSystem {
       float x0 = metadata.riverX0 * 6.0f, x1 = (metadata.riverX1 + 1.0f) * 6.0f;
       if (px >= x0 && px <= x1 && py >= metadata.riverWaterY) return 1.0f;
     }
+    return dynamicSubmersion(grid, px, py);
+  }
+
+  /** Actual simulated water cells; recovered resident qr() does not count static sea scenery. */
+  public float dynamicSubmersion(CellGrid grid, float px, float py) {
     int gx = (int)Math.floor(px / 6.0f), gy = (int)Math.floor(py / 6.0f);
     if (!grid.inside(gx, gy)) return 0.0f;
     int level = amountAt(grid.index(gx, gy));

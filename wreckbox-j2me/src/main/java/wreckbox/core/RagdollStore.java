@@ -103,7 +103,7 @@ public final class RagdollStore {
     }
     if (sleeping[person]) {
       int pelvis = base + PELVIS;
-      boolean inWater = fluids != null && fluids.submersion(grid, metadata, x[pelvis], y[pelvis]) > 0.1f;
+      boolean inWater = fluids != null && fluids.dynamicSubmersion(grid, x[pelvis], y[pelvis]) > 0.1f;
       if (inWater || !grid.solidPixel(x[pelvis], y[pelvis] + 3.0f) && !grid.solidPixel(x[base + CHEST], y[base + CHEST] + 3.0f)) sleeping[person] = false;
       else { owner.updateDown(grid, person, dt, gravity, time); return; }
     }
@@ -119,7 +119,7 @@ public final class RagdollStore {
     for (int s = 0; s < steps; s++) {
       for (int n = 0; n < POINTS; n++) {
         int at = base + n;
-        float water = fluids == null ? 0.0f : fluids.submersion(grid, metadata, x[at], y[at]);
+        float water = fluids == null ? 0.0f : fluids.dynamicSubmersion(grid, x[at], y[at]);
         if (water > 0.0f) {
           vy[at] += gravity * step * (1.0f - water * 0.96f);
           float drag = Math.min(0.75f, step * (0.5f + water * 2.5f));

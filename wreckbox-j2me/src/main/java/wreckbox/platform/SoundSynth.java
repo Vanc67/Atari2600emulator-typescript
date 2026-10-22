@@ -47,6 +47,8 @@ public final class SoundSynth implements GameListener, PlayerListener {
     else if (id.equals("hole")) { note = 45; duration = 350; }
     else if (id.equals("hit") || id.equals("debris")) { note = 68; duration = 90; }
     else if (id.equals("click")) { note = 82; duration = 35; }
+    else if (id.equals("serviceSiren")) { note = 76; duration = 180; }
+    else if (id.equals("medSiren") || id.equals("siren2")) { note = 84; duration = 140; }
     try { Manager.playTone(note, duration, Math.max(1, Math.min(100, (int)(volume * 55)))); }
     catch (MediaException ignored) { }
     catch (RuntimeException ignored) { }
@@ -110,7 +112,7 @@ public final class SoundSynth implements GameListener, PlayerListener {
     if (id.equals("water")) return (clipCounter++ & 1) == 0 ? "pour_00" : "pour_01";
     if (id.equals("flame")) return "flameS";
     if (id.equals("bomber")) return "bomber_00";
-    if (id.equals("siren") || id.equals("siren2")) return "sirenS";
+    if (id.equals("siren")) return "sirenS";
     if (id.equals("reactorSiren")) return "sirenC";
     if (id.equals("chute")) return "chute_00";
     if (id.equals("whistle")) return "bomb_whistle_00";

@@ -51,6 +51,10 @@ public final class PlatformTest {
           6.0f + (i % 3) * 2.0f, 5.0f + (i % 4), 1 + i % 7, 12, 4.0f, 40.0f);
       game.debris.angle[slot] = i * 0.37f; game.debris.hp[slot] = 12.0f;
     }
+    int shaped = game.debris.spawnChunk(game.cameraX, game.cameraY - 30.0f, 18.0f, 12.0f, 3, 6, 6.0f, 40.0f);
+    game.debris.setShapeOrigin(shaped, 9.0f, 6.0f);
+    for (int n = 0; n < 6; n++) game.debris.setShapeCell(shaped, n, n % 3, n / 3, (n & 1) == 0 ? 3 : 5, n);
+    game.debris.angle[shaped] = 0.42f;
     game.debris.spawnDust(game.cameraX, game.cameraY, 0xa09080, 80);
     try {
       WreckboxRenderer renderer = new WreckboxRenderer(game);

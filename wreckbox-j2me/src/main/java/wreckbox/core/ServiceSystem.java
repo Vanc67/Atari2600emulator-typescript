@@ -11,14 +11,14 @@ public final class ServiceSystem {
   public final float[] targetX = new float[MAX_UNITS], targetY = new float[MAX_UNITS];
   public final float[] timer = new float[MAX_UNITS], work = new float[MAX_UNITS];
   public final int[] patient = new int[MAX_UNITS];
-  private final boolean[] pending = new boolean[4];
+  private final boolean[] pending = new boolean[4], sirenPlayed = new boolean[MAX_UNITS];
   private final float[] pendingX = new float[4], pendingY = new float[4];
   private final float[] cooldown = new float[4];
   private float scanClock, actionClock;
   public int saved, firesHandled;
 
   public void reset() {
-    for (int i = 0; i < MAX_UNITS; i++) { type[i] = NONE; state[i] = 0; patient[i] = -1; }
+    for (int i = 0; i < MAX_UNITS; i++) { type[i] = NONE; state[i] = 0; patient[i] = -1; sirenPlayed[i] = false; }
     for (int i = 0; i < 4; i++) { pending[i] = false; cooldown[i] = 0.0f; }
     scanClock = actionClock = 0.0f; saved = firesHandled = 0;
   }
@@ -51,9 +51,14 @@ public final class ServiceSystem {
       if (state[i] == INBOUND) {
         float direction = targetX[i] > x[i] ? 1.0f : -1.0f;
         x[i] += direction * 155.0f * dt;
+        // Recovered vehicles use a short local siren while approaching, not
+        // a civil alarm and not a second sound on every arrival tick.
+        if (!sirenPlayed[i] && timer[i] <= 2.4f) {
+          sirenPlayed[i] = true;
+          game.sound(kind == MED ? "medSiren" : "serviceSiren", 0.35f);
+        }
         if (timer[i] <= 0.0f || Math.abs(targetX[i] - x[i]) < 12.0f) {
           x[i] = targetX[i]; state[i] = WORK; work[i] = 0.0f; timer[i] = 0.0f;
-          game.sound(kind == MED ? "siren2" : "siren", 0.35f);
         }
       } else if (state[i] == WORK) {
         work[i] += dt;
@@ -91,14 +96,15 @@ public final class ServiceSystem {
     int vehicle = findStationVehicle(game, kind);
     if (vehicle >= 0) {
       x[slot] = game.bodies.x[vehicle]; y[slot] = game.bodies.y[vehicle];
-      game.bodies.kill(vehicle);
+      game.bodies.remove(vehicle);
     } else {
       x[slot] = targetX[slot] < game.grid.width * 3.0f ? 20.0f : game.grid.width * 6.0f - 20.0f;
       y[slot] = game.findGround((int)(targetX[slot] / 6.0f)) * 6.0f - 8.0f;
     }
     timer[slot] = 1.2f + Math.abs(targetX[slot] - x[slot]) / 155.0f + (vehicle < 0 ? 5.0f : 0.0f);
+    sirenPlayed[slot] = vehicle >= 0;
     game.announce(kind == FIRE ? "Пожарные выехали" : kind == MED ? "Скорая выехала" : "Полиция выехала");
-    game.sound("siren", 0.55f);
+    if (vehicle >= 0) game.sound(kind == MED ? "medSiren" : "serviceSiren", 0.55f);
   }
 
   private int findStationVehicle(Game game, int kind) {
@@ -173,6 +179,6 @@ public final class ServiceSystem {
 
   public int memoryBytes() {
     return type.length * 2 + patient.length * 4 + x.length * 6 * 4
-        + pending.length + pendingX.length * 2 * 4 + cooldown.length * 4;
+        + pending.length + sirenPlayed.length + pendingX.length * 2 * 4 + cooldown.length * 4;
   }
 }

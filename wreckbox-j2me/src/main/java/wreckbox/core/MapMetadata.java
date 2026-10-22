@@ -6,4 +6,6 @@ public final class MapMetadata {
   public float volcanoX, volcanoCraterY, volcanoX0, volcanoHeight;
   public float shelterEntranceX, shelterEntranceY, shelterInsideX, shelterInsideY;
   public boolean river, volcano, npp, base, shelter;
+  /** Open sea, as opposed to a narrow city river; supports ship hulls. */
+  public boolean sea;
 }

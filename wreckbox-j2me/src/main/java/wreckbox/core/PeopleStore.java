@@ -327,8 +327,8 @@ public final class PeopleStore {
 
   private void updateEnvironment(CellGrid grid, FireSystem fire, FluidSystem fluids, MapMetadata metadata, int i, float dt) {
     if (fluids != null && state[i] < DEAD) {
-      float bodyWater = fluids.submersion(grid, metadata, centerX(i), centerY(i));
-      float headWater = fluids.submersion(grid, metadata, doseX(i), doseY(i));
+      float bodyWater = fluids.dynamicSubmersion(grid, centerX(i), centerY(i));
+      float headWater = fluids.dynamicSubmersion(grid, doseX(i), doseY(i));
       if (bodyWater > 0.12f) burnTime[i] = 0.0f;
       if (headWater > 0.75f) {
         waterTime[i] += dt;
@@ -405,8 +405,8 @@ public final class PeopleStore {
     onGround[i] = grid.solid(gx, groundY);
     if (!onGround[i]) vy[i] += gravity * dt;
     else if (vy[i] > 0.0f) vy[i] = 0.0f;
-    float water = fluids == null ? 0.0f : fluids.submersion(grid, metadata, x[i], y[i] - 5.0f);
-    float headWater = fluids == null ? 0.0f : fluids.submersion(grid, metadata, x[i], y[i] - 20.0f);
+    float water = fluids == null ? 0.0f : fluids.dynamicSubmersion(grid, x[i], y[i] - 5.0f);
+    float headWater = fluids == null ? 0.0f : fluids.dynamicSubmersion(grid, x[i], y[i] - 20.0f);
     if (water > 0.08f) {
       // Residents swim and float instead of silently falling through a river to a scripted death.
       vy[i] -= gravity * Math.min(1.0f, water) * 1.05f * dt;

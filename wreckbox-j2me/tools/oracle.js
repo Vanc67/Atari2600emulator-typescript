@@ -98,6 +98,7 @@ window.__wb = {
   selectTool: function(id) { Uv(id); },
   explode: function(x, y, power) { yb(x, y, power); },
   stepTools: function(dt) { nv[ov].update(dt); },
+  step: function(dt) { lT(dt); },
   stats: Lt,
   special: function() { return { npp: kf, base: Ff, volcano: hb, river: Xl, power: By }; },
   internals: { cellAt: ee, damage: le, destroy: ce, setCell: oe, remove: se, clear: re }
@@ -163,6 +164,34 @@ if (command === 'inventory') {
     console.log(map, JSON.stringify(data));
   }
   fs.writeFileSync(path.join(outDir, 'index.json'), JSON.stringify(manifest, null, 2) + '\n');
+} else if (command === 'natural') {
+  const map = process.argv[3] || 'port';
+  const seconds = Number(process.argv[4] || 40);
+  wb.loadMap(map, 1);
+  let solid = 0;
+  for (let i = 0; i < wb.arrays.material.length; ++i) if (wb.arrays.material[i]) ++solid;
+  const steps = Math.round(seconds * 60);
+  const track = Number(process.argv[5] || 45), trace = [];
+  function snapshot(step) {
+    if (track < 0 || track >= wb.people.length) return;
+    const p = wb.people[track];
+    trace.push({ step, x: p.x, y: p.y, hp: p.hp, waterT: p.waterT,
+      state: p.state, dead: !!p.dead, onGround: p.onGround, rag: !!p.rag });
+  }
+  snapshot(0);
+  for (let i = 0; i < steps; ++i) {
+    wb.step(1 / 60);
+    if ((i + 1) % 600 === 0) snapshot(i + 1);
+  }
+  let remaining = 0;
+  for (let i = 0; i < wb.arrays.material.length; ++i) if (wb.arrays.material[i]) ++remaining;
+  const dead = [];
+  wb.people.forEach((p, index) => {
+    if (p.dead) dead.push({ index, x: p.x, y: p.y, cause: p.cause, waterT: p.waterT });
+  });
+  console.log(JSON.stringify({ map, seconds, steps, deaths: wb.stats.dead, dead,
+    lostCells: solid - remaining, bodies: wb.bodies.length,
+    deadBodies: wb.bodies.filter(b => b.dead).length, trace }, null, 2));
 } else if (command === 'inspect') {
   function describe(value) {
     if (!value) return value;
@@ -274,7 +303,7 @@ function exportMap(wb, mapIndex) {
   const river = special.river, volcano = special.volcano;
   f32(river ? river.x0 : 0); f32(river ? river.x1 : 0); f32(river ? river.bottom : 0); f32(river ? river.waterY : 0);
   f32(volcano ? volcano.xc : 0); f32(volcano ? volcano.craterY : 0); f32(volcano ? volcano.x0 : 0); f32(volcano ? volcano.H : 0);
-  u32((river ? 1 : 0) | (volcano ? 2 : 0) | (special.npp ? 4 : 0) | (special.base ? 8 : 0));
+  u32((river ? 1 : 0) | (volcano ? 2 : 0) | (special.npp ? 4 : 0) | (special.base ? 8 : 0) | (river && river.sea ? 16 : 0));
   for (const run of runs) { vint(run[0]); vint(run[1]); u8(run[2]); u8(run[3]); u8(run[4]); }
   for (const patch of patches) { vint(patch[0]); f32(patch[1]); }
   for (const name of typeNames) ascii(name);
