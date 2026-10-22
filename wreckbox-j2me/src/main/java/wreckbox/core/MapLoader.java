@@ -31,13 +31,15 @@ public final class MapLoader {
     metadata.npp = (special & 4) != 0; metadata.base = (special & 8) != 0;
 
     int position = 0;
+    grid.beginLoad(runs);
     for (int r = 0; r < runs; r++) {
       position += readVInt();
       int length = readVInt(), material = in.readUnsignedByte(), tint = in.readUnsignedByte(), flags = in.readUnsignedByte();
       if (position < 0 || position + length > grid.size) throw new IOException("WBMP run bounds");
-      for (int i = 0; i < length; i++) grid.set(position + i, material, tint, flags);
+      grid.addLoadRun(position, length, material, tint, flags);
       position += length;
     }
+    grid.finishLoad();
     for (int i = 0; i < patches; i++) grid.setHealth(readVInt(), in.readFloat());
 
     String[] types = new String[typeCount];

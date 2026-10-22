@@ -219,7 +219,7 @@ public final class Game {
     structureClock += dt;
     if (structuralDirty && structureClock >= 0.32f) {
       structuralDirty = false; structureClock = 0.0f;
-      int changed = structure.solve(grid, debris, gravity);
+      int changed = structure.solve(grid, debris, gravity, showStress);
       if (changed > 0) {
         structuralDirty = true;
         bodies.wakeArea(grid, cameraX, cameraY, 420.0f / zoom);

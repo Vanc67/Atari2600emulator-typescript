@@ -24,6 +24,7 @@ public final class CoreTest {
   private static final int[] BODIES = {738, 414, 2030, 437, 489, 568, 346, 159};
   private static final int[] PEOPLE = {63, 63, 97, 63, 73, 75, 56, 25};
   private static final int[] HASHES = {0x8e7344c8, 0x2534cc78, 0x90b403ed, 0xf21c1dee, 0x2a5c4f18, 0xca89cf9a, 0x87e85369, 0x4f6b17e0};
+  private static final int[] TINT_HASHES = {0x0b777286, 0x21a86b22, 0x218e87aa, 0x9001a2f3, 0xb1cad0f9, 0x0c6a9629, 0xf0ed4208, 0x9980d3cf};
 
   public static void main(String[] args) {
     content(); mathAndCells(); maps(); structure(); debris(); strikeOracle(); effects(); radiation(); residents();
@@ -56,6 +57,10 @@ public final class CoreTest {
     grid.damage(10, 32.0f); near(294.4f, grid.health(10), 0.07f, "steel damage multiplier");
     grid.set(11, 14, 15, CellGrid.FLAG_JOINT); grid.damage(11, 10.0f); near(144.0f, grid.health(11), 0.07f, "panel joint weakness");
     grid.set(12, 9, 0, 0); check(!grid.damage(12, 100000.0f), "bedrock indestructible");
+
+    CellGrid cow = new CellGrid(8); int emptyBytes = cow.memoryBytes();
+    cow.set(10, 4, 0, 0); check(cow.memoryBytes() >= emptyBytes + 8 * 4, "changed row expands on demand");
+    cow.clear(10); eq(emptyBytes, cow.memoryBytes(), "fully cleared row releases storage");
   }
 
   private static void maps() {
@@ -68,10 +73,12 @@ public final class CoreTest {
       eq(BODIES[i], game.bodies.count, "bodies " + Maps.IDS[i]);
       eq(PEOPLE[i], game.people.count, "people " + Maps.IDS[i]);
       eq(HASHES[i], mapHash(game.grid), "oracle hash " + Maps.IDS[i]);
+      eq(TINT_HASHES[i], tintHash(game.grid), "oracle tint " + Maps.IDS[i]);
+      check(game.grid.memoryBytes() < 170000, "compressed grid memory " + Maps.IDS[i] + " bytes=" + game.grid.memoryBytes());
       check(game.power.nodeCount > 0, "power nodes " + Maps.IDS[i]);
       int unknown = 0;
       for (int b = 0; b < game.bodies.count; b++) if (game.bodies.type[b] < 0) unknown++;
-      System.out.println("MAP " + Maps.IDS[i] + " solid=" + SOLID[i] + " bodies=" + BODIES[i] + " people=" + PEOPLE[i] + " generic=" + unknown);
+      System.out.println("MAP " + Maps.IDS[i] + " solid=" + SOLID[i] + " bodies=" + BODIES[i] + " people=" + PEOPLE[i] + " generic=" + unknown + " grid=" + game.grid.memoryBytes() + "B");
     }
   }
 
@@ -86,12 +93,19 @@ public final class CoreTest {
     return hash;
   }
 
+  private static int tintHash(CellGrid grid) {
+    int hash = 0x811c9dc5;
+    for (int i = 0; i < grid.size; i++) { hash ^= grid.tint(i); hash *= 16777619; }
+    return hash;
+  }
+
   private static void structure() {
     CellGrid grid = new CellGrid(32); DebrisSystem debris = new DebrisSystem(); StructuralSolver solver = new StructuralSolver();
     for (int x = 0; x < 32; x++) grid.set(grid.index(x, 259), 9, 0, 0);
     for (int y = 250; y <= 258; y++) grid.set(grid.index(16, y), 2, 0, 1);
     solver.solve(grid, debris, 450.0f);
     eq(0, solver.collapsedCells, "supported pillar stable");
+    check(solver.memoryBytes() < 16384, "solver queue starts compact");
     grid.clear(grid.index(16, 258));
     solver.solve(grid, debris, 450.0f);
     eq(8, solver.collapsedCells, "unsupported pillar collapses");
@@ -108,6 +122,15 @@ public final class CoreTest {
       if (solver.overloadedCells > 0 || solver.collapsedCells > 0) fractured = true;
     }
     check(fractured, "weight overload fractures weak support");
+    solver.solve(weak, weakDebris, 450.0f, true); eq((weak.size + 3) / 4, solver.stress.length, "optional two-bit stress grid");
+    solver.solve(weak, weakDebris, 450.0f, false); eq(0, solver.stress.length, "stress grid released when hidden");
+
+    CellGrid large = new CellGrid(80); DebrisSystem largeDebris = new DebrisSystem(); StructuralSolver growing = new StructuralSolver();
+    for (int y = 0; y < 63; y++) for (int x = 0; x < 80; x++) large.set(large.index(x, y), 2, 0, 1);
+    for (int x = 0; x < 80; x++) large.set(large.index(x, 63), 9, 0, 0);
+    growing.solve(large, largeDebris, 450.0f);
+    eq(0, growing.collapsedCells, "large supported component stable");
+    eq(8192 * 3 + Materials.COUNT * 4, growing.memoryBytes(), "solver queue grows on demand");
   }
 
   private static void debris() {

@@ -123,12 +123,12 @@ public final class WreckboxRenderer {
     int maxY = Math.min(CellGrid.HEIGHT - 1, (int)((game.cameraY + halfH) / 6.0f) + 1);
     int cellSize = Math.max(1, (int)Math.ceil(6.0f * game.zoom));
     for (int y = minY; y <= maxY; y++) for (int x = minX; x <= maxX; x++) {
-      int at = grid.index(x, y), m = grid.material(at);
+      int at = grid.index(x, y), cell = grid.packed(at), m = cell & 31;
       if (m == 0) continue;
       int color = Materials.COLORS[m];
-      int tint = grid.tint(at);
+      int tint = (cell >>> 26) & 31;
       if (tint != 0) color = tintColor(color, tint, x, y);
-      float health = grid.healthFraction(at);
+      float health = ((cell >>> 5) & 8191) / (16.0f * Materials.HP[m]);
       if (health < 0.75f) color = scaleColor(color, 0.55f + 0.45f * health);
       boolean litWindow = game.night && (m == 5 || m == 17) && ((x * 11 + y * 7 + tint) & 7) < 3;
       if (litWindow) color = 0xd2b56a;
@@ -143,12 +143,12 @@ public final class WreckboxRenderer {
         else g.drawLine(px + cellSize - 1, py, px, py + cellSize - 1);
         if (health < 0.35f) g.drawLine(px, py + cellSize / 2, px + cellSize - 1, py + cellSize / 2 - 1);
       }
-      if (game.showStress && at < game.structure.stress.length && game.structure.stress[at] > 0.0f) {
-        float stress = game.structure.stress[at];
+      if (game.showStress && game.structure.stressAt(at) > 0.0f) {
+        float stress = game.structure.stressAt(at);
         g.setColor(stress > 1.0f ? 0xe84c3d : stress > 0.7f ? 0xe5b83f : 0x58b96b);
         if (cellSize >= 3) g.drawRect(px, py, cellSize - 1, cellSize - 1); else g.fillRect(px, py, cellSize, cellSize);
       }
-      if ((grid.flags(at) & CellGrid.FLAG_REINFORCED) != 0 && cellSize >= 4) {
+      if ((cell & (CellGrid.FLAG_REINFORCED << 18)) != 0 && cellSize >= 4) {
         g.setColor(0x775540); g.drawRect(px, py, cellSize - 1, cellSize - 1);
       }
     }

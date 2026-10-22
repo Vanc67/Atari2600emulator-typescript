@@ -3,64 +3,105 @@ package wreckbox.core;
 /** Support connectivity, overload cracking and conversion of detached cells to rigid chunks. */
 public final class StructuralSolver {
   private static final int MAX_COMPONENT = 65536;
+  private static final int INITIAL_COMPONENT = 4096;
   private static final int CELLS_PER_CHUNK = 36;
-  private final int[] queue = new int[MAX_COMPONENT];
+  private static final byte[] NO_STRESS = new byte[0];
+  private byte[] queue = new byte[0];
   private final int[] histogram = new int[Materials.COUNT];
   public int collapsedCells;
-  public float[] stress = new float[0];
+  public byte[] stress = NO_STRESS;
   public int overloadedCells;
   public int chunksCreated;
 
-  public int solve(CellGrid grid, DebrisSystem debris, float gravity) {
-    if (stress.length != grid.size) stress = new float[grid.size];
+  public int solve(CellGrid grid, DebrisSystem debris, float gravity) { return solve(grid, debris, gravity, false); }
+  public int solve(CellGrid grid, DebrisSystem debris, float gravity, boolean showStress) {
+    if (queue.length < INITIAL_COMPONENT * 3) queue = new byte[INITIAL_COMPONENT * 3];
+    if (showStress && stress.length != (grid.size + 3) / 4) stress = new byte[(grid.size + 3) / 4];
+    if (!showStress) stress = NO_STRESS;
+    else for (int i = 0; i < stress.length; i++) stress[i] = 0;
     collapsedCells = overloadedCells = chunksCreated = 0;
     grid.clearMarks();
     for (int start = 0; start < grid.size; start++) {
       int material = grid.material(start);
       if (material == 0 || Materials.FIXED[material] || material == 12 || grid.visited(start)) continue;
       int head = 0, tail = 0;
-      queue[tail++] = start; grid.mark(start, true);
+      put(tail++, start); grid.mark(start, true);
       boolean supported = false, overflow = false;
       while (head < tail) {
-        int at = queue[head++], x = at % grid.width;
+        int at = get(head++), x = at % grid.width;
         int up = at - grid.width, down = at + grid.width;
         if (up >= 0) {
           int m = grid.material(up);
           if (Materials.FIXED[m]) supported = true;
           else if (m != 0 && m != 12 && !grid.visited(up)) {
-            if (tail >= MAX_COMPONENT) { overflow = true; break; }
-            grid.mark(up, true); queue[tail++] = up;
+            if (!ensure(tail)) { overflow = true; break; }
+            grid.mark(up, true); put(tail++, up);
           }
         }
         if (down < grid.size) {
           int m = grid.material(down);
           if (Materials.FIXED[m]) supported = true;
           else if (m != 0 && m != 12 && !grid.visited(down)) {
-            if (tail >= MAX_COMPONENT) { overflow = true; break; }
-            grid.mark(down, true); queue[tail++] = down;
+            if (!ensure(tail)) { overflow = true; break; }
+            grid.mark(down, true); put(tail++, down);
           }
         }
         if (x > 0) {
           int n = at - 1, m = grid.material(n);
           if (Materials.FIXED[m]) supported = true;
           else if (m != 0 && m != 12 && !grid.visited(n)) {
-            if (tail >= MAX_COMPONENT) { overflow = true; break; }
-            grid.mark(n, true); queue[tail++] = n;
+            if (!ensure(tail)) { overflow = true; break; }
+            grid.mark(n, true); put(tail++, n);
           }
         }
         if (x + 1 < grid.width) {
           int n = at + 1, m = grid.material(n);
           if (Materials.FIXED[m]) supported = true;
           else if (m != 0 && m != 12 && !grid.visited(n)) {
-            if (tail >= MAX_COMPONENT) { overflow = true; break; }
-            grid.mark(n, true); queue[tail++] = n;
+            if (!ensure(tail)) { overflow = true; break; }
+            grid.mark(n, true); put(tail++, n);
           }
         }
       }
       if (!supported && !overflow && tail > 0) detach(grid, debris, tail);
     }
-    if (gravity > 0.0f) checkOverload(grid, debris, gravity / 450.0f);
+    if (gravity > 0.0f) checkOverload(grid, debris, gravity / 450.0f, showStress);
     return collapsedCells + overloadedCells;
+  }
+
+  private boolean ensure(int index) {
+    int capacity = queue.length / 3;
+    if (index < capacity) return true;
+    if (index >= MAX_COMPONENT) return false;
+    int expandedCapacity = Math.min(MAX_COMPONENT, Math.max(index + 1, capacity * 2));
+    byte[] expanded = new byte[expandedCapacity * 3];
+    System.arraycopy(queue, 0, expanded, 0, queue.length);
+    queue = expanded;
+    return true;
+  }
+
+  public int memoryBytes() { return queue.length + stress.length + histogram.length * 4; }
+
+  private int get(int index) {
+    int at = index * 3;
+    return (queue[at] & 255) | ((queue[at + 1] & 255) << 8) | ((queue[at + 2] & 255) << 16);
+  }
+  private void put(int index, int value) {
+    int at = index * 3;
+    queue[at] = (byte)value; queue[at + 1] = (byte)(value >>> 8); queue[at + 2] = (byte)(value >>> 16);
+  }
+
+  /** Four packed levels: empty, normal, loaded and overloaded. */
+  public float stressAt(int index) {
+    int at = index >> 2;
+    if (at < 0 || at >= stress.length) return 0.0f;
+    int level = (stress[at] >>> ((index & 3) * 2)) & 3;
+    return level == 3 ? 2.0f : level == 2 ? 1.0f : level == 1 ? 0.5f : 0.0f;
+  }
+  private void setStress(int index, float ratio) {
+    int level = ratio > 1.2f ? 3 : ratio > 0.75f ? 2 : ratio > 0.0f ? 1 : 0;
+    int at = index >> 2, shift = (index & 3) * 2;
+    stress[at] = (byte)((stress[at] & ~(3 << shift)) | (level << shift));
   }
 
   private void detach(CellGrid grid, DebrisSystem debris, int count) {
@@ -71,7 +112,7 @@ public final class StructuralSolver {
       int dominant = 1, dominantCount = 0;
       for (int i = 0; i < histogram.length; i++) histogram[i] = 0;
       for (int q = base; q < end; q++) {
-        int at = queue[q], m = grid.material(at);
+        int at = get(q), m = grid.material(at);
         if (m == 0) continue;
         int x = at % grid.width, y = at / grid.width;
         sx += x * 6.0f + 3.0f; sy += y * 6.0f + 3.0f;
@@ -95,20 +136,20 @@ public final class StructuralSolver {
     }
   }
 
-  private void checkOverload(CellGrid grid, DebrisSystem debris, float gravityScale) {
+  private void checkOverload(CellGrid grid, DebrisSystem debris, float gravityScale, boolean showStress) {
     for (int x = 0; x < grid.width; x++) {
       float load = 0.0f;
       for (int y = 0; y < CellGrid.HEIGHT; y++) {
         int at = y * grid.width + x, m = grid.material(at);
-        if (m == 0 || m == 12) { stress[at] = 0.0f; load = 0.0f; continue; }
-        if (Materials.FIXED[m]) { stress[at] = 0.0f; load = 0.0f; continue; }
+        if (m == 0 || m == 12) { if (showStress) setStress(at, 0.0f); load = 0.0f; continue; }
+        if (Materials.FIXED[m]) { if (showStress) setStress(at, 0.0f); load = 0.0f; continue; }
         load += Materials.DENSITY[m] * gravityScale;
         float health = Math.max(0.25f, grid.healthFraction(at));
         float capacity = Materials.COMPRESSION[m] * health;
         if ((grid.flags(at) & CellGrid.FLAG_REINFORCED) != 0) capacity *= 2.0f;
         if ((grid.flags(at) & CellGrid.FLAG_JOINT) != 0) capacity *= m == 4 ? 0.45f : 0.8f;
         float ratio = (load + 0.01f) / Math.max(0.01f, capacity);
-        stress[at] = ratio;
+        if (showStress) setStress(at, ratio);
         if (ratio > 1.05f) {
           // Intact recovered cities are already certified by the original solver. A crack starts
           // where damage or changed support has made this local column exceed its reserve.
