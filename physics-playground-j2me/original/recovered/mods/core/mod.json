@@ -1,0 +1,9 @@
+{
+	"mod_format": 1,
+	"id": "core",
+	"name": "Core Content",
+	"version": "0.3.0",
+	"description": "Built-in objects. Uses exactly the same definition format as community mods.",
+	"authors": ["Physics Playground"],
+	"categories": ["Ragdolls", "Firearms", "Melee", "Explosives", "Boxes", "Barrels", "Construction", "Spheres"]
+}

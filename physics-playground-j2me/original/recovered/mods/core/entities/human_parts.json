@@ -1,0 +1,468 @@
+{
+	"entities": [
+		{
+			"id": "human_head",
+			"display_name": "Head",
+			"description": "Human head.",
+			"category": "Ragdolls",
+			"hidden": true,
+			"material": "flesh",
+			"mass": 5.0,
+			"shape": {
+				"type": "circle",
+				"radius": 12
+			},
+			"physics": {
+				"angular_damp": 0.8
+			},
+			"visual": {
+				"style": "head",
+				"fill_color": "#d8a26e",
+				"outline_color": "#6e4a2c",
+				"detail_color": "#9c6a44",
+				"damage_color": "#5a1f2a"
+			},
+			"components": {
+				"health": {
+					"max_health": 100,
+					"damage_multipliers": {
+						"projectile": 1.6
+					}
+				},
+				"impact_damage": {
+					"min_impact_speed": 7.0,
+					"damage_per_speed": 12.0,
+					"cooldown": 0.15
+				},
+				"thermal": {
+					"initial_temperature": 37,
+					"burn_damage": 5,
+					"burn_duration": 14,
+					"heat_output": 120
+				},
+				"electrical": {}
+			},
+			"tags": ["body_part"]
+		},
+		{
+			"id": "human_upper_torso",
+			"display_name": "Upper Torso",
+			"description": "Chest and shoulders.",
+			"category": "Ragdolls",
+			"hidden": true,
+			"material": "flesh",
+			"mass": 16.0,
+			"shape": {
+				"type": "capsule",
+				"radius": 14,
+				"height": 56
+			},
+			"physics": {
+				"angular_damp": 0.8
+			},
+			"visual": {
+				"style": "limb",
+				"fill_color": "#4f6d8f",
+				"outline_color": "#22303f",
+				"detail_color": "#7f9cbd",
+				"damage_color": "#5a1f2a"
+			},
+			"components": {
+				"health": {
+					"max_health": 200
+				},
+				"impact_damage": {
+					"min_impact_speed": 7.0,
+					"damage_per_speed": 12.0,
+					"cooldown": 0.15
+				},
+				"thermal": {
+					"initial_temperature": 37,
+					"burn_damage": 5,
+					"burn_duration": 14,
+					"heat_output": 120
+				},
+				"electrical": {}
+			},
+			"tags": ["body_part"]
+		},
+		{
+			"id": "human_pelvis",
+			"display_name": "Pelvis",
+			"description": "Lower torso and hips.",
+			"category": "Ragdolls",
+			"hidden": true,
+			"material": "flesh",
+			"mass": 12.0,
+			"shape": {
+				"type": "capsule",
+				"radius": 13,
+				"height": 36
+			},
+			"physics": {
+				"angular_damp": 0.8
+			},
+			"visual": {
+				"style": "limb",
+				"fill_color": "#3e434c",
+				"outline_color": "#1b1d21",
+				"detail_color": "#5c626d",
+				"damage_color": "#5a1f2a"
+			},
+			"components": {
+				"health": {
+					"max_health": 150
+				},
+				"impact_damage": {
+					"min_impact_speed": 7.0,
+					"damage_per_speed": 12.0,
+					"cooldown": 0.15
+				},
+				"thermal": {
+					"initial_temperature": 37,
+					"burn_damage": 5,
+					"burn_duration": 14,
+					"heat_output": 120
+				},
+				"electrical": {}
+			},
+			"tags": ["body_part"]
+		},
+		{
+			"id": "human_upper_arm_left",
+			"display_name": "Left Upper Arm",
+			"description": "Left Upper Arm.",
+			"category": "Ragdolls",
+			"hidden": true,
+			"material": "flesh",
+			"mass": 3.5,
+			"shape": {
+				"type": "capsule",
+				"radius": 6,
+				"height": 34
+			},
+			"physics": {
+				"angular_damp": 0.8
+			},
+			"visual": {
+				"style": "limb",
+				"fill_color": "#3d566f",
+				"outline_color": "#22303f",
+				"detail_color": "#5d7894",
+				"damage_color": "#5a1f2a"
+			},
+			"components": {
+				"health": {
+					"max_health": 100
+				},
+				"impact_damage": {
+					"min_impact_speed": 7.0,
+					"damage_per_speed": 12.0,
+					"cooldown": 0.15
+				},
+				"thermal": {
+					"initial_temperature": 37,
+					"burn_damage": 5,
+					"burn_duration": 14,
+					"heat_output": 120
+				},
+				"electrical": {}
+			},
+			"tags": ["body_part"]
+		},
+		{
+			"id": "human_forearm_left",
+			"display_name": "Left Forearm",
+			"description": "Includes the hand.",
+			"category": "Ragdolls",
+			"hidden": true,
+			"material": "flesh",
+			"mass": 3.0,
+			"shape": {
+				"type": "capsule",
+				"radius": 5.5,
+				"height": 34
+			},
+			"physics": {
+				"angular_damp": 0.8
+			},
+			"visual": {
+				"style": "limb",
+				"fill_color": "#b78558",
+				"outline_color": "#6e4a2c",
+				"detail_color": "#d1a06f",
+				"damage_color": "#5a1f2a"
+			},
+			"components": {
+				"health": {
+					"max_health": 80
+				},
+				"impact_damage": {
+					"min_impact_speed": 7.0,
+					"damage_per_speed": 12.0,
+					"cooldown": 0.15
+				},
+				"thermal": {
+					"initial_temperature": 37,
+					"burn_damage": 5,
+					"burn_duration": 14,
+					"heat_output": 120
+				},
+				"electrical": {}
+			},
+			"tags": ["body_part"]
+		},
+		{
+			"id": "human_upper_arm_right",
+			"display_name": "Right Upper Arm",
+			"description": "Right Upper Arm.",
+			"category": "Ragdolls",
+			"hidden": true,
+			"material": "flesh",
+			"mass": 3.5,
+			"shape": {
+				"type": "capsule",
+				"radius": 6,
+				"height": 34
+			},
+			"physics": {
+				"angular_damp": 0.8
+			},
+			"visual": {
+				"style": "limb",
+				"fill_color": "#4f6d8f",
+				"outline_color": "#22303f",
+				"detail_color": "#7f9cbd",
+				"damage_color": "#5a1f2a"
+			},
+			"components": {
+				"health": {
+					"max_health": 100
+				},
+				"impact_damage": {
+					"min_impact_speed": 7.0,
+					"damage_per_speed": 12.0,
+					"cooldown": 0.15
+				},
+				"thermal": {
+					"initial_temperature": 37,
+					"burn_damage": 5,
+					"burn_duration": 14,
+					"heat_output": 120
+				},
+				"electrical": {}
+			},
+			"tags": ["body_part"]
+		},
+		{
+			"id": "human_forearm_right",
+			"display_name": "Right Forearm",
+			"description": "Includes the hand.",
+			"category": "Ragdolls",
+			"hidden": true,
+			"material": "flesh",
+			"mass": 3.0,
+			"shape": {
+				"type": "capsule",
+				"radius": 5.5,
+				"height": 34
+			},
+			"physics": {
+				"angular_damp": 0.8
+			},
+			"visual": {
+				"style": "limb",
+				"fill_color": "#d8a26e",
+				"outline_color": "#6e4a2c",
+				"detail_color": "#efc193",
+				"damage_color": "#5a1f2a"
+			},
+			"components": {
+				"health": {
+					"max_health": 80
+				},
+				"impact_damage": {
+					"min_impact_speed": 7.0,
+					"damage_per_speed": 12.0,
+					"cooldown": 0.15
+				},
+				"thermal": {
+					"initial_temperature": 37,
+					"burn_damage": 5,
+					"burn_duration": 14,
+					"heat_output": 120
+				},
+				"electrical": {}
+			},
+			"tags": ["body_part"]
+		},
+		{
+			"id": "human_thigh_left",
+			"display_name": "Left Thigh",
+			"description": "Left Thigh.",
+			"category": "Ragdolls",
+			"hidden": true,
+			"material": "flesh",
+			"mass": 8.0,
+			"shape": {
+				"type": "capsule",
+				"radius": 8,
+				"height": 46
+			},
+			"physics": {
+				"angular_damp": 0.8
+			},
+			"visual": {
+				"style": "limb",
+				"fill_color": "#30343b",
+				"outline_color": "#1b1d21",
+				"detail_color": "#474c55",
+				"damage_color": "#5a1f2a"
+			},
+			"components": {
+				"health": {
+					"max_health": 120
+				},
+				"impact_damage": {
+					"min_impact_speed": 7.0,
+					"damage_per_speed": 12.0,
+					"cooldown": 0.15
+				},
+				"thermal": {
+					"initial_temperature": 37,
+					"burn_damage": 5,
+					"burn_duration": 14,
+					"heat_output": 120
+				},
+				"electrical": {}
+			},
+			"tags": ["body_part"]
+		},
+		{
+			"id": "human_lower_leg_left",
+			"display_name": "Left Lower Leg",
+			"description": "Includes the foot.",
+			"category": "Ragdolls",
+			"hidden": true,
+			"material": "flesh",
+			"mass": 5.0,
+			"shape": {
+				"type": "capsule",
+				"radius": 7,
+				"height": 48
+			},
+			"physics": {
+				"angular_damp": 0.8
+			},
+			"visual": {
+				"style": "limb",
+				"fill_color": "#30343b",
+				"outline_color": "#1b1d21",
+				"detail_color": "#474c55",
+				"damage_color": "#5a1f2a"
+			},
+			"components": {
+				"health": {
+					"max_health": 100
+				},
+				"impact_damage": {
+					"min_impact_speed": 7.0,
+					"damage_per_speed": 12.0,
+					"cooldown": 0.15
+				},
+				"thermal": {
+					"initial_temperature": 37,
+					"burn_damage": 5,
+					"burn_duration": 14,
+					"heat_output": 120
+				},
+				"electrical": {}
+			},
+			"tags": ["body_part"]
+		},
+		{
+			"id": "human_thigh_right",
+			"display_name": "Right Thigh",
+			"description": "Right Thigh.",
+			"category": "Ragdolls",
+			"hidden": true,
+			"material": "flesh",
+			"mass": 8.0,
+			"shape": {
+				"type": "capsule",
+				"radius": 8,
+				"height": 46
+			},
+			"physics": {
+				"angular_damp": 0.8
+			},
+			"visual": {
+				"style": "limb",
+				"fill_color": "#3e434c",
+				"outline_color": "#1b1d21",
+				"detail_color": "#5c626d",
+				"damage_color": "#5a1f2a"
+			},
+			"components": {
+				"health": {
+					"max_health": 120
+				},
+				"impact_damage": {
+					"min_impact_speed": 7.0,
+					"damage_per_speed": 12.0,
+					"cooldown": 0.15
+				},
+				"thermal": {
+					"initial_temperature": 37,
+					"burn_damage": 5,
+					"burn_duration": 14,
+					"heat_output": 120
+				},
+				"electrical": {}
+			},
+			"tags": ["body_part"]
+		},
+		{
+			"id": "human_lower_leg_right",
+			"display_name": "Right Lower Leg",
+			"description": "Includes the foot.",
+			"category": "Ragdolls",
+			"hidden": true,
+			"material": "flesh",
+			"mass": 5.0,
+			"shape": {
+				"type": "capsule",
+				"radius": 7,
+				"height": 48
+			},
+			"physics": {
+				"angular_damp": 0.8
+			},
+			"visual": {
+				"style": "limb",
+				"fill_color": "#3e434c",
+				"outline_color": "#1b1d21",
+				"detail_color": "#5c626d",
+				"damage_color": "#5a1f2a"
+			},
+			"components": {
+				"health": {
+					"max_health": 100
+				},
+				"impact_damage": {
+					"min_impact_speed": 7.0,
+					"damage_per_speed": 12.0,
+					"cooldown": 0.15
+				},
+				"thermal": {
+					"initial_temperature": 37,
+					"burn_damage": 5,
+					"burn_duration": 14,
+					"heat_output": 120
+				},
+				"electrical": {}
+			},
+			"tags": ["body_part"]
+		}
+	]
+}

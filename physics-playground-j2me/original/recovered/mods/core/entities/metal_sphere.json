@@ -1,0 +1,11 @@
+{
+	"id": "metal_sphere",
+	"display_name": "Metal Sphere",
+	"description": "A solid steel ball. Rolls far and hits hard.",
+	"category": "Spheres",
+	"material": "steel",
+	"shape": { "type": "circle", "radius": 20 },
+	"visual": { "style": "sphere", "fill_color": "#98a1aa", "outline_color": "#454b52", "detail_color": "#e3e8ec" },
+	"components": { "health": { "max_health": 125 }, "thermal": {}, "electrical": {} },
+	"tags": []
+}

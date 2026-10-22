@@ -1,0 +1,22 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://d2qfrusgqf1mn" path="res://scripts/main.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/world/sandbox_world.tscn" id="2"]
+[ext_resource type="Script" uid="uid://bn7skadd38x05" path="res://scripts/interaction/interaction_controller.gd" id="3"]
+[ext_resource type="Script" uid="uid://m2omi0tjogjn" path="res://scripts/interaction/spawn_placer.gd" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="5"]
+
+[node name="Main" type="Node" unique_id=1274355810]
+process_mode = 3
+script = ExtResource("1")
+
+[node name="World" parent="." unique_id=1274968324 instance=ExtResource("2")]
+
+[node name="Interaction" type="Node2D" parent="." unique_id=241039724]
+z_index = 100
+script = ExtResource("3")
+
+[node name="SpawnPlacer" type="Node2D" parent="Interaction" unique_id=404364996]
+script = ExtResource("4")
+
+[node name="HUD" parent="." unique_id=196773244 instance=ExtResource("5")]

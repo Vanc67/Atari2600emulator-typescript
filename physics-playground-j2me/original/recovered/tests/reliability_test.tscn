@@ -1,0 +1,7 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://b41bbad8xw7qm" path="res://tests/reliability_test.gd" id="1"]
+
+[node name="ReliabilityTest" type="Node" unique_id=1064890376]
+process_mode = 3
+script = ExtResource("1")

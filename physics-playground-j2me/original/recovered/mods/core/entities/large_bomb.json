@@ -1,0 +1,35 @@
+{
+	"id": "large_bomb",
+	"display_name": "Large Bomb",
+	"description": "A big one. 4 second fuse after activation.",
+	"category": "Explosives",
+	"material": "steel",
+	"mass": 25,
+	"shape": {
+		"type": "rectangle",
+		"size": [70, 40]
+	},
+	"visual": {
+		"style": "large_bomb",
+		"fill_color": "#3d4a3a",
+		"outline_color": "#151a14",
+		"detail_color": "#e2a33b"
+	},
+	"components": {
+		"health": {
+			"max_health": 80
+		},
+		"explosive": {
+			"radius": 480,
+			"force": 2600,
+			"damage": 420,
+			"falloff": 1.3,
+			"ignite": true,
+			"fuse": 4.0,
+			"sound": "explosion_large"
+		},
+		"thermal": {},
+		"electrical": {}
+	},
+	"tags": ["explosive"]
+}

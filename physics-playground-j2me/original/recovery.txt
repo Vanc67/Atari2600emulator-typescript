@@ -3,15 +3,349 @@
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
- 20 33.6M   20 7085k    0     0  12.6M      0  0:00:02 --:--:--  0:00:02 12.6M100 33.6M  100 33.6M    0     0  27.0M      0  0:00:01  0:00:01 --:--:-- 38.5M
+100 33.6M  100 33.6M    0     0   101M      0 --:--:-- --:--:-- --:--:--  101M
 + unzip -q /tmp/gdre/gdre.zip -d /tmp/gdre/bin
 + find /tmp/gdre/bin -maxdepth 2 -type f -printf '%p %s bytes\n'
-/tmp/gdre/bin/gdre_tools.x86_64 63628472 bytes
 /tmp/gdre/bin/libGodotMonoDecompNativeAOT.so 24119896 bytes
+/tmp/gdre/bin/gdre_tools.x86_64 63628472 bytes
 /tmp/gdre/bin/gdre_tools.pck 6488060 bytes
 ++ find /tmp/gdre/bin -type f -name gdre_tools.x86_64 -print -quit
 + GDRE=/tmp/gdre/bin/gdre_tools.x86_64
 + test -n /tmp/gdre/bin/gdre_tools.x86_64
 + chmod +x /tmp/gdre/bin/gdre_tools.x86_64
-+ /tmp/gdre/bin/gdre_tools.x86_64 --headless --version
-Godot RE Tools v2.7.4
++ /tmp/gdre/bin/gdre_tools.x86_64 --headless --recover=/home/runner/work/Atari2600emulator-typescript/Atari2600emulator-typescript/PhysicsPlayground.pck --output=/home/runner/work/Atari2600emulator-typescript/Atari2600emulator-typescript/physics-playground-j2me/original/recovered
+Godot Engine v4.8.dev.gh.8a459f517 (2026-06-22 22:51:24 UTC) - https://godotengine.org
+
+Recovery started
+input_file: ["/home/runner/work/Atari2600emulator-typescript/Atari2600emulator-typescript/PhysicsPlayground.pck"]
+Input files: ["/home/runner/work/Atari2600emulator-typescript/Atari2600emulator-typescript/PhysicsPlayground.pck"]
+GDRE Tools v2.7.4
+Ubuntu 24.04.5 LTS 24.04, headless
+Opening file: ~/work/Atari2600emulator-typescript/Atari2600emulator-typescript/PhysicsPlayground.pck
+                                                                      Loading import files... [                              ] 0%                                                                                           Loading import files... [=====================         ] 71%                                                                                          Loading import files... [=====================         ] 71%                                                                                          Loaded 88 imported files
+                                                                      Loading GDScript cache... [                              ] 0%                                                                                         Loading GDScript cache... [========                      ] 28%                                                                                        Loading GDScript cache... [========                      ] 28%                                                                                        Loading GDScript cache... [=======================       ] 78%                                                                                        Loading GDScript cache... [=======================       ] 78%                                                                                        Loading GDScript cache... [============================= ] 97%                                                                                        Loading GDScript cache... [============================= ] 97%                                                                                        Detected Engine Version: 4.7.2
+Detected Bytecode Revision: 4.5.0-stable (ebc36a7)
+Successfully loaded PCK!
+Version: 4.7.2
+                                                                      Reading PCK archive... [                              ] 0%                                                                                            Verified 212 files, no errors detected!
+                                                                      Extracting files... [                              ] 0%                                                                                               Extracting files... [=======================       ] 76%                                                                                              Extracting files... [=======================       ] 76%                                                                                              Extracted 212 files, no errors detected!
+                                                                      Exporting resources... [                              ] 0%                                                                                            Exporting resources... [                              ] 0%                                                                                            Exporting resources... [                              ] 0%                                                                                            Exporting resources... [                              ] 0%                                                                                            Exporting resources... [                              ] 0%                                                                                            Exporting resources... [==========                    ] 34%                                                                                           Exporting resources... [==========                    ] 34%                                                                                           Exporting resources... [=================             ] 59%                                                                                           Exporting resources... [=================             ] 59%                                                                                           Exporting resources... [============================= ] 97%                                                                                           Exporting resources... [============================= ] 97%                                                                                           Exporting resources... [============================= ] 98%                                                                                           Exporting resources... [                              ] 98%                                                                                           Saved project config.
+                                                                      Reading folder /home/runner/work/Atari2600emulator-typescript/Atari2600emulator-typescript/physics-playground-j2me/original/recovered structure... [                              ] 0%                                                                      Exporting resources... [                              ] 98%                                                                                           Reading folder /home/runner/work/Atari2600emulator-typescript/Atari2600emulator-typescript/physics-playground-j2me/original/recovered structure... [                              ] 0%                                                                      Exporting resources... [                              ] 98%                                                                                           Reading folder /home/runner/work/Atari2600emulator-typescript/Atari2600emulator-typescript/physics-playground-j2me/original/recovered structure... [                              ] 400%                                                                      Exporting resources... [                              ] 98%                                                                                           Reading folder /home/runner/work/Atari2600emulator-typescript/Atari2600emulator-typescript/physics-playground-j2me/original/recovered structure... [                              ] 400%                                                                      Exporting resources... [                              ] 98%                                                                                           Reading folder /home/runner/work/Atari2600emulator-typescript/Atari2600emulator-typescript/physics-playground-j2me/original/recovered structure... [                              ] 400%                                                                      Exporting resources... [                              ] 98%                                                                                           Exporting resources... [                              ] 98%                                                                                           Generating filesystem cache... [                              ] 0%                                                                                    Exporting resources... [                              ] 98%                                                                                           Exporting resources... [                              ] 98%                                                                                           
+
+********************************EXPORT REPORT********************************
+
+Totals:                                 
+Decompiled scripts:                     74
+Scripts not decompiled:                 0
+Imported resources for export session:  88
+Successfully converted:                 88
+Lossy:                                  1
+Rewrote metadata:                       1
+Non-importable conversions:             0
+Not converted:                          0
+Failed conversions:                     0
+-------------
+
+
+
+------------------------------------------------------------------------------------
+
+Use Godot editor version 4.7.2 to edit the project.
+
+*******************************************************************************
+
+Recovery finished in 00m00s
+Log file written to: /home/runner/work/Atari2600emulator-typescript/Atari2600emulator-typescript/physics-playground-j2me/original/recovered/gdre_export.log
+Please include this file when reporting issues!
++ find physics-playground-j2me/original/recovered -type f -printf '%p %s bytes\n'
+physics-playground-j2me/original/recovered/scenes/world/sandbox_world.tscn 1980 bytes
+physics-playground-j2me/original/recovered/scenes/entities/damageable_entity.tscn 519 bytes
+physics-playground-j2me/original/recovered/scenes/entities/sandbox_entity.tscn 516 bytes
+physics-playground-j2me/original/recovered/scenes/main.tscn 973 bytes
+physics-playground-j2me/original/recovered/scenes/ui/hud.tscn 8858 bytes
+physics-playground-j2me/original/recovered/tests/ragdoll_probe.tscn 216 bytes
+physics-playground-j2me/original/recovered/tests/benchmark.tscn 216 bytes
+physics-playground-j2me/original/recovered/tests/capture_screenshot.tscn 221 bytes
+physics-playground-j2me/original/recovered/tests/fixtures/saves/v0_2_world.json 6358 bytes
+physics-playground-j2me/original/recovered/tests/fixtures/saves/v0_1_world.json 915 bytes
+physics-playground-j2me/original/recovered/tests/fixtures/mods/example/entities/ice_block.json 470 bytes
+physics-playground-j2me/original/recovered/tests/fixtures/mods/example/materials/ice.json 197 bytes
+physics-playground-j2me/original/recovered/tests/fixtures/mods/example/mod.json 219 bytes
+physics-playground-j2me/original/recovered/tests/capture_weapons.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/tests/benchmark.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/tests/capture_screenshot.gd 2275 bytes
+physics-playground-j2me/original/recovered/tests/ragdoll_test.tscn 221 bytes
+physics-playground-j2me/original/recovered/tests/reliability_test.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/tests/ragdoll_probe.gd 4595 bytes
+physics-playground-j2me/original/recovered/tests/ragdoll_probe.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/tests/reliability_test.gd 38402 bytes
+physics-playground-j2me/original/recovered/tests/smoke_test.tscn 215 bytes
+physics-playground-j2me/original/recovered/tests/benchmark.gd 9531 bytes
+physics-playground-j2me/original/recovered/tests/capture_weapons.gd 2559 bytes
+physics-playground-j2me/original/recovered/tests/smoke_test.gd.uid 19 bytes
+physics-playground-j2me/original/recovered/tests/weapons_test.tscn 221 bytes
+physics-playground-j2me/original/recovered/tests/smoke_test.gd 12582 bytes
+physics-playground-j2me/original/recovered/tests/ragdoll_test.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/tests/reliability_test.tscn 229 bytes
+physics-playground-j2me/original/recovered/tests/weapons_test.gd 33096 bytes
+physics-playground-j2me/original/recovered/tests/ragdoll_test.gd 24756 bytes
+physics-playground-j2me/original/recovered/tests/capture_weapons.tscn 219 bytes
+physics-playground-j2me/original/recovered/tests/weapons_test.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/tests/capture_screenshot.gd.uid 19 bytes
+physics-playground-j2me/original/recovered/gdre_export.log 1172 bytes
+physics-playground-j2me/original/recovered/.godot/editor/filesystem_cache10 14003 bytes
+physics-playground-j2me/original/recovered/.godot/editor/project_metadata.cfg 42 bytes
+physics-playground-j2me/original/recovered/.godot/exported/133200997/export-77208f48af03feabc88b83cb24c269ff-sandbox_world.scn 1903 bytes
+physics-playground-j2me/original/recovered/.godot/exported/133200997/export-bbd95509944c927adebdb8d423b6524a-capture_weapons.scn 720 bytes
+physics-playground-j2me/original/recovered/.godot/exported/133200997/export-d5b10589a0c5fed4114c3e73647878f7-capture_screenshot.scn 723 bytes
+physics-playground-j2me/original/recovered/.godot/exported/133200997/export-7e7caaa2afee981553bd0fd6f52114d6-weapons_test.scn 721 bytes
+physics-playground-j2me/original/recovered/.godot/exported/133200997/export-50ff61c7910d7fec11907738efc0aeb6-smoke_test.scn 717 bytes
+physics-playground-j2me/original/recovered/.godot/exported/133200997/export-183dfe8f741352647ef1f608f4a2daa5-damageable_entity.scn 906 bytes
+physics-playground-j2me/original/recovered/.godot/exported/133200997/export-0c19d31ba22475ca5c1de58bb858e616-reliability_test.scn 729 bytes
+physics-playground-j2me/original/recovered/.godot/exported/133200997/export-04a23a1839f42f04f549c3016cd2b6ce-benchmark.scn 716 bytes
+physics-playground-j2me/original/recovered/.godot/exported/133200997/export-7c76daf897aaedc649378b4f981db3f3-ragdoll_probe.scn 716 bytes
+physics-playground-j2me/original/recovered/.godot/exported/133200997/export-61066bb7b853a86f5e6e9958089378e8-ragdoll_test.scn 721 bytes
+physics-playground-j2me/original/recovered/.godot/exported/133200997/export-f26fe175837e58804f1c48b99041ac16-hud.scn 6385 bytes
+physics-playground-j2me/original/recovered/.godot/exported/133200997/export-30b1353c6c4a901992ee4f63233345bd-sandbox_entity.scn 900 bytes
+physics-playground-j2me/original/recovered/.godot/exported/133200997/export-3ad5c15c4f3250da0cc7c1af1770d85f-main.scn 1248 bytes
+physics-playground-j2me/original/recovered/.godot/imported/icon.svg-218a8f2b3041327d8a5756f3a245f83b.md5 91 bytes
+physics-playground-j2me/original/recovered/.godot/imported/icon.svg-218a8f2b3041327d8a5756f3a245f83b.ctex 3426 bytes
+physics-playground-j2me/original/recovered/.godot/uid_cache.bin 3914 bytes
+physics-playground-j2me/original/recovered/.godot/scene_groups_cache.cfg 0 bytes
+physics-playground-j2me/original/recovered/.godot/global_script_class_cache.cfg 11600 bytes
+physics-playground-j2me/original/recovered/scripts/world/grid_overlay.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/world/grid_overlay.gd 1479 bytes
+physics-playground-j2me/original/recovered/scripts/world/sandbox_world.gd 11692 bytes
+physics-playground-j2me/original/recovered/scripts/world/world_geometry.gd 2064 bytes
+physics-playground-j2me/original/recovered/scripts/world/camera_controller.gd 4909 bytes
+physics-playground-j2me/original/recovered/scripts/world/systems/thermal_system.gd 2659 bytes
+physics-playground-j2me/original/recovered/scripts/world/systems/thermal_system.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/world/systems/effects_layer.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/world/systems/explosion_params.gd 835 bytes
+physics-playground-j2me/original/recovered/scripts/world/systems/explosion_params.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/world/systems/projectile_system.gd 8969 bytes
+physics-playground-j2me/original/recovered/scripts/world/systems/explosion_system.gd 6843 bytes
+physics-playground-j2me/original/recovered/scripts/world/systems/projectile_system.gd.uid 19 bytes
+physics-playground-j2me/original/recovered/scripts/world/systems/effects_layer.gd 9605 bytes
+physics-playground-j2me/original/recovered/scripts/world/systems/explosion_system.gd.uid 19 bytes
+physics-playground-j2me/original/recovered/scripts/world/camera_controller.gd.uid 19 bytes
+physics-playground-j2me/original/recovered/scripts/world/sandbox_world.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/world/world_geometry.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/entities/entity_visual.gd 15486 bytes
+physics-playground-j2me/original/recovered/scripts/entities/sandbox_entity.gd.uid 19 bytes
+physics-playground-j2me/original/recovered/scripts/entities/assembly/assembly_joint.gd 592 bytes
+physics-playground-j2me/original/recovered/scripts/entities/assembly/human_controller.gd.uid 18 bytes
+physics-playground-j2me/original/recovered/scripts/entities/assembly/assembly_joint.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/entities/assembly/assembly_controller_registry.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/entities/assembly/entity_assembly.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/entities/assembly/assembly_controller.gd.uid 19 bytes
+physics-playground-j2me/original/recovered/scripts/entities/assembly/assembly_controller_registry.gd 513 bytes
+physics-playground-j2me/original/recovered/scripts/entities/assembly/human_controller.gd 4191 bytes
+physics-playground-j2me/original/recovered/scripts/entities/assembly/assembly_controller.gd 949 bytes
+physics-playground-j2me/original/recovered/scripts/entities/assembly/entity_assembly.gd 9585 bytes
+physics-playground-j2me/original/recovered/scripts/entities/damageable_entity.gd 1328 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/destructible_component.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/component_registry.gd 2000 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/health_component.gd.uid 19 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/explosive_component.gd 3750 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/thermal_component.gd 5138 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/melee_component.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/health_component.gd 3355 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/melee_component.gd 627 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/thermal_component.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/electrical_component.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/explosive_component.gd.uid 19 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/magazine_component.gd 2853 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/magazine_component.gd.uid 19 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/debris_component.gd.uid 19 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/entity_component.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/entity_component.gd 579 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/debris_component.gd 747 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/firearm_component.gd 5059 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/firearm_component.gd.uid 19 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/impact_damage_component.gd 4911 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/electrical_component.gd 897 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/destructible_component.gd 2007 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/component_registry.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/entities/components/impact_damage_component.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/entities/weapon_art.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/entities/entity_visual.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/entities/damage_info.gd.uid 19 bytes
+physics-playground-j2me/original/recovered/scripts/entities/sandbox_entity.gd 3590 bytes
+physics-playground-j2me/original/recovered/scripts/entities/weapon_art.gd 6519 bytes
+physics-playground-j2me/original/recovered/scripts/entities/damageable_entity.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/entities/damage_info.gd 1974 bytes
+physics-playground-j2me/original/recovered/scripts/interaction/sandbox_tools.gd 2466 bytes
+physics-playground-j2me/original/recovered/scripts/interaction/interaction_controller.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/interaction/interaction_controller.gd 10802 bytes
+physics-playground-j2me/original/recovered/scripts/interaction/spawn_placer.gd 1671 bytes
+physics-playground-j2me/original/recovered/scripts/interaction/drag_handle.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/interaction/sandbox_tools.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/interaction/drag_handle.gd 3542 bytes
+physics-playground-j2me/original/recovered/scripts/interaction/spawn_placer.gd.uid 19 bytes
+physics-playground-j2me/original/recovered/scripts/main.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/core/entity_definition.gd 6361 bytes
+physics-playground-j2me/original/recovered/scripts/core/mod_loader.gd 10439 bytes
+physics-playground-j2me/original/recovered/scripts/core/mod_manifest.gd 1336 bytes
+physics-playground-j2me/original/recovered/scripts/core/mod_loader.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/core/assembly_definition.gd 6308 bytes
+physics-playground-j2me/original/recovered/scripts/core/world_units.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/core/data_reader.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/core/projectile_definition.gd 1867 bytes
+physics-playground-j2me/original/recovered/scripts/core/entity_registry.gd 3909 bytes
+physics-playground-j2me/original/recovered/scripts/core/collision_layers.gd 122 bytes
+physics-playground-j2me/original/recovered/scripts/core/data_reader.gd 3345 bytes
+physics-playground-j2me/original/recovered/scripts/core/namespaced_id.gd 991 bytes
+physics-playground-j2me/original/recovered/scripts/core/entity_definition.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/core/input_bindings.gd 1812 bytes
+physics-playground-j2me/original/recovered/scripts/core/entity_registry.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/core/input_bindings.gd.uid 19 bytes
+physics-playground-j2me/original/recovered/scripts/core/namespaced_id.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/core/collision_layers.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/core/entity_factory.gd 2070 bytes
+physics-playground-j2me/original/recovered/scripts/core/material_definition.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/core/material_definition.gd 2348 bytes
+physics-playground-j2me/original/recovered/scripts/core/component_schemas.gd 9356 bytes
+physics-playground-j2me/original/recovered/scripts/core/sound_definition.gd.uid 19 bytes
+physics-playground-j2me/original/recovered/scripts/core/mod_manifest.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/core/sound_definition.gd 1397 bytes
+physics-playground-j2me/original/recovered/scripts/core/entity_factory.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/core/projectile_definition.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/core/world_units.gd 301 bytes
+physics-playground-j2me/original/recovered/scripts/core/component_schemas.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/core/assembly_definition.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/audio/sound_synth.gd 5082 bytes
+physics-playground-j2me/original/recovered/scripts/audio/sound_synth.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/ui/spawn_menu.gd 4098 bytes
+physics-playground-j2me/original/recovered/scripts/ui/ui_theme.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/ui/inspector_panel.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/ui/hud.gd.uid 19 bytes
+physics-playground-j2me/original/recovered/scripts/ui/ui_theme.gd 3249 bytes
+physics-playground-j2me/original/recovered/scripts/ui/hud.gd 6992 bytes
+physics-playground-j2me/original/recovered/scripts/ui/inspector_panel.gd 2362 bytes
+physics-playground-j2me/original/recovered/scripts/ui/entity_preview_icon.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/ui/entity_preview_icon.gd 639 bytes
+physics-playground-j2me/original/recovered/scripts/ui/spawn_menu.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/main.gd 1808 bytes
+physics-playground-j2me/original/recovered/scripts/autoload/content.gd 685 bytes
+physics-playground-j2me/original/recovered/scripts/autoload/game_state.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/autoload/content.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/autoload/game_state.gd 878 bytes
+physics-playground-j2me/original/recovered/scripts/autoload/audio_manager.gd 3550 bytes
+physics-playground-j2me/original/recovered/scripts/autoload/audio_manager.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/save/entity_serializer.gd 2191 bytes
+physics-playground-j2me/original/recovered/scripts/save/entity_serializer.gd.uid 19 bytes
+physics-playground-j2me/original/recovered/scripts/save/save_migrator.gd 1257 bytes
+physics-playground-j2me/original/recovered/scripts/save/save_file_store.gd 3500 bytes
+physics-playground-j2me/original/recovered/scripts/save/assembly_serializer.gd 890 bytes
+physics-playground-j2me/original/recovered/scripts/save/save_validator.gd 12466 bytes
+physics-playground-j2me/original/recovered/scripts/save/save_file_store.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/save/save_manager.gd 7151 bytes
+physics-playground-j2me/original/recovered/scripts/save/save_migrator.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/save/save_manager.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/save/save_validator.gd.uid 20 bytes
+physics-playground-j2me/original/recovered/scripts/save/assembly_serializer.gd.uid 19 bytes
+physics-playground-j2me/original/recovered/project.godot 1405 bytes
+physics-playground-j2me/original/recovered/.autoconverted/tests/reliability_test.gdc 31585 bytes
+physics-playground-j2me/original/recovered/.autoconverted/tests/capture_screenshot.gdc 2379 bytes
+physics-playground-j2me/original/recovered/.autoconverted/tests/ragdoll_probe.gdc 4545 bytes
+physics-playground-j2me/original/recovered/.autoconverted/tests/smoke_test.gdc 10991 bytes
+physics-playground-j2me/original/recovered/.autoconverted/tests/capture_weapons.gdc 2700 bytes
+physics-playground-j2me/original/recovered/.autoconverted/tests/weapons_test.gdc 27349 bytes
+physics-playground-j2me/original/recovered/.autoconverted/tests/ragdoll_test.gdc 21044 bytes
+physics-playground-j2me/original/recovered/.autoconverted/tests/benchmark.gdc 8806 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/world/sandbox_world.gdc 9274 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/world/camera_controller.gdc 3978 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/world/grid_overlay.gdc 1435 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/world/systems/thermal_system.gdc 2691 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/world/systems/explosion_system.gdc 6032 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/world/systems/effects_layer.gdc 8165 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/world/systems/projectile_system.gdc 7230 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/world/systems/explosion_params.gdc 895 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/world/world_geometry.gdc 1925 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/damageable_entity.gdc 1117 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/assembly/human_controller.gdc 3467 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/assembly/assembly_controller_registry.gdc 573 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/assembly/assembly_joint.gdc 705 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/assembly/assembly_controller.gdc 991 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/assembly/entity_assembly.gdc 7978 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/weapon_art.gdc 4878 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/components/firearm_component.gdc 4572 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/components/impact_damage_component.gdc 3828 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/components/electrical_component.gdc 996 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/components/debris_component.gdc 977 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/components/thermal_component.gdc 4041 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/components/health_component.gdc 2916 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/components/magazine_component.gdc 2600 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/components/melee_component.gdc 725 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/components/entity_component.gdc 705 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/components/destructible_component.gdc 2107 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/components/component_registry.gdc 1541 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/components/explosive_component.gdc 3377 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/sandbox_entity.gdc 3201 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/damage_info.gdc 1655 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/entities/entity_visual.gdc 11813 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/interaction/interaction_controller.gdc 9143 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/interaction/drag_handle.gdc 3009 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/interaction/spawn_placer.gdc 1684 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/interaction/sandbox_tools.gdc 2268 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/main.gdc 1854 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/core/mod_manifest.gdc 1348 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/core/input_bindings.gdc 1890 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/core/namespaced_id.gdc 967 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/core/world_units.gdc 344 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/core/collision_layers.gdc 249 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/core/projectile_definition.gdc 1758 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/core/entity_registry.gdc 2828 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/core/data_reader.gdc 2570 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/core/entity_factory.gdc 1653 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/core/mod_loader.gdc 8195 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/core/material_definition.gdc 1963 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/core/sound_definition.gdc 1460 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/core/assembly_definition.gdc 5229 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/core/component_schemas.gdc 7685 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/core/entity_definition.gdc 5420 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/audio/sound_synth.gdc 4166 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/ui/hud.gdc 6053 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/ui/ui_theme.gdc 2697 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/ui/inspector_panel.gdc 2270 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/ui/spawn_menu.gdc 3611 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/ui/entity_preview_icon.gdc 815 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/autoload/game_state.gdc 988 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/autoload/content.gdc 804 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/autoload/audio_manager.gdc 3412 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/save/entity_serializer.gdc 2007 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/save/save_manager.gdc 6057 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/save/save_migrator.gdc 1128 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/save/save_file_store.gdc 2846 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/save/save_validator.gdc 9697 bytes
+physics-playground-j2me/original/recovered/.autoconverted/scripts/save/assembly_serializer.gdc 971 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/baseball_bat.json 589 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/shotgun.json 804 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/large_bomb.json 644 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/small_bomb.json 634 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/pistol.json 742 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/wooden_plank.json 813 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/explosive_barrel.json 969 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/metal_barrel.json 780 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/steel_box.json 457 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/smg.json 746 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/hammer.json 586 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/assault_rifle.json 770 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/metal_sphere.json 427 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/debris_pieces.json 1884 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/concrete_block.json 467 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/human.json 4195 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/human_parts.json 9353 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/rubber_ball.json 406 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/wooden_box.json 797 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/revolver.json 804 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/glass_panel.json 776 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/metal_pipe.json 569 bytes
+physics-playground-j2me/original/recovered/mods/core/entities/crowbar.json 559 bytes
+physics-playground-j2me/original/recovered/mods/core/materials/core_materials.json 2501 bytes
+physics-playground-j2me/original/recovered/mods/core/projectiles/core_projectiles.json 1588 bytes
+physics-playground-j2me/original/recovered/mods/core/sounds/core_sounds.json 2905 bytes
+physics-playground-j2me/original/recovered/mods/core/mod.json 325 bytes
+physics-playground-j2me/original/recovered/icon.svg 92527 bytes
+physics-playground-j2me/original/recovered/icon.svg.import 1012 bytes

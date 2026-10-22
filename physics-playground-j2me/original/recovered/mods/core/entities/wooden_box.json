@@ -1,0 +1,41 @@
+{
+	"id": "wooden_box",
+	"display_name": "Wooden Box",
+	"description": "A light wooden crate. Stacks well and is easy to throw.",
+	"category": "Boxes",
+	"material": "wood",
+	"shape": {
+		"type": "rectangle",
+		"size": [64, 64]
+	},
+	"visual": {
+		"style": "crate",
+		"fill_color": "#9a7449",
+		"outline_color": "#4a3520",
+		"detail_color": "#6d4f30"
+	},
+	"components": {
+		"health": {
+			"max_health": 100,
+			"on_depleted": "none"
+		},
+		"thermal": {
+			"burn_damage": 6,
+			"burn_duration": 14
+		},
+		"electrical": {},
+		"impact_damage": {
+			"min_impact_speed": 9.0,
+			"damage_per_speed": 8.0,
+			"cooldown": 0.2
+		},
+		"destructible": {
+			"debris": "wood_chunk",
+			"debris_count": 4,
+			"debris_speed": 200,
+			"effect": "splinters",
+			"sound": "wood_break"
+		}
+	},
+	"tags": ["container"]
+}

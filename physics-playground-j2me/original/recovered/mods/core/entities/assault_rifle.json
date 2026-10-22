@@ -1,0 +1,38 @@
+{
+	"id": "assault_rifle",
+	"display_name": "Assault Rifle",
+	"description": "Automatic rifle. 30 rounds, high fire rate, deep penetration.",
+	"category": "Firearms",
+	"material": "steel",
+	"mass": 3.6,
+	"shape": {
+		"type": "rectangle",
+		"size": [100, 20]
+	},
+	"visual": {
+		"style": "rifle",
+		"fill_color": "#2f3a2f",
+		"outline_color": "#16181b",
+		"detail_color": "#5d6b55"
+	},
+	"components": {
+		"magazine": {
+			"capacity": 30,
+			"reload_time": 2.2,
+			"reload_sound": "reload"
+		},
+		"firearm": {
+			"projectile": "rifle_round",
+			"fire_rate": 11,
+			"automatic": true,
+			"spread": 2.0,
+			"recoil": 3.2,
+			"muzzle_flash": 18,
+			"sound": "gunshot_rifle",
+			"muzzle": [50.0, -4]
+		},
+		"thermal": {},
+		"electrical": {}
+	},
+	"tags": ["weapon", "firearm"]
+}

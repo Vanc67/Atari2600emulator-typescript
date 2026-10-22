@@ -1,0 +1,49 @@
+{
+	"id": "explosive_barrel",
+	"display_name": "Explosive Barrel",
+	"description": "Detonates when destroyed, shot enough, set on fire, or triggered.",
+	"category": "Explosives",
+	"material": "steel",
+	"mass": 40,
+	"shape": {
+		"type": "rectangle",
+		"size": [56, 84]
+	},
+	"visual": {
+		"style": "hazard_barrel",
+		"fill_color": "#b3352a",
+		"outline_color": "#3a110d",
+		"detail_color": "#f0c23a"
+	},
+	"components": {
+		"health": {
+			"max_health": 25,
+			"damage_multipliers": {
+				"explosion": 2.5
+			}
+		},
+		"explosive": {
+			"radius": 320,
+			"force": 1400,
+			"damage": 230,
+			"falloff": 1.4,
+			"ignite": true,
+			"fuse": 0.6,
+			"chain_fuse": [0.08, 0.25],
+			"detonate_temperature": 240,
+			"sound": "explosion"
+		},
+		"destructible": {
+			"debris": "metal_scrap",
+			"debris_count": 5,
+			"debris_speed": 260,
+			"effect": "metal",
+			"sound": "metal_break"
+		},
+		"thermal": {
+			"heat_resistance": 0.0
+		},
+		"electrical": {}
+	},
+	"tags": ["explosive"]
+}

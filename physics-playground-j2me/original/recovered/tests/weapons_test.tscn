@@ -1,0 +1,7 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://dfcq42insdf7e" path="res://tests/weapons_test.gd" id="1"]
+
+[node name="WeaponsTest" type="Node" unique_id=1731680468]
+process_mode = 3
+script = ExtResource("1")

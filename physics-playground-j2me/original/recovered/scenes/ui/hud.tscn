@@ -1,0 +1,300 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://ls3kxbxar3lj" path="res://scripts/ui/hud.gd" id="1"]
+[ext_resource type="Script" uid="uid://cq8t1r0q5jief" path="res://scripts/ui/spawn_menu.gd" id="2"]
+[ext_resource type="Script" uid="uid://dsrt6r5vt3xue" path="res://scripts/ui/inspector_panel.gd" id="3"]
+
+[node name="HUD" type="CanvasLayer" unique_id=1069682623]
+layer = 10
+script = ExtResource("1")
+
+[node name="Root" type="Control" parent="." unique_id=154323793]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="TopBar" type="PanelContainer" parent="Root" unique_id=827589532]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 8.0
+offset_top = 8.0
+offset_right = -8.0
+offset_bottom = 52.0
+grow_horizontal = 2
+
+[node name="Row" type="HBoxContainer" parent="Root/TopBar" unique_id=1635060417]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="SpawnButton" type="Button" parent="Root/TopBar/Row" unique_id=609579407]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Show or hide the spawn menu (Tab)"
+toggle_mode = true
+text = "Spawn Menu"
+
+[node name="Separator1" type="VSeparator" parent="Root/TopBar/Row" unique_id=1947649306]
+layout_mode = 2
+
+[node name="PauseButton" type="Button" parent="Root/TopBar/Row" unique_id=962486646]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(84, 0)
+layout_mode = 2
+tooltip_text = "Pause or resume the simulation (Space)"
+text = "Pause"
+
+[node name="SpeedCaption" type="Label" parent="Root/TopBar/Row" unique_id=1639502417]
+layout_mode = 2
+theme_type_variation = &"DimLabel"
+text = "Speed"
+
+[node name="SpeedSlider" type="HSlider" parent="Root/TopBar/Row" unique_id=1141890808]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Simulation speed"
+min_value = 0.1
+max_value = 2.0
+step = 0.05
+value = 1.0
+
+[node name="SpeedValue" type="Label" parent="Root/TopBar/Row" unique_id=1437447556]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(48, 0)
+layout_mode = 2
+text = "1.00×"
+
+[node name="SpeedReset" type="Button" parent="Root/TopBar/Row" unique_id=1160845940]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Reset to normal speed"
+text = "1×"
+
+[node name="Separator2" type="VSeparator" parent="Root/TopBar/Row" unique_id=687170944]
+layout_mode = 2
+
+[node name="GridButton" type="Button" parent="Root/TopBar/Row" unique_id=2047692780]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Toggle the grid overlay (G)"
+toggle_mode = true
+text = "Grid"
+
+[node name="ClearButton" type="Button" parent="Root/TopBar/Row" unique_id=908919702]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Remove all objects"
+text = "Clear"
+
+[node name="Separator3" type="VSeparator" parent="Root/TopBar/Row" unique_id=739680063]
+layout_mode = 2
+
+[node name="SaveButton" type="Button" parent="Root/TopBar/Row" unique_id=1117211038]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Quick save (F5 / Cmd+S)"
+text = "Save"
+
+[node name="LoadButton" type="Button" parent="Root/TopBar/Row" unique_id=1340747082]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Quick load (F9 / Cmd+O)"
+text = "Load"
+
+[node name="Spacer" type="Control" parent="Root/TopBar/Row" unique_id=1106630445]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="CountLabel" type="Label" parent="Root/TopBar/Row" unique_id=1437770389]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+text = "Objects: 0"
+
+[node name="FpsLabel" type="Label" parent="Root/TopBar/Row" unique_id=1619258612]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+text = "FPS: --"
+horizontal_alignment = 2
+
+[node name="ToolBar" type="PanelContainer" parent="Root" unique_id=791223202]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -330.0
+offset_top = 60.0
+offset_right = 330.0
+offset_bottom = 100.0
+grow_horizontal = 2
+
+[node name="ToolRow" type="HBoxContainer" parent="Root/ToolBar" unique_id=999425100]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="SpawnMenu" type="PanelContainer" parent="Root" unique_id=619491975]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 9
+anchor_bottom = 1.0
+offset_left = 8.0
+offset_top = 60.0
+offset_right = 268.0
+offset_bottom = -40.0
+grow_vertical = 2
+script = ExtResource("2")
+
+[node name="Content" type="VBoxContainer" parent="Root/SpawnMenu" unique_id=1578029357]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="Root/SpawnMenu/Content" unique_id=1261513099]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+text = "SPAWN"
+
+[node name="CategoryBar" type="HFlowContainer" parent="Root/SpawnMenu/Content" unique_id=1173830436]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Separator" type="HSeparator" parent="Root/SpawnMenu/Content" unique_id=478101055]
+layout_mode = 2
+
+[node name="Scroll" type="ScrollContainer" parent="Root/SpawnMenu/Content" unique_id=959580704]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="ItemList" type="VBoxContainer" parent="Root/SpawnMenu/Content/Scroll" unique_id=1590090723]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="Description" type="Label" parent="Root/SpawnMenu/Content" unique_id=29917561]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+theme_type_variation = &"DimLabel"
+text = "Pick an object, then click in the world to place it."
+autowrap_mode = 3
+
+[node name="Inspector" type="PanelContainer" parent="Root" unique_id=2081688274]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -308.0
+offset_top = -60.0
+offset_right = -8.0
+offset_bottom = -40.0
+grow_horizontal = 0
+grow_vertical = 0
+script = ExtResource("3")
+
+[node name="Content" type="VBoxContainer" parent="Root/Inspector" unique_id=924205919]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="InspectorTitle" type="Label" parent="Root/Inspector/Content" unique_id=1424861175]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+text = "Selection"
+
+[node name="InspectorDetails" type="Label" parent="Root/Inspector/Content" unique_id=340250469]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"DimLabel"
+theme_override_font_sizes/font_size = 13
+
+[node name="Buttons" type="HBoxContainer" parent="Root/Inspector/Content" unique_id=2014339878]
+layout_mode = 2
+
+[node name="FreezeButton" type="Button" parent="Root/Inspector/Content/Buttons" unique_id=147096074]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Freeze / unfreeze (F)"
+text = "Freeze"
+
+[node name="DuplicateButton" type="Button" parent="Root/Inspector/Content/Buttons" unique_id=288455082]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Duplicate (Cmd/Ctrl+D)"
+text = "Copy"
+
+[node name="HealButton" type="Button" parent="Root/Inspector/Content/Buttons" unique_id=610996083]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Heal fully (R). Heals and revives a whole ragdoll."
+text = "Heal"
+
+[node name="DeleteButton" type="Button" parent="Root/Inspector/Content/Buttons" unique_id=839109000]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Delete (Del / X)"
+text = "Delete"
+
+[node name="Toast" type="Label" parent="Root" unique_id=12679471]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -360.0
+offset_top = 110.0
+offset_right = 360.0
+offset_bottom = 134.0
+grow_horizontal = 2
+horizontal_alignment = 1
+
+[node name="PausedBadge" type="Label" parent="Root" unique_id=474834108]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -100.0
+offset_top = 138.0
+offset_right = 100.0
+offset_bottom = 162.0
+grow_horizontal = 2
+theme_type_variation = &"HeaderLabel"
+theme_override_font_sizes/font_size = 16
+text = "PAUSED"
+horizontal_alignment = 1
+
+[node name="HintLabel" type="Label" parent="Root" unique_id=1349320606]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 12.0
+offset_top = -32.0
+offset_right = -12.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_type_variation = &"DimLabel"
+text = "Help"
+clip_text = true

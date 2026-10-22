@@ -1,0 +1,41 @@
+{
+	"id": "metal_barrel",
+	"display_name": "Metal Barrel",
+	"description": "An empty steel drum standing upright.",
+	"category": "Barrels",
+	"material": "steel",
+	"mass": 45,
+	"shape": {
+		"type": "rectangle",
+		"size": [56, 84]
+	},
+	"visual": {
+		"style": "barrel",
+		"fill_color": "#4f6878",
+		"outline_color": "#25323b",
+		"detail_color": "#2f3f4a"
+	},
+	"components": {
+		"health": {
+			"max_health": 60,
+			"damage_multipliers": {
+				"projectile": 0.6
+			}
+		},
+		"thermal": {},
+		"electrical": {},
+		"impact_damage": {
+			"min_impact_speed": 12.0,
+			"damage_per_speed": 6.0,
+			"cooldown": 0.2
+		},
+		"destructible": {
+			"debris": "metal_scrap",
+			"debris_count": 4,
+			"debris_speed": 220,
+			"effect": "metal",
+			"sound": "metal_break"
+		}
+	},
+	"tags": ["container"]
+}

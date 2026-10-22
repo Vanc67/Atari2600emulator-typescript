@@ -1,0 +1,11 @@
+{
+	"id": "rubber_ball",
+	"display_name": "Rubber Ball",
+	"description": "A bouncy rubber ball.",
+	"category": "Spheres",
+	"material": "rubber",
+	"shape": { "type": "circle", "radius": 18 },
+	"visual": { "style": "ball", "fill_color": "#c4473b", "outline_color": "#5e1f19", "detail_color": "#ecdccb" },
+	"components": { "health": { "max_health": 100 }, "thermal": {}, "electrical": {} },
+	"tags": ["toy"]
+}

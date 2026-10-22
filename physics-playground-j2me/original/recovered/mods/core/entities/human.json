@@ -1,0 +1,190 @@
+{
+	"id": "human",
+	"display_name": "Human",
+	"description": "A physically simulated human ragdoll with per-limb health.",
+	"category": "Ragdolls",
+	"assembly": {
+		"spawn_nudge": 25,
+		"parts": [
+			{
+				"name": "pelvis",
+				"display_name": "Pelvis",
+				"entity": "human_pelvis",
+				"position": [0, 0],
+				"z_index": 0
+			},
+			{
+				"name": "upper_torso",
+				"display_name": "Upper Torso",
+				"entity": "human_upper_torso",
+				"position": [0, -42],
+				"z_index": 0
+			},
+			{
+				"name": "head",
+				"display_name": "Head",
+				"entity": "human_head",
+				"position": [0, -86],
+				"z_index": 0
+			},
+			{
+				"name": "upper_arm_left",
+				"display_name": "Left Upper Arm",
+				"entity": "human_upper_arm_left",
+				"position": [0, -50],
+				"z_index": -1
+			},
+			{
+				"name": "forearm_left",
+				"display_name": "Left Forearm",
+				"entity": "human_forearm_left",
+				"position": [0, -18],
+				"z_index": -1
+			},
+			{
+				"name": "upper_arm_right",
+				"display_name": "Right Upper Arm",
+				"entity": "human_upper_arm_right",
+				"position": [0, -50],
+				"z_index": 1
+			},
+			{
+				"name": "forearm_right",
+				"display_name": "Right Forearm",
+				"entity": "human_forearm_right",
+				"position": [0, -18],
+				"z_index": 1
+			},
+			{
+				"name": "thigh_left",
+				"display_name": "Left Thigh",
+				"entity": "human_thigh_left",
+				"position": [0, 34],
+				"z_index": -1
+			},
+			{
+				"name": "lower_leg_left",
+				"display_name": "Left Lower Leg",
+				"entity": "human_lower_leg_left",
+				"position": [0, 80],
+				"z_index": -1
+			},
+			{
+				"name": "thigh_right",
+				"display_name": "Right Thigh",
+				"entity": "human_thigh_right",
+				"position": [0, 34],
+				"z_index": 1
+			},
+			{
+				"name": "lower_leg_right",
+				"display_name": "Right Lower Leg",
+				"entity": "human_lower_leg_right",
+				"position": [0, 80],
+				"z_index": 1
+			}
+		],
+		"joints": [
+			{
+				"name": "neck",
+				"parent": "upper_torso",
+				"child": "head",
+				"anchor": [0, -72],
+				"angle_limits": [-35, 45],
+				"break_strain": 12,
+				"break_impact_speed": 30
+			},
+			{
+				"name": "waist",
+				"parent": "pelvis",
+				"child": "upper_torso",
+				"anchor": [0, -16],
+				"angle_limits": [-25, 70],
+				"break_strain": 14,
+				"break_impact_speed": 45
+			},
+			{
+				"name": "shoulder_left",
+				"parent": "upper_torso",
+				"child": "upper_arm_left",
+				"anchor": [0, -62],
+				"angle_limits": null,
+				"break_strain": 12,
+				"break_impact_speed": 26
+			},
+			{
+				"name": "elbow_left",
+				"parent": "upper_arm_left",
+				"child": "forearm_left",
+				"anchor": [0, -34],
+				"angle_limits": [-150, 5],
+				"break_strain": 12,
+				"break_impact_speed": 24
+			},
+			{
+				"name": "shoulder_right",
+				"parent": "upper_torso",
+				"child": "upper_arm_right",
+				"anchor": [0, -62],
+				"angle_limits": null,
+				"break_strain": 12,
+				"break_impact_speed": 26
+			},
+			{
+				"name": "elbow_right",
+				"parent": "upper_arm_right",
+				"child": "forearm_right",
+				"anchor": [0, -34],
+				"angle_limits": [-150, 5],
+				"break_strain": 12,
+				"break_impact_speed": 24
+			},
+			{
+				"name": "hip_left",
+				"parent": "pelvis",
+				"child": "thigh_left",
+				"anchor": [0, 14],
+				"angle_limits": [-110, 25],
+				"break_strain": 14,
+				"break_impact_speed": 30
+			},
+			{
+				"name": "knee_left",
+				"parent": "thigh_left",
+				"child": "lower_leg_left",
+				"anchor": [0, 57],
+				"angle_limits": [-5, 160],
+				"break_strain": 12,
+				"break_impact_speed": 26
+			},
+			{
+				"name": "hip_right",
+				"parent": "pelvis",
+				"child": "thigh_right",
+				"anchor": [0, 14],
+				"angle_limits": [-110, 25],
+				"break_strain": 14,
+				"break_impact_speed": 30
+			},
+			{
+				"name": "knee_right",
+				"parent": "thigh_right",
+				"child": "lower_leg_right",
+				"anchor": [0, 57],
+				"angle_limits": [-5, 160],
+				"break_strain": 12,
+				"break_impact_speed": 26
+			}
+		],
+		"controller": {
+			"type": "human",
+			"vital_parts": ["head", "upper_torso"],
+			"vital_critical_fraction": 0.0,
+			"fatal_joints": ["neck", "waist"],
+			"incapacitating_parts": ["pelvis"],
+			"incapacitated_below": 0.55,
+			"incapacitated_destroyed_parts": 2
+		}
+	},
+	"tags": ["ragdoll", "organic"]
+}

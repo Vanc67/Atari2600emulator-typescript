@@ -1,0 +1,7 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://bvdl1ys7uucti" path="res://tests/capture_weapons.gd" id="1"]
+
+[node name="Capture" type="Node" unique_id=745654638]
+process_mode = 3
+script = ExtResource("1")

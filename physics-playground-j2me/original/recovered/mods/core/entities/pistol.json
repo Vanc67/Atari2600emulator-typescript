@@ -1,0 +1,38 @@
+{
+	"id": "pistol",
+	"display_name": "Pistol",
+	"description": "Semi-automatic sidearm. 12 rounds, low recoil.",
+	"category": "Firearms",
+	"material": "steel",
+	"mass": 1.0,
+	"shape": {
+		"type": "rectangle",
+		"size": [34, 16]
+	},
+	"visual": {
+		"style": "pistol",
+		"fill_color": "#3a3f46",
+		"outline_color": "#16181b",
+		"detail_color": "#6b737d"
+	},
+	"components": {
+		"magazine": {
+			"capacity": 12,
+			"reload_time": 1.4,
+			"reload_sound": "reload"
+		},
+		"firearm": {
+			"projectile": "pistol_round",
+			"fire_rate": 6,
+			"automatic": false,
+			"spread": 1.2,
+			"recoil": 2.5,
+			"muzzle_flash": 12,
+			"sound": "gunshot_light",
+			"muzzle": [17.0, -3]
+		},
+		"thermal": {},
+		"electrical": {}
+	},
+	"tags": ["weapon", "firearm"]
+}

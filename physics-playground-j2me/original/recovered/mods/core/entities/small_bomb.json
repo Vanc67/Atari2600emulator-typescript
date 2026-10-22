@@ -1,0 +1,35 @@
+{
+	"id": "small_bomb",
+	"display_name": "Small Bomb",
+	"description": "Press the activation key to light a 3 second fuse.",
+	"category": "Explosives",
+	"material": "steel",
+	"mass": 2.5,
+	"shape": {
+		"type": "circle",
+		"radius": 13
+	},
+	"visual": {
+		"style": "bomb",
+		"fill_color": "#2b2e33",
+		"outline_color": "#0f1012",
+		"detail_color": "#e2a33b"
+	},
+	"components": {
+		"health": {
+			"max_health": 40
+		},
+		"explosive": {
+			"radius": 220,
+			"force": 700,
+			"damage": 150,
+			"falloff": 1.5,
+			"ignite": false,
+			"fuse": 3.0,
+			"sound": "explosion"
+		},
+		"thermal": {},
+		"electrical": {}
+	},
+	"tags": ["explosive"]
+}

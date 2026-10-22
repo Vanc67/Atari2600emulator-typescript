@@ -1,0 +1,11 @@
+{
+	"id": "concrete_block",
+	"display_name": "Concrete Block",
+	"description": "A dense cast concrete block. Very heavy and grippy.",
+	"category": "Construction",
+	"material": "concrete",
+	"shape": { "type": "rectangle", "size": [96, 64] },
+	"visual": { "style": "concrete", "fill_color": "#8b8a85", "outline_color": "#53524d", "detail_color": "#73726d" },
+	"components": { "health": { "max_health": 100 }, "thermal": {}, "electrical": {} },
+	"tags": ["structural"]
+}

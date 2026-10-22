@@ -1,0 +1,12 @@
+{
+	"id": "ice_block",
+	"display_name": "Ice Block",
+	"description": "Almost frictionless. Slides forever.",
+	"category": "Example",
+	"material": "ice",
+	"shape": { "type": "rectangle", "size": [72, 48] },
+	"visual": { "style": "plated", "fill_color": "#a9d8ee", "outline_color": "#4d7d94", "detail_color": "#e6f6ff" },
+	"components": { "health": { "max_health": 40 }, "thermal": { "initial_temperature": -5 } },
+	"properties": { "melts_at": 0 },
+	"tags": ["slippery"]
+}

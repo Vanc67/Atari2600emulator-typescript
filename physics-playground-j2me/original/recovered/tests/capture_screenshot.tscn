@@ -1,0 +1,7 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://bkigbalfdyb2" path="res://tests/capture_screenshot.gd" id="1"]
+
+[node name="Capture" type="Node" unique_id=841190926]
+process_mode = 3
+script = ExtResource("1")

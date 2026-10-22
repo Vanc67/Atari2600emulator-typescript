@@ -1,0 +1,50 @@
+{
+	"format": "physics_playground.world_save",
+	"format_version": 1,
+	"game_version": "0.1.0",
+	"saved_at_utc": "2026-10-16T12:00:00",
+	"mods": {
+		"core": "0.1.0"
+	},
+	"world": {
+		"next_entity_uid": 4,
+		"camera": {
+			"position": [0.0, -220.0],
+			"zoom": 1.0
+		}
+	},
+	"entities": [
+		{
+			"uid": 1,
+			"type": "core:steel_box",
+			"position": [-200.0, -32.0],
+			"rotation": 0.0,
+			"linear_velocity": [0.0, 0.0],
+			"angular_velocity": 0.0,
+			"frozen": false
+		},
+		{
+			"uid": 2,
+			"type": "core:wooden_box",
+			"position": [100.0, -400.0],
+			"rotation": 0.3,
+			"linear_velocity": [50.0, 0.0],
+			"angular_velocity": 0.5,
+			"frozen": true,
+			"components": {
+				"health": {
+					"current": 60.0
+				}
+			}
+		},
+		{
+			"uid": 3,
+			"type": "core:rubber_ball",
+			"position": [300.0, -200.0],
+			"rotation": 0.0,
+			"linear_velocity": [0.0, -100.0],
+			"angular_velocity": 0.0,
+			"frozen": false
+		}
+	]
+}

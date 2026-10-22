@@ -1,0 +1,39 @@
+{
+	"id": "glass_panel",
+	"display_name": "Glass Panel",
+	"description": "A tall pane of glass. Shatters from bullets and hard hits.",
+	"category": "Construction",
+	"material": "glass",
+	"mass": 15,
+	"shape": {
+		"type": "rectangle",
+		"size": [10, 130]
+	},
+	"visual": {
+		"style": "glass",
+		"fill_color": "#a9d4ea",
+		"outline_color": "#5d8aa0",
+		"detail_color": "#ffffff",
+		"damage_color": "#7a9aa8"
+	},
+	"components": {
+		"health": {
+			"max_health": 30
+		},
+		"impact_damage": {
+			"min_impact_speed": 4.5,
+			"damage_per_speed": 15.0,
+			"cooldown": 0.1
+		},
+		"destructible": {
+			"debris": "glass_shard",
+			"debris_count": 6,
+			"debris_speed": 160,
+			"effect": "glass",
+			"sound": "glass_break"
+		},
+		"thermal": {},
+		"electrical": {}
+	},
+	"tags": ["brittle"]
+}
