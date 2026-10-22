@@ -1,0 +1,17 @@
++ mkdir -p /tmp/gdre/bin
++ curl -fL --retry 3 https://github.com/GDRETools/gdsdecomp/releases/download/v2.7.4/GDRE_tools-v2.7.4-linux.zip -o /tmp/gdre/gdre.zip
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+ 20 33.6M   20 7085k    0     0  12.6M      0  0:00:02 --:--:--  0:00:02 12.6M100 33.6M  100 33.6M    0     0  27.0M      0  0:00:01  0:00:01 --:--:-- 38.5M
++ unzip -q /tmp/gdre/gdre.zip -d /tmp/gdre/bin
++ find /tmp/gdre/bin -maxdepth 2 -type f -printf '%p %s bytes\n'
+/tmp/gdre/bin/gdre_tools.x86_64 63628472 bytes
+/tmp/gdre/bin/libGodotMonoDecompNativeAOT.so 24119896 bytes
+/tmp/gdre/bin/gdre_tools.pck 6488060 bytes
+++ find /tmp/gdre/bin -type f -name gdre_tools.x86_64 -print -quit
++ GDRE=/tmp/gdre/bin/gdre_tools.x86_64
++ test -n /tmp/gdre/bin/gdre_tools.x86_64
++ chmod +x /tmp/gdre/bin/gdre_tools.x86_64
++ /tmp/gdre/bin/gdre_tools.x86_64 --headless --version
+Godot RE Tools v2.7.4
