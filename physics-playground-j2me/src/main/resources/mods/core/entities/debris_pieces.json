@@ -1,0 +1,104 @@
+{
+	"entities": [
+		{
+			"id": "wood_chunk",
+			"display_name": "Wood Chunk",
+			"description": "Crate debris.",
+			"category": "Debris",
+			"hidden": true,
+			"material": "wood",
+			"mass": 0.3,
+			"shape": {
+				"type": "rectangle",
+				"size": [16, 10]
+			},
+			"visual": {
+				"style": "plank",
+				"fill_color": "#9a7449",
+				"outline_color": "#4a3520",
+				"detail_color": "#6d4f30"
+			},
+			"components": {
+				"debris": {
+					"lifetime": 6
+				}
+			},
+			"tags": []
+		},
+		{
+			"id": "wood_splinter",
+			"display_name": "Wood Splinter",
+			"description": "Plank debris.",
+			"category": "Debris",
+			"hidden": true,
+			"material": "wood",
+			"mass": 0.15,
+			"shape": {
+				"type": "rectangle",
+				"size": [22, 5]
+			},
+			"visual": {
+				"style": "plank",
+				"fill_color": "#b48a55",
+				"outline_color": "#5a4126",
+				"detail_color": "#8f6b3e"
+			},
+			"components": {
+				"debris": {
+					"lifetime": 5
+				}
+			},
+			"tags": []
+		},
+		{
+			"id": "glass_shard",
+			"display_name": "Glass Shard",
+			"description": "Glass debris.",
+			"category": "Debris",
+			"hidden": true,
+			"material": "glass",
+			"mass": 0.1,
+			"shape": {
+				"type": "rectangle",
+				"size": [7, 14]
+			},
+			"visual": {
+				"style": "glass",
+				"fill_color": "#a9d4ea",
+				"outline_color": "#5d8aa0",
+				"detail_color": "#ffffff"
+			},
+			"components": {
+				"debris": {
+					"lifetime": 4
+				}
+			},
+			"tags": []
+		},
+		{
+			"id": "metal_scrap",
+			"display_name": "Metal Scrap",
+			"description": "Metal debris.",
+			"category": "Debris",
+			"hidden": true,
+			"material": "steel",
+			"mass": 0.4,
+			"shape": {
+				"type": "rectangle",
+				"size": [14, 9]
+			},
+			"visual": {
+				"style": "plated",
+				"fill_color": "#6d757e",
+				"outline_color": "#2e3236",
+				"detail_color": "#9ba3ab"
+			},
+			"components": {
+				"debris": {
+					"lifetime": 7
+				}
+			},
+			"tags": []
+		}
+	]
+}

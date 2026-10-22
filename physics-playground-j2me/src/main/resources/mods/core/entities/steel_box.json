@@ -1,0 +1,12 @@
+{
+	"id": "steel_box",
+	"display_name": "Steel Box",
+	"description": "A hollow riveted steel box. Heavy, slick and tough.",
+	"category": "Boxes",
+	"material": "steel",
+	"mass": 80,
+	"shape": { "type": "rectangle", "size": [64, 64] },
+	"visual": { "style": "plated", "fill_color": "#7b838c", "outline_color": "#363b41", "detail_color": "#a9b0b8" },
+	"components": { "health": { "max_health": 100 }, "thermal": {}, "electrical": {} },
+	"tags": ["container"]
+}

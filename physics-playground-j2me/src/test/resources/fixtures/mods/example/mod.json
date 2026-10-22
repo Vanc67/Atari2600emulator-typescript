@@ -1,0 +1,9 @@
+{
+	"mod_format": 1,
+	"id": "example",
+	"name": "Example Mod",
+	"version": "1.0.0",
+	"description": "Demonstrates a data-only mod: one new material and one new object.",
+	"authors": ["You"],
+	"categories": ["Example"]
+}

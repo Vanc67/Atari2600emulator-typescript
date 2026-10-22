@@ -1,0 +1,31 @@
+{
+	"id": "baseball_bat",
+	"display_name": "Baseball Bat",
+	"description": "A wooden bat. Swing it by dragging fast.",
+	"category": "Melee",
+	"material": "wood",
+	"mass": 1.0,
+	"shape": {
+		"type": "rectangle",
+		"size": [92, 10]
+	},
+	"physics": {
+		"center_of_mass": [16, 0],
+		"angular_damp": 0.4
+	},
+	"visual": {
+		"style": "bat",
+		"fill_color": "#c39a62",
+		"outline_color": "#5b4128",
+		"detail_color": "#e2c08e"
+	},
+	"components": {
+		"melee": {
+			"damage_multiplier": 3.0,
+			"threshold_multiplier": 0.25
+		},
+		"thermal": {},
+		"electrical": {}
+	},
+	"tags": ["weapon", "melee"]
+}

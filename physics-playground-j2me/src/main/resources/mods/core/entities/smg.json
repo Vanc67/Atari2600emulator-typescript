@@ -1,0 +1,38 @@
+{
+	"id": "smg",
+	"display_name": "Submachine Gun",
+	"description": "Compact automatic. Very high fire rate, light rounds.",
+	"category": "Firearms",
+	"material": "steel",
+	"mass": 2.4,
+	"shape": {
+		"type": "rectangle",
+		"size": [60, 18]
+	},
+	"visual": {
+		"style": "smg",
+		"fill_color": "#2c2f36",
+		"outline_color": "#16181b",
+		"detail_color": "#5a6170"
+	},
+	"components": {
+		"magazine": {
+			"capacity": 30,
+			"reload_time": 1.8,
+			"reload_sound": "reload"
+		},
+		"firearm": {
+			"projectile": "smg_round",
+			"fire_rate": 15,
+			"automatic": true,
+			"spread": 3.5,
+			"recoil": 1.8,
+			"muzzle_flash": 13,
+			"sound": "gunshot_smg",
+			"muzzle": [30.0, -3]
+		},
+		"thermal": {},
+		"electrical": {}
+	},
+	"tags": ["weapon", "firearm"]
+}

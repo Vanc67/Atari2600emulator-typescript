@@ -1,0 +1,360 @@
+{
+	"format": "physics_playground.world_save",
+	"format_version": 2,
+	"game_version": "0.2.0",
+	"saved_at_utc": "2026-10-16T12:59:28",
+	"mods": {
+		"core": "0.2.0"
+	},
+	"world": {
+		"next_entity_uid": 15,
+		"camera": {
+			"position": [
+				0.0,
+				-220.0
+			],
+			"zoom": 1.0
+		}
+	},
+	"entities": [
+		{
+			"uid": 1,
+			"type": "core:human_pelvis",
+			"position": [
+				83.09171295166016,
+				-12.970376968383789
+			],
+			"rotation": -1.5991525650024414,
+			"linear_velocity": [
+				-15.875250816345215,
+				17.78220558166504
+			],
+			"angular_velocity": 3.6197497844696045,
+			"frozen": false,
+			"components": {
+				"thermal": {
+					"temperature": 37.0
+				}
+			},
+			"assembly": {
+				"uid": 12,
+				"part": "pelvis"
+			}
+		},
+		{
+			"uid": 2,
+			"type": "core:human_upper_torso",
+			"position": [
+				42.504722595214844,
+				-21.01227378845215
+			],
+			"rotation": -1.237966537475586,
+			"linear_velocity": [
+				-34.36811065673828,
+				4.590458393096924
+			],
+			"angular_velocity": -1.8302032947540283,
+			"frozen": false,
+			"components": {
+				"thermal": {
+					"temperature": 37.0
+				}
+			},
+			"assembly": {
+				"uid": 12,
+				"part": "upper_torso"
+			}
+		},
+		{
+			"uid": 3,
+			"type": "core:human_head",
+			"position": [
+				0.2404729723930359,
+				-29.17477035522461
+			],
+			"rotation": -1.6883599758148193,
+			"linear_velocity": [
+				-51.827362060546875,
+				65.21015167236328
+			],
+			"angular_velocity": -0.6331155300140381,
+			"frozen": false,
+			"components": {
+				"thermal": {
+					"temperature": 37.0
+				}
+			},
+			"assembly": {
+				"uid": 12,
+				"part": "head"
+			}
+		},
+		{
+			"uid": 4,
+			"type": "core:human_upper_arm_left",
+			"position": [
+				30.801006317138672,
+				-17.948528289794922
+			],
+			"rotation": -0.6437064409255981,
+			"linear_velocity": [
+				-25.8454532623291,
+				23.679462432861328
+			],
+			"angular_velocity": -2.153271198272705,
+			"frozen": false,
+			"components": {
+				"thermal": {
+					"temperature": 37.0
+				}
+			},
+			"assembly": {
+				"uid": 12,
+				"part": "upper_arm_left"
+			}
+		},
+		{
+			"uid": 5,
+			"type": "core:human_forearm_left",
+			"position": [
+				56.39535140991211,
+				-5.625850677490234
+			],
+			"rotation": -1.6003367900848389,
+			"linear_velocity": [
+				1.4430172443389893,
+				3.660989284515381
+			],
+			"angular_velocity": 0.07637999951839447,
+			"frozen": false,
+			"components": {
+				"thermal": {
+					"temperature": 37.0
+				}
+			},
+			"assembly": {
+				"uid": 12,
+				"part": "forearm_left"
+			}
+		},
+		{
+			"uid": 6,
+			"type": "core:human_upper_arm_right",
+			"position": [
+				30.8455753326416,
+				-17.979463577270508
+			],
+			"rotation": -0.6482737064361572,
+			"linear_velocity": [
+				-25.526254653930664,
+				23.65763282775879
+			],
+			"angular_velocity": -2.1833598613739014,
+			"frozen": false,
+			"components": {
+				"thermal": {
+					"temperature": 37.0
+				}
+			},
+			"assembly": {
+				"uid": 12,
+				"part": "upper_arm_right"
+			}
+		},
+		{
+			"uid": 7,
+			"type": "core:human_forearm_right",
+			"position": [
+				56.500953674316406,
+				-5.593958854675293
+			],
+			"rotation": -1.5936330556869507,
+			"linear_velocity": [
+				2.090806245803833,
+				4.970389366149902
+			],
+			"angular_velocity": 0.18329644203186035,
+			"frozen": false,
+			"components": {
+				"thermal": {
+					"temperature": 37.0
+				}
+			},
+			"assembly": {
+				"uid": 12,
+				"part": "forearm_right"
+			}
+		},
+		{
+			"uid": 8,
+			"type": "core:human_thigh_left",
+			"position": [
+				116.90982818603516,
+				-10.60969066619873
+			],
+			"rotation": -1.4324924945831299,
+			"linear_velocity": [
+				-5.964388370513916,
+				20.146169662475586
+			],
+			"angular_velocity": -2.4416298866271973,
+			"frozen": false,
+			"components": {
+				"health": {
+					"current": 60.0
+				},
+				"thermal": {
+					"temperature": 37.0
+				}
+			},
+			"assembly": {
+				"uid": 12,
+				"part": "thigh_left"
+			}
+		},
+		{
+			"uid": 9,
+			"type": "core:human_lower_leg_left",
+			"position": [
+				162.70010375976563,
+				-7.015905380249023
+			],
+			"rotation": -1.5525414943695068,
+			"linear_velocity": [
+				4.171806335449219,
+				-15.315637588500977
+			],
+			"angular_velocity": 0.8615176677703857,
+			"frozen": false,
+			"components": {
+				"thermal": {
+					"temperature": 37.0
+				}
+			},
+			"assembly": {
+				"uid": 12,
+				"part": "lower_leg_left"
+			}
+		},
+		{
+			"uid": 10,
+			"type": "core:human_thigh_right",
+			"position": [
+				116.860595703125,
+				-10.204604148864746
+			],
+			"rotation": -1.4117741584777832,
+			"linear_velocity": [
+				-11.664600372314453,
+				28.931652069091797
+			],
+			"angular_velocity": -1.904505968093872,
+			"frozen": false,
+			"components": {
+				"thermal": {
+					"temperature": 37.0
+				}
+			},
+			"assembly": {
+				"uid": 12,
+				"part": "thigh_right"
+			}
+		},
+		{
+			"uid": 11,
+			"type": "core:human_lower_leg_right",
+			"position": [
+				162.5752716064453,
+				-6.689474582672119
+			],
+			"rotation": -1.5699750185012817,
+			"linear_velocity": [
+				-4.403934955596924,
+				-1.100461721420288
+			],
+			"angular_velocity": 0.10988777130842209,
+			"frozen": false,
+			"components": {
+				"thermal": {
+					"temperature": 37.0
+				}
+			},
+			"assembly": {
+				"uid": 12,
+				"part": "lower_leg_right"
+			}
+		},
+		{
+			"uid": 13,
+			"type": "core:wooden_box",
+			"position": [
+				300.0,
+				-31.936986923217773
+			],
+			"rotation": 1.8045824390355847e-07,
+			"linear_velocity": [
+				2.9802322387695313e-08,
+				0.0
+			],
+			"angular_velocity": 0.0,
+			"frozen": false
+		},
+		{
+			"uid": 14,
+			"type": "core:steel_box",
+			"position": [
+				-300.0,
+				-31.939237594604492
+			],
+			"rotation": -1.092350032649847e-07,
+			"linear_velocity": [
+				0.0,
+				0.0
+			],
+			"angular_velocity": 0.0,
+			"frozen": false
+		}
+	],
+	"assemblies": [
+		{
+			"uid": 12,
+			"type": "core:human",
+			"joints": {
+				"neck": {
+					"connected": true
+				},
+				"waist": {
+					"connected": true
+				},
+				"shoulder_left": {
+					"connected": true
+				},
+				"elbow_left": {
+					"connected": true
+				},
+				"shoulder_right": {
+					"connected": true
+				},
+				"elbow_right": {
+					"connected": false
+				},
+				"hip_left": {
+					"connected": true
+				},
+				"knee_left": {
+					"connected": true
+				},
+				"hip_right": {
+					"connected": true
+				},
+				"knee_right": {
+					"connected": true
+				}
+			},
+			"controller": {
+				"state": "alive",
+				"reason": ""
+			}
+		}
+	]
+}

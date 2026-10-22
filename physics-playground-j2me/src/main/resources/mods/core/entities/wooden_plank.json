@@ -1,0 +1,41 @@
+{
+	"id": "wooden_plank",
+	"display_name": "Wooden Plank",
+	"description": "A long, thin board. Good for ramps, bridges and seesaws.",
+	"category": "Construction",
+	"material": "wood",
+	"shape": {
+		"type": "rectangle",
+		"size": [220, 20]
+	},
+	"visual": {
+		"style": "plank",
+		"fill_color": "#b48a55",
+		"outline_color": "#5a4126",
+		"detail_color": "#8f6b3e"
+	},
+	"components": {
+		"health": {
+			"max_health": 60,
+			"on_depleted": "none"
+		},
+		"thermal": {
+			"burn_damage": 6,
+			"burn_duration": 10
+		},
+		"electrical": {},
+		"impact_damage": {
+			"min_impact_speed": 9.0,
+			"damage_per_speed": 8.0,
+			"cooldown": 0.2
+		},
+		"destructible": {
+			"debris": "wood_splinter",
+			"debris_count": 3,
+			"debris_speed": 160,
+			"effect": "splinters",
+			"sound": "wood_break"
+		}
+	},
+	"tags": ["structural"]
+}

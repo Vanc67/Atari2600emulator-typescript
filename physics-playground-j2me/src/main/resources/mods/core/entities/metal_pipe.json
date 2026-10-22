@@ -1,0 +1,31 @@
+{
+	"id": "metal_pipe",
+	"display_name": "Metal Pipe",
+	"description": "A length of steel pipe.",
+	"category": "Melee",
+	"material": "steel",
+	"mass": 2.4,
+	"shape": {
+		"type": "rectangle",
+		"size": [104, 8]
+	},
+	"physics": {
+		"center_of_mass": [0, 0],
+		"angular_damp": 0.4
+	},
+	"visual": {
+		"style": "pipe",
+		"fill_color": "#8c949b",
+		"outline_color": "#3d4146",
+		"detail_color": "#b9c0c6"
+	},
+	"components": {
+		"melee": {
+			"damage_multiplier": 2.6,
+			"threshold_multiplier": 0.25
+		},
+		"thermal": {},
+		"electrical": {}
+	},
+	"tags": ["weapon", "melee"]
+}

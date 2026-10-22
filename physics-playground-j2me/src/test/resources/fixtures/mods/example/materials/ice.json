@@ -1,0 +1,11 @@
+{
+	"id": "ice",
+	"display_name": "Ice",
+	"density": 90,
+	"friction": 0.02,
+	"bounce": 0.05,
+	"durability": 0.5,
+	"thermal_conductivity": 0.4,
+	"electrical_conductivity": 0.0,
+	"tags": ["frozen"]
+}

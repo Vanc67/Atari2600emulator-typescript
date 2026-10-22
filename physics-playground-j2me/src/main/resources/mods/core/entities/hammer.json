@@ -1,0 +1,31 @@
+{
+	"id": "hammer",
+	"display_name": "Hammer",
+	"description": "Heavy steel head on a short handle. Hits hard.",
+	"category": "Melee",
+	"material": "steel",
+	"mass": 1.6,
+	"shape": {
+		"type": "rectangle",
+		"size": [48, 12]
+	},
+	"physics": {
+		"center_of_mass": [16, 0],
+		"angular_damp": 0.4
+	},
+	"visual": {
+		"style": "hammer",
+		"fill_color": "#7c5a3a",
+		"outline_color": "#202225",
+		"detail_color": "#8f979f"
+	},
+	"components": {
+		"melee": {
+			"damage_multiplier": 4.0,
+			"threshold_multiplier": 0.2
+		},
+		"thermal": {},
+		"electrical": {}
+	},
+	"tags": ["weapon", "melee"]
+}
