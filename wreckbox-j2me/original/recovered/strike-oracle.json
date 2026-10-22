@@ -1,0 +1,117 @@
+{
+  "hit": {
+    "x": 600,
+    "y": 213,
+    "material": 4
+  },
+  "randomBefore": -597774427,
+  "before": {
+    "map": "city",
+    "seed": 0,
+    "width": 1200,
+    "cells": 312000,
+    "solid": 68453,
+    "user": 11716,
+    "health": 55786152,
+    "bodies": 738,
+    "people": 63,
+    "buildings": 15,
+    "hash": "8e7344c8"
+  },
+  "after": {
+    "map": "city",
+    "seed": 0,
+    "width": 1200,
+    "cells": 312000,
+    "solid": 68453,
+    "user": 11716,
+    "health": 55785022.82,
+    "bodies": 738,
+    "people": 63,
+    "buildings": 15,
+    "hash": "2ed329c8"
+  },
+  "changed": [],
+  "healthChanges": [
+    {
+      "index": 254998,
+      "x": 598,
+      "y": 212,
+      "material": 3,
+      "before": 150,
+      "after": 60
+    },
+    {
+      "index": 254999,
+      "x": 599,
+      "y": 212,
+      "material": 3,
+      "before": 150,
+      "after": 30.710678100585938
+    },
+    {
+      "index": 255000,
+      "x": 600,
+      "y": 212,
+      "material": 3,
+      "before": 150,
+      "after": 10
+    },
+    {
+      "index": 255001,
+      "x": 601,
+      "y": 212,
+      "material": 3,
+      "before": 150,
+      "after": 30.710678100585938
+    },
+    {
+      "index": 255002,
+      "x": 602,
+      "y": 212,
+      "material": 3,
+      "before": 150,
+      "after": 71.80339813232422
+    },
+    {
+      "index": 256198,
+      "x": 598,
+      "y": 213,
+      "material": 4,
+      "before": 320,
+      "after": 248
+    },
+    {
+      "index": 256199,
+      "x": 599,
+      "y": 213,
+      "material": 4,
+      "before": 320,
+      "after": 145.60000610351562
+    },
+    {
+      "index": 256200,
+      "x": 600,
+      "y": 213,
+      "material": 4,
+      "before": 320,
+      "after": 168
+    },
+    {
+      "index": 256201,
+      "x": 601,
+      "y": 213,
+      "material": 4,
+      "before": 320,
+      "after": 208
+    },
+    {
+      "index": 256202,
+      "x": 602,
+      "y": 213,
+      "material": 4,
+      "before": 320,
+      "after": 248
+    }
+  ]
+}
