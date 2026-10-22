@@ -55,6 +55,14 @@ public final class Game {
   private float eruptionTime, eruptionStrength;
   private int heldKind = -1, heldIndex = -1; // 0 body, 1 debris, 2 person
   private boolean initialLoad = true;
+  // HUD values are requested on every paint. Cache their strings so a steady
+  // scene does not create short-lived objects and trigger phone GC pauses.
+  private String cachedPowerText, cachedStatusText;
+  private int cachedPowerTool = -1, cachedPowerValue;
+  private int cachedStatusMap = -1, cachedStatusAlarm = -1;
+  private int cachedStatusTemperature, cachedStatusHydrogen;
+  private int cachedStatusInjured = -1, cachedStatusSick = -1, cachedStatusLiving = -1;
+  private boolean cachedStatusNpp;
 
   public Game() {
     for (int i = 0; i < toolValues.length; i++) toolValues[i] = Tools.SLIDER_DEFAULT[i];
@@ -137,12 +145,14 @@ public final class Game {
   }
   public String powerText() {
     int value = toolValues[toolIndex];
+    if (cachedPowerText != null && cachedPowerTool == toolIndex && cachedPowerValue == value) return cachedPowerText;
+    cachedPowerTool = toolIndex; cachedPowerValue = value;
     if ("nuke".equals(Tools.IDS[toolIndex])) {
       float kt = NUKE_KT[value - 1];
       String text = kt >= 1000.0f ? (kt / 1000.0f) + " Мт" : kt + " кт";
-      return NUKE_NAMES[value - 1].length() > 0 ? text + " · " + NUKE_NAMES[value - 1] : text;
-    }
-    return Tools.SLIDER_LABELS[toolIndex] + ": " + value;
+      cachedPowerText = NUKE_NAMES[value - 1].length() > 0 ? text + " · " + NUKE_NAMES[value - 1] : text;
+    } else cachedPowerText = Tools.SLIDER_LABELS[toolIndex] + ": " + value;
+    return cachedPowerText;
   }
   public void cycleGravity() { gravityIndex = (gravityIndex + 1) % 3; gravity = GRAVITIES[gravityIndex]; setMessage(gravityIndex == 0 ? "1g" : gravityIndex == 1 ? "Луна" : "0g"); }
   public void cyclePhysics() {
@@ -387,9 +397,13 @@ public final class Game {
       float direction = x >= cameraX ? 1.0f : -1.0f;
       float startX = cameraX - direction * 220.0f / zoom;
       startY = Math.max(-160.0f, Math.min(targetY - 120.0f, y - 420.0f));
-      int plane = effects.spawn(EffectSystem.BOMBER, startX, startY, 20.0f);
-      if (plane < 0) return;
       float speed = 230.0f + 12.0f * level, e = kt / 15.0f;
+      // The original maps are much wider than a 20-second flight at the
+      // release target. Keep the bomber alive until the actual drop point;
+      // otherwise distant nuclear clicks silently lose the bomb.
+      float flightLife = Math.abs(x - startX) / speed + Math.abs(targetY - startY) / 68.0f + 8.0f;
+      int plane = effects.spawn(EffectSystem.BOMBER, startX, startY, Math.max(20.0f, flightLife));
+      if (plane < 0) return;
       effects.vx[plane] = direction * speed; effects.tx[plane] = x; effects.ty[plane] = targetY;
       effects.radius[plane] = blastRadius;
       effects.power[plane] = 900.0f + 120.0f * Math2.pow(Math.max(0.02f, e), 0.35f);
@@ -782,8 +796,13 @@ public final class Game {
     if (metadata.npp) {
       boolean coolant = aliveProp("gcn") && aliveProp("condenser");
       boolean diesel = aliveProp("diesel"), steam = aliveProp("steamgen");
-      if ((!coolant || !steam) && !reactorScram)
-        scramReactor(!coolant ? "потеря охлаждения" : "парогенератор повреждён");
+      if (!reactorScram) {
+        // The recovered plant trips on the turbine/transformer chain as well
+        // as on the primary cooling pump and steam generator.
+        if (!aliveProp("turbine")) scramReactor("турбина повреждена");
+        else if (!aliveProp("bigtrafo")) scramReactor("блочный трансформатор повреждён");
+        else if (!coolant || !steam) scramReactor(!coolant ? "потеря охлаждения" : "парогенератор повреждён");
+      }
       if (coolant && steam) {
         reactorBackupTime = Math.max(0.0f, reactorBackupTime - dt * 2.0f);
         // Recovered initial reactor state is 320 C; SCRAM cooling brings it
@@ -840,6 +859,7 @@ public final class Game {
   }
 
   private void coolLava() {
+    if (grid.lavaCells == 0) return;
     // Cooling is evaluated only in the active camera region, leaving distant simulation dormant.
     int center = (int)(cameraX / 6.0f), range = (int)(90.0f / zoom) + 20;
     int min = Math.max(0, center - range), max = Math.min(grid.width - 1, center + range);
@@ -877,12 +897,26 @@ public final class Game {
     return Math.min(100, (int)(grid.destroyed * 100.0f / total));
   }
   public String statusText() {
-    if (metadata != null && metadata.npp) {
-      if (reactorAlarmLevel >= 2) return "АЭС ВЫБРОС · бегите!";
-      if (reactorAlarmLevel == 1) return "АЭС АВАРИЯ · укрытие";
-      return "АЭС " + Math2.round(reactorTemperature) + "°C · H " + Math2.round(reactorHydrogen) + "%";
+    boolean npp = metadata != null && metadata.npp;
+    if (npp) {
+      int temperature = Math2.round(reactorTemperature), hydrogen = Math2.round(reactorHydrogen);
+      if (cachedStatusText != null && cachedStatusNpp && cachedStatusMap == mapIndex
+          && cachedStatusAlarm == reactorAlarmLevel && cachedStatusTemperature == temperature
+          && cachedStatusHydrogen == hydrogen) return cachedStatusText;
+      cachedStatusNpp = true; cachedStatusMap = mapIndex; cachedStatusAlarm = reactorAlarmLevel;
+      cachedStatusTemperature = temperature; cachedStatusHydrogen = hydrogen;
+      if (reactorAlarmLevel >= 2) cachedStatusText = "АЭС ВЫБРОС · бегите!";
+      else if (reactorAlarmLevel == 1) cachedStatusText = "АЭС АВАРИЯ · укрытие";
+      else cachedStatusText = "АЭС " + temperature + "°C · H " + hydrogen + "%";
+      return cachedStatusText;
     }
-    return "ранено " + people.injuredCount() + (people.sickCount() > 0 ? " · ☢ " + people.sickCount() : "") + " · живы " + people.livingCount();
+    int injured = people.injuredCount(), sick = people.sickCount(), living = people.livingCount();
+    if (cachedStatusText != null && !cachedStatusNpp && cachedStatusMap == mapIndex
+        && cachedStatusInjured == injured && cachedStatusSick == sick && cachedStatusLiving == living) return cachedStatusText;
+    cachedStatusNpp = false; cachedStatusMap = mapIndex; cachedStatusAlarm = 0;
+    cachedStatusInjured = injured; cachedStatusSick = sick; cachedStatusLiving = living;
+    cachedStatusText = "ранено " + injured + (sick > 0 ? " · ☢ " + sick : "") + " · живы " + living;
+    return cachedStatusText;
   }
   public boolean disasterActive(int type) {
     if (type == 0) return quakeTime > 0.0f;

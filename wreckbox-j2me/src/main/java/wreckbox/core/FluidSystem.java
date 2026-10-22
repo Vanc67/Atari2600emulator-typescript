@@ -84,8 +84,11 @@ public final class FluidSystem {
 
   private int change(int at, int delta) {
     int old = amountAt(at), next = Math.max(0, Math.min(FULL, old + delta));
-    if (next != old) put(at, next);
-    return next - old;
+    if (next == old) return 0;
+    // put() can reject a new entry when the bounded table is full. Return the
+    // stored delta, not the requested delta, so transfer() never drains its
+    // source unless the destination actually received the water.
+    return put(at, next) - old;
   }
 
   /** Adds water at a world position, searching a few cells upward if the target is solid. */

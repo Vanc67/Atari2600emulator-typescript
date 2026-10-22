@@ -30,7 +30,7 @@ public final class CoreTest {
   private static final int[] TINT_HASHES = {0x0b777286, 0x21a86b22, 0x218e87aa, 0x9001a2f3, 0xb1cad0f9, 0x0c6a9629, 0xf0ed4208, 0x9980d3cf};
 
   public static void main(String[] args) {
-    content(); mathAndCells(); maps(); structure(); debris(); strikeOracle(); effects(); radiation(); reactorEmergency(); residents(); fluidsAndServices();
+    content(); mathAndCells(); maps(); structure(); debris(); strikeOracle(); effects(); radiation(); reactorEmergency(); residents(); fluidsAndServices(); hudCaching();
     System.out.println("Wreckbox CoreTest: " + checks + " checks, " + failures + " failures");
     if (failures != 0) throw new RuntimeException("FAILED " + failures);
   }
@@ -57,9 +57,12 @@ public final class CoreTest {
     grid.set(10, 4, 6, CellGrid.FLAG_USER | CellGrid.FLAG_REINFORCED);
     eq(4, grid.material(10), "packed material"); eq(6, grid.tint(10), "packed tint"); eq(3, grid.flags(10), "packed flags");
     near(320.0f, grid.health(10), 0.0f, "packed hp");
+    eq(grid.packed(10), grid.packedAt(2, 1), "row/column packed access");
     grid.damage(10, 32.0f); near(294.4f, grid.health(10), 0.07f, "steel damage multiplier");
     grid.set(11, 14, 15, CellGrid.FLAG_JOINT); grid.damage(11, 10.0f); near(144.0f, grid.health(11), 0.07f, "panel joint weakness");
     grid.set(12, 9, 0, 0); check(!grid.damage(12, 100000.0f), "bedrock indestructible");
+    grid.set(13, 12, 0, 0); eq(1, grid.lavaCells, "lava count tracks insertion");
+    grid.clear(13); eq(0, grid.lavaCells, "lava count tracks removal");
 
     CellGrid cow = new CellGrid(8); int emptyBytes = cow.memoryBytes();
     cow.set(10, 4, 0, 0); check(cow.memoryBytes() >= emptyBytes + 8 * 4, "changed row expands on demand");
@@ -278,6 +281,13 @@ public final class CoreTest {
     for (int i = 0; i < 10; i++) npp.update(0.05f);
     eq(0, npp.reactorAlarmLevel, "healthy reactor has no alarm");
     near(320.0f, npp.reactorTemperature, 0.01f, "recovered normal reactor temperature");
+    Game turbineFailure = new Game(); turbineFailure.loadMap(5);
+    int turbine = Props.find("turbine");
+    for (int i = 0; i < turbineFailure.bodies.count; i++) if (turbineFailure.bodies.type[i] == turbine) {
+      turbineFailure.bodies.kill(i); break;
+    }
+    for (int i = 0; i < 8; i++) turbineFailure.update(0.05f);
+    eq(1, turbineFailure.reactorAlarmLevel, "turbine damage trips the original SCRAM chain");
     int core = Props.find("gcn");
     for (int i = 0; i < npp.bodies.count; i++) if (npp.bodies.type[i] == core) { npp.bodies.kill(i); break; }
     for (int i = 0; i < 8; i++) npp.update(0.05f);
@@ -336,6 +346,8 @@ public final class CoreTest {
     CellGrid shield = new CellGrid(8);
     shield.set(shield.index(3, 100), 3, 0, 0);
     near(0.5f, ground.shielding(shield, 18.0f, 103 * 6.0f), 0.0001f, "overhead concrete attenuation");
+    near(RadiationSystem.BACKGROUND, new RadiationSystem().rate(shield, 18.0f, 103 * 6.0f, 0.0f), 0.0000001f,
+        "empty radiation keeps constant background without shielding scan");
     check(RadiationSystem.formatDose(0.000015f).endsWith("Р/ч"), "dosimeter units");
   }
 
@@ -386,6 +398,19 @@ public final class CoreTest {
     for (int i = 0; i < 300; i++) fluid.update(fluidGame, 0.11f, StructuralSolver.NORMAL);
     check(fluid.count > 1 && fluid.rejected == 0, "water falls and levels into neighboring cells");
     eq(255, totalFluid(fluid), "water volume conserved without lava");
+
+    // A full bounded table must report a rejected insertion as zero. Otherwise
+    // transfer() can subtract water from a source that never delivered it.
+    CellGrid fullGrid = new CellGrid(64);
+    FluidSystem full = new FluidSystem();
+    for (int i = 0; i < FluidSystem.MAX_CELLS; i++)
+      full.add(fullGrid, (i % fullGrid.width) * 6.0f + 3.0f, (i / fullGrid.width) * 6.0f + 3.0f, 1);
+    int fullVolume = totalFluid(full), newCell = FluidSystem.MAX_CELLS;
+    int refused = full.add(fullGrid, (newCell % fullGrid.width) * 6.0f + 3.0f,
+        (newCell / fullGrid.width) * 6.0f + 3.0f, 20);
+    eq(0, refused, "full fluid table rejects new volume");
+    eq(0, full.amountAt(newCell), "rejected fluid is not stored");
+    eq(fullVolume, totalFluid(full), "rejected fluid preserves total volume");
     boolean wet = false;
     for (int i = 0; i < FluidSystem.TABLE; i++) if (fluid.amount[i] != 0) {
       int at = fluid.cell[i];
@@ -407,6 +432,9 @@ public final class CoreTest {
     FluidSystem buoyancy = new FluidSystem(); buoyancy.add(bodyGame.grid, 15.0f, 15.0f, 255);
     bodyGame.bodies.update(bodyGame.grid, buoyancy, bodyGame.metadata, bodyGame.debris, 0.05f, 450.0f);
     check(bodyGame.bodies.vy[0] < 0.0f, "light body receives buoyancy");
+    eq(-1, bodyGame.bodies.damageArea(15.0f, 15.0f, 30.0f, 100.0f, 0.0f),
+        "generic body damage has no prop explosion");
+    check(!bodyGame.bodies.alive(0), "generic body can be destroyed safely");
 
     Game serviceGame = new Game(); serviceGame.loadMap(0);
     serviceGame.services.notifyIncident(ServiceSystem.FIRE, serviceGame.cameraX, serviceGame.cameraY);
@@ -427,6 +455,23 @@ public final class CoreTest {
     int sheltered = 0;
     for (int i = 0; i < raid.people.count; i++) if (raid.people.shelterStage[i] >= 2) sheltered++;
     check(sheltered > 0, "residents reach simulated shelter during air raid");
+
+    Game farRaid = new Game(); farRaid.loadMap(0); farRaid.selectTool(Tools.find("nuke"));
+    farRaid.toolValues[farRaid.toolIndex] = 1;
+    farRaid.pointerDown(farRaid.grid.width * 6.0f - 20.0f, 1000.0f); farRaid.pointerUp();
+    for (int i = 0; i < 900 && farRaid.radiationSystem.count == 0; i++) farRaid.update(0.05f);
+    check(farRaid.radiationSystem.count > 0, "bomber reaches distant nuclear target before expiring");
+  }
+
+  private static void hudCaching() {
+    Game game = new Game(); game.loadMap(0);
+    String power = game.powerText(), status = game.statusText();
+    check(power == game.powerText(), "steady power HUD does not allocate a new string");
+    check(status == game.statusText(), "steady status HUD does not allocate a new string");
+    game.adjustPower(1);
+    check(power != game.powerText(), "power HUD invalidates after slider change");
+    game.people.hurt(0, 1.0f, 0.0f, 0.0f);
+    check(status != game.statusText(), "status HUD invalidates after injury");
   }
 
   private static int totalFluid(FluidSystem fluid) {

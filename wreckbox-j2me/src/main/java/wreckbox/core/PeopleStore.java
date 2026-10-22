@@ -22,6 +22,7 @@ public final class PeopleStore {
   final Random random = new Random(0x715e);
   private int tick;
   private float radiationClock;
+  private static final int[] SPAWN_OFFSETS = {0, -1, 1, -2, 2, -3, 3};
 
   public void allocate(int capacity) {
     this.capacity = capacity; count = 0; deaths = injured = 0; radiationClock = 0.0f;
@@ -59,9 +60,8 @@ public final class PeopleStore {
     if (count >= capacity) return -1;
     int cellX = (int)Math.floor(px / 6.0f), cellY = Math.max(0, Math.min(259, (int)Math.floor(py / 6.0f)));
     int chosen = -1, startY = cellY;
-    int[] offsets = {0, -1, 1, -2, 2, -3, 3};
-    for (int n = 0; n < offsets.length; n++) {
-      int gx = cellX + offsets[n];
+    for (int n = 0; n < SPAWN_OFFSETS.length; n++) {
+      int gx = cellX + SPAWN_OFFSETS[n];
       if (gx >= 1 && gx < grid.width - 1 && !grid.solid(gx, cellY)) { chosen = gx; break; }
     }
     if (chosen < 0) {

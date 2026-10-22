@@ -88,6 +88,9 @@ public final class RadiationSystem {
     return result;
   }
   public float falloutRate(CellGrid grid, float atX, float atY, float time) {
+    // No source means no fallout dose; avoid scanning every overhead floor for
+    // every resident on an otherwise quiet map.
+    if (count == 0) return 0.0f;
     return falloutRate(atX, time) * shielding(grid, atX, atY);
   }
 
@@ -118,6 +121,7 @@ public final class RadiationSystem {
   }
 
   public float rate(CellGrid grid, float atX, float atY, float time) {
+    if (count == 0) return BACKGROUND;
     return rate(atX, time) * shielding(grid, atX, atY);
   }
 

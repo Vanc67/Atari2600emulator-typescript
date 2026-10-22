@@ -31,6 +31,8 @@ public final class CellGrid {
   private int runCount, lastRun = -1;
   private byte[] marks;
   public int destroyed;
+  /** Live lava count lets the idle simulation skip full-map cooling scans. */
+  public int lavaCells;
   public int damageValue;
   public int initialUserCells;
 
@@ -48,7 +50,7 @@ public final class CellGrid {
   /** Starts a streaming, read-only baseline. Runs must arrive in ascending cell order. */
   public void beginLoad(int runs) {
     runStart = new int[runs]; runLength = new int[runs]; runValue = new int[runs];
-    runCount = 0; lastRun = -1;
+    runCount = 0; lastRun = -1; lavaCells = 0;
   }
 
   /** Adds one solid WBMP run without expanding its cells into the Java heap. */
@@ -58,6 +60,7 @@ public final class CellGrid {
     runStart[at] = position; runLength[at] = length;
     int hp = material == 9 ? HP_MASK : (int)(Materials.HP[material] * 16.0f + 0.5f);
     runValue[at] = pack(material, hp, tint, flags);
+    if (material == 12) lavaCells += length;
     int remaining = length, cell = position;
     while (remaining > 0) {
       int y = cell / width, x = cell - y * width;
@@ -82,9 +85,12 @@ public final class CellGrid {
   public int material(int index) { return value(index) & MATERIAL_MASK; }
   public int materialAt(int x, int y) {
     if (y >= HEIGHT) return 9;
-    return inside(x, y) ? value(y * width + x) & MATERIAL_MASK : 0;
+    return inside(x, y) ? valueAt(x, y) & MATERIAL_MASK : 0;
   }
   public int packed(int index) { return value(index); }
+  /** Row/column access for the renderer and collision code: avoids a second
+   * integer division after the caller has already calculated the row. */
+  public int packedAt(int x, int y) { return valueAt(x, y); }
   public int hp16(int index) { return (value(index) >>> 5) & HP_MASK; }
   public float health(int index) { return hp16(index) / 16.0f; }
   public int flags(int index) { return (value(index) >>> 18) & FLAGS_MASK; }
@@ -182,23 +188,29 @@ public final class CellGrid {
 
   private int value(int index) {
     int y = index / width, x = index - y * width;
+    return valueAt(x, y);
+  }
+
+  private int valueAt(int x, int y) {
     int[] row = rows[y];
     if (row != null) return row.length == 0 ? 0 : row[x];
-    int value = baselineValue(index);
+    int index = y * width + x;
+    int value = baselineValue(index, y);
     short[] health = healthRows[y];
     if (health != null && health[x] != 0)
       value = (value & ~(HP_MASK << 5)) | ((health[x] - 1) << 5);
     return value;
   }
 
-  private int baselineValue(int index) {
+  private int baselineValue(int index) { return baselineValue(index, index / width); }
+
+  private int baselineValue(int index, int y) {
     if (runCount == 0 || index < runStart[0] || index >= runStart[runCount - 1] + runLength[runCount - 1]) return 0;
     int cached = lastRun;
     if (cached >= 0 && cached < runCount && index >= runStart[cached]) {
       if (index < runStart[cached] + runLength[cached]) return runValue[cached];
       if (cached + 1 >= runCount || index < runStart[cached + 1]) return 0;
     }
-    int y = index / width;
     int low = rowRun[y], high = Math.min(runCount - 1, rowRun[y + 1]);
     while (low <= high) {
       int middle = (low + high) >>> 1, start = runStart[middle];
@@ -214,9 +226,9 @@ public final class CellGrid {
   }
 
   private void write(int index, int newValue) {
-    int oldValue = value(index);
-    if (oldValue == newValue) return;
     int y = index / width, x = index - y * width;
+    int oldValue = valueAt(x, y);
+    if (oldValue == newValue) return;
     if (rows[y] == null && (oldValue & MATERIAL_MASK) != 0 && ((oldValue ^ newValue) & ~(HP_MASK << 5)) == 0) {
       writeHealth(index, y, x, newValue);
       return;
@@ -224,8 +236,7 @@ public final class CellGrid {
     int[] row = rows[y];
     if (row == null) {
       row = new int[width];
-      int base = y * width;
-      for (int i = 0; i < width; i++) row[i] = value(base + i);
+      for (int i = 0; i < width; i++) row[i] = valueAt(i, y);
       rows[y] = row;
     } else if (row.length == 0) {
       row = new int[width];
@@ -234,13 +245,15 @@ public final class CellGrid {
     healthRows[y] = null; healthUsed[y] = 0;
     row[x] = newValue;
     int oldMaterial = oldValue & MATERIAL_MASK, newMaterial = newValue & MATERIAL_MASK;
+    if (oldMaterial == 12 && newMaterial != 12) lavaCells--;
+    else if (oldMaterial != 12 && newMaterial == 12) lavaCells++;
     if (oldMaterial == 0 && newMaterial != 0) rowSolid[y]++;
     else if (oldMaterial != 0 && newMaterial == 0) rowSolid[y]--;
     if (rowSolid[y] == 0) rows[y] = EMPTY_ROW;
   }
 
   private void writeHealth(int index, int y, int x, int newValue) {
-    int hp = (newValue >>> 5) & HP_MASK, baselineHp = (baselineValue(index) >>> 5) & HP_MASK;
+    int hp = (newValue >>> 5) & HP_MASK, baselineHp = (baselineValue(index, y) >>> 5) & HP_MASK;
     int encoded = hp == baselineHp ? 0 : hp + 1;
     short[] health = healthRows[y];
     if (health == null) {

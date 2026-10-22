@@ -14,7 +14,7 @@ public final class PlatformTest {
   private static int checks, failures;
   public static void main(String[] args) {
     Graphics graphics = new Graphics();
-    renderMaps(graphics); renderReactorAlarm(graphics); renderDestruction(graphics); exerciseTools(graphics); audioResources(); maximumNuke(graphics);
+    renderMaps(graphics); renderReactorAlarm(graphics); renderDestruction(graphics); exerciseTools(graphics); textureResources(); audioResources(); maximumNuke(graphics);
     System.out.println("Wreckbox PlatformTest: " + checks + " checks, " + failures + " failures");
     if (failures != 0) throw new RuntimeException("FAILED " + failures);
   }
@@ -76,6 +76,15 @@ public final class PlatformTest {
       } catch (RuntimeException e) { check(false, "tool " + Tools.IDS[tool] + " " + e); }
     }
   }
+  private static void textureResources() {
+    String[] names = {"materials2", "materials3", "materials6"};
+    for (int i = 0; i < names.length; i++) {
+      InputStream stream = WreckboxRenderer.class.getResourceAsStream("/textures/" + names[i] + ".png");
+      check(stream != null, "recovered material atlas " + names[i]);
+      if (stream != null) try { stream.close(); } catch (Exception ignored) { }
+    }
+  }
+
   private static void audioResources() {
     String[] names = {"boom_00", "boom_01", "boom_low_00", "bomber_00", "chute_00", "bomb_whistle_00",
       "pour_00", "splash_small_00", "sirenS", "sirenC", "scream_m_00", "scream_f_00", "thunder_00"};

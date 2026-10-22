@@ -163,7 +163,10 @@ public final class BodyStore {
       vx[i] += dx * inv * impulse * scale / Math.max(0.3f, mass[i]);
       vy[i] += dy * inv * impulse * scale / Math.max(0.3f, mass[i]) - impulse * 0.15f * scale;
       if (hp[i] <= 0.0f) {
-        if (Props.EXPLOSION_RADIUS[type[i]] > 0.0f && exploded < 0) exploded = i;
+        // Generated maps also contain generic rigid bodies (type == -1).
+        // They are damageable, but have no Props entry or explosive payload.
+        if (type[i] >= 0 && type[i] < Props.COUNT
+            && Props.EXPLOSION_RADIUS[type[i]] > 0.0f && exploded < 0) exploded = i;
         else kill(i);
       }
     }

@@ -2,6 +2,7 @@ package wreckbox.platform;
 
 import javax.microedition.lcdui.Font;
 import javax.microedition.lcdui.Graphics;
+import javax.microedition.lcdui.Image;
 import wreckbox.core.BodyStore;
 import wreckbox.core.CellGrid;
 import wreckbox.core.DebrisSystem;
@@ -28,6 +29,12 @@ public final class WreckboxRenderer {
   private final Font small = Font.getFont(Font.FACE_SYSTEM, Font.STYLE_PLAIN, Font.SIZE_SMALL);
   private int width, height, viewHeight;
   private float offsetX, offsetY;
+  private int cachedDestruction = -1;
+  private String cachedDestructionText = "0%";
+  private float cachedDoseRate = -1.0f;
+  private String cachedDoseText = "";
+  private Image atlas2, atlas3, atlas6;
+  private boolean atlas2Tried, atlas3Tried, atlas6Tried;
   private static final int[] FABRIC_COLORS = {0x8e3b46, 0x3f5f8a, 0x5d7a4a, 0x7a5a3c, 0x6b6f78};
 
   public WreckboxRenderer(Game game) { this.game = game; }
@@ -120,6 +127,28 @@ public final class WreckboxRenderer {
     }
   }
 
+  private Image loadAtlas(String path) {
+    try { return Image.createImage(path); }
+    catch (Exception e) { return null; }
+  }
+
+  /** Lazily decoded recovered 6 px material patterns; no per-frame images or arrays. */
+  private Image materialAtlas(int size) {
+    if (size == 2) {
+      if (!atlas2Tried) { atlas2Tried = true; atlas2 = loadAtlas("/textures/materials2.png"); }
+      return atlas2;
+    }
+    if (size == 3) {
+      if (!atlas3Tried) { atlas3Tried = true; atlas3 = loadAtlas("/textures/materials3.png"); }
+      return atlas3;
+    }
+    if (size == 6) {
+      if (!atlas6Tried) { atlas6Tried = true; atlas6 = loadAtlas("/textures/materials6.png"); }
+      return atlas6;
+    }
+    return null;
+  }
+
   private void drawCells(Graphics g) {
     CellGrid grid = game.grid;
     float halfW = width / (2.0f * game.zoom), halfH = viewHeight / (2.0f * game.zoom);
@@ -128,8 +157,9 @@ public final class WreckboxRenderer {
     int minY = Math.max(0, (int)((game.cameraY - halfH) / 6.0f) - 1);
     int maxY = Math.min(CellGrid.HEIGHT - 1, (int)((game.cameraY + halfH) / 6.0f) + 1);
     int cellSize = Math.max(1, (int)Math.ceil(6.0f * game.zoom));
+    Image atlas = game.night ? null : materialAtlas(cellSize);
     for (int y = minY; y <= maxY; y++) for (int x = minX; x <= maxX; x++) {
-      int at = grid.index(x, y), cell = grid.packed(at), m = cell & 31;
+      int at = grid.index(x, y), cell = grid.packedAt(x, y), m = cell & 31;
       if (m == 0) continue;
       int color = Materials.COLORS[m];
       int tint = (cell >>> 26) & 31;
@@ -139,10 +169,17 @@ public final class WreckboxRenderer {
       boolean litWindow = game.night && (m == 5 || m == 17) && ((x * 11 + y * 7 + tint) & 7) < 3;
       if (litWindow) color = 0xd2b56a;
       else if (game.night && m != 12) color = scaleColor(color, 0.55f);
-      g.setColor(color);
       int px = sx(x * 6.0f), py = sy(y * 6.0f);
-      g.fillRect(px, py, cellSize, cellSize);
-      if (cellSize >= 3 && !game.showStress) drawMaterialDetail(g, m, px, py, cellSize, color, x, y);
+      // Intact daylight cells use the recovered raster patterns. Damaged and
+      // night cells retain the dynamic tint/health path below. Lava stays on
+      // the animated path instead of freezing its recovered noise into a tile.
+      if (atlas != null && m != 12 && health >= 0.75f && tint <= 26) {
+        g.drawRegion(atlas, tint * cellSize, (m - 1) * cellSize, cellSize, cellSize,
+            0, px, py, Graphics.TOP | Graphics.LEFT);
+      } else {
+        g.setColor(color); g.fillRect(px, py, cellSize, cellSize);
+        if (cellSize >= 3 && !game.showStress) drawMaterialDetail(g, m, px, py, cellSize, color, x, y);
+      }
       if (health < 0.72f && cellSize >= 2) {
         g.setColor(scaleColor(color, 0.38f));
         if ((x + y & 1) == 0) g.drawLine(px, py, px + cellSize - 1, py + cellSize - 1);
@@ -711,6 +748,24 @@ public final class WreckboxRenderer {
     g.setColor(0xffd45c); g.drawLine(x - 4, y, x + 4, y); g.drawLine(x, y - 4, x, y + 4);
   }
 
+  private String destructionText() {
+    int value = game.destructionPercent();
+    if (value != cachedDestruction) { cachedDestruction = value; cachedDestructionText = value + "%"; }
+    return cachedDestructionText;
+  }
+
+  private String doseText(float value) {
+    if (cachedDoseText.length() == 0 || value != cachedDoseRate) {
+      cachedDoseRate = value; cachedDoseText = RadiationSystem.formatDose(value);
+    }
+    return cachedDoseText;
+  }
+
+  private void drawLimited(Graphics g, String text, int max, int x, int y, int anchor) {
+    if (text.length() > max) g.drawSubstring(text, 0, max, x, y, anchor);
+    else g.drawString(text, x, y, anchor);
+  }
+
   private void drawHud(Graphics g) {
     g.setFont(small);
     g.setColor(game.night ? 0x111722 : 0x17222e); g.fillRect(0, 0, width, TOP); g.fillRect(0, height - BOTTOM, width, BOTTOM);
@@ -722,22 +777,22 @@ public final class WreckboxRenderer {
     boolean showDose = game.radiationSystem.count > 0 && (game.doseRate > 0.00006f
         || game.time - game.radiationSystem.t0[game.radiationSystem.count - 1] < 30.0f);
     g.setColor(game.reactorAlarmLevel >= 2 ? 0xff8070 : showDose && game.doseRate > 0.001f ? 0xb9e36b : 0xe8edf0);
-    g.drawString(showDose ? RadiationSystem.formatDose(game.doseRate) : game.destructionPercent() + "%", width - 2, 1, Graphics.RIGHT | Graphics.TOP);
+    g.drawString(showDose ? doseText(game.doseRate) : destructionText(), width - 2, 1, Graphics.RIGHT | Graphics.TOP);
     String map = Maps.NAMES[game.mapIndex];
     g.setColor(0xaebbc6); g.drawString(map, 2, 10, Graphics.LEFT | Graphics.TOP);
-    String status = game.statusText(); if (status.length() > 24) status = status.substring(0, 24);
+    String status = game.statusText();
     g.setColor(game.reactorAlarmLevel >= 2 ? 0xff8070 : game.reactorAlarmLevel == 1 ? 0xf0c26c : 0xaebbc6);
-    g.drawString(status, width - 2, 10, Graphics.RIGHT | Graphics.TOP);
+    drawLimited(g, status, 24, width - 2, 10, Graphics.RIGHT | Graphics.TOP);
     String tool = Tools.NAMES[game.toolIndex];
     g.setColor(0xf0f2f3); g.drawString(tool, width / 2, height - BOTTOM + 2, Graphics.HCENTER | Graphics.TOP);
-    String power = game.powerText(); if (power.length() > 28) power = power.substring(0, 28);
-    g.setColor(0xe8c65c); g.drawString(power, width / 2, height - BOTTOM + 12, Graphics.HCENTER | Graphics.TOP);
+    String power = game.powerText();
+    g.setColor(0xe8c65c); drawLimited(g, power, 28, width / 2, height - BOTTOM + 12, Graphics.HCENTER | Graphics.TOP);
     g.setColor(0x9aa8b4); g.drawString("1<", 2, height - BOTTOM + 2, Graphics.LEFT | Graphics.TOP); g.drawString(">3", width - 2, height - BOTTOM + 2, Graphics.RIGHT | Graphics.TOP);
     if (game.messageTime > 0.0f && game.showToasts && !game.uiHidden) {
-      String text = game.message; if (text.length() > 34) text = text.substring(0, 34);
+      String text = game.message;
       int y = TOP + viewHeight - 13;
       g.setColor(0x17222e); g.fillRect(2, y - 1, width - 4, 13);
-      g.setColor(0xf2e4b0); g.drawString(text, width / 2, y, Graphics.HCENTER | Graphics.TOP);
+      g.setColor(0xf2e4b0); drawLimited(g, text, 34, width / 2, y, Graphics.HCENTER | Graphics.TOP);
     }
     if (game.paused) {
       g.setColor(0x111923); g.fillRect(width / 2 - 28, TOP + viewHeight / 2 - 8, 56, 16);
