@@ -1,0 +1,166 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[Content] Loaded 1 mod(s), 36 entity definition(s), 0 error(s).
+== Phase 1: save file reliability
+  ok   save creates a missing save folder and writes the file
+  ok   no temporary file is left behind after a normal save
+  ok   the save file is complete, parseable JSON
+  ok   overwriting replaces the save with the new data
+  ok   the previous good save is kept as a backup
+  ok   a failed temporary write is reported (cannot create temporary file 'user://reliability_test_419018/missing/nested/folder/slot.json.tmp' (Can't open file))
+  ok   a failed write leaves the existing save untouched
+ERROR: Failed to open '/home/runner/.local/share/godot/app_userdata/PhysicsPlayground/reliability_test_419018/missing/nested/folder/slot.json.bak'.
+   at: copy (core/io/dir_access.cpp:429)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/save/save_file_store.gd:64)
+       [1] save_to_slot (res://scripts/save/save_manager.gd:112)
+       [2] _test_save_files (res://tests/reliability_test.gd:155)
+       [3] _run (res://tests/reliability_test.gd:35)
+       [4] _frames (res://tests/reliability_test.gd:78)
+  ok   a failed backup aborts the replacement (could not back up the existing save; it was left untouched (Can't open file))
+  ok   the existing save survives a failed replacement
+  ok   a failed final replacement is reported (could not replace the save file; the previous save was kept and the new data remains in 'user://reliability_test_419018/blocked/slot.json.tmp' (Failed))
+  ok   a new save backs up the previous one
+  ok   a damaged save is recovered from the backup (Loaded 2 object(s). (ignored unusable file 'slot.json'; the save file was missing or damaged; loaded the previous backup))
+  ok   an interrupted replacement loads the finished new save
+  ok   recovery completes the interrupted replacement
+  ok   a half-written temporary file is ignored in favour of the intact save
+  ok   with no usable save or temporary file, the backup is used
+  ok   a missing slot reports NOT_FOUND
+== Phase 2: validated loading
+  ok   {"entities": "wrong type"} is reported as malformed
+  ok   the reviewer's malformed save no longer clears the world
+  ok   a save without an entity list is rejected and the world is kept ('entities' must be an array (found Nil))
+  ok   a non-array assembly list is rejected and the world is kept ('assemblies' must be an array (found String))
+  ok   a non-object entity entry is rejected and the world is kept (entities[0] must be an object)
+  ok   a one-element position is rejected and the world is kept (entities[0].position must be [x, y] with two finite numbers)
+  ok   a non-numeric position is rejected and the world is kept (entities[0].position must be [x, y] with two finite numbers)
+  ok   an infinite position is rejected and the world is kept (entities[0].position must be [x, y] with two finite numbers)
+  ok   a NaN velocity is rejected and the world is kept (entities[0].linear_velocity must be [x, y] with two finite numbers)
+  ok   a text rotation is rejected and the world is kept (entities[0].rotation must be a finite number)
+  ok   duplicate entity identities is rejected and the world is kept (entities[1].uid 5 is used more than once)
+  ok   a negative uid is rejected and the world is kept (entities[0].uid must be a positive integer)
+  ok   an invalid type id is rejected and the world is kept (entities[0].type must be a namespaced id such as "core:wooden_box")
+  ok   a text health value is rejected and the world is kept (entities[0].components.health.current must be a finite number ≥ 0)
+  ok   a negative health value is rejected and the world is kept (entities[0].components.health.current must be a finite number ≥ 0)
+  ok   a temperature below absolute zero is rejected and the world is kept (entities[0].components.thermal.temperature must be a temperature in [-273.15, 100000] °C)
+  ok   a fractional ammunition count is rejected and the world is kept (entities[0].components.magazine.rounds must be a whole number ≥ 0)
+  ok   an assembly type used as a body is rejected and the world is kept (entities[0].type 'core:human' is an assembly; entities must be single bodies)
+  ok   two bodies claiming the same ragdoll part is rejected and the world is kept (entities[1]: assembly 1 part 'head' is claimed by two entities)
+  ok   a malformed joint state is rejected and the world is kept (assemblies[0].joints.neck must be {"connected": true|false})
+  ok   an assembly uid shared with an entity is rejected and the world is kept (entities[0].uid 2 is used more than once)
+  ok   a body type used as an assembly is rejected and the world is kept (assemblies[0].type 'core:wooden_box' is not an assembly)
+  ok   a save from a newer version is reported as unsupported and changes nothing
+  ok   missing mod content is skipped and reported (Loaded 2 object(s). Skipped unknown types: othermod:laser)
+  ok   a part whose assembly is missing loads as a standalone body
+  ok   warnings explain the missing assembly and mod (2)
+ERROR: EntityFactory: entity 'test:broken_body' references missing material 'test:no_such_material'
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] create (res://scripts/core/entity_factory.gd:41)
+       [1] spawn_entity (res://scripts/world/sandbox_world.gd:97)
+       [2] _reconstruct (res://scripts/save/save_manager.gd:189)
+       [3] apply_save_data (res://scripts/save/save_manager.gd:164)
+       [4] _test_load_validation (res://tests/reliability_test.gd:276)
+       [5] _frames (res://tests/reliability_test.gd:78)
+  ok   an unexpected rebuild failure is reported (Loading failed (could not create 'test:broken_body' (uid 11)); the previous world was restored.)
+  ok   the previous world is restored after a failed rebuild
+  ok   v0_1_world.json loads (Loaded 3 object(s).)
+  ok   v0_2_world.json loads (Loaded 3 object(s).)
+  ok   the v0.2 ragdoll is rebuilt with its torn elbow
+  ok   a version 0.3.1 save is written
+  ok   a version 0.3.1 save loads (Loaded 5 object(s).)
+== Phase 3: projectile collisions
+  ok   one rifle round hits all 5 closely spaced glass panels (5 shattered)
+  ok   one rifle round hits all 10 closely spaced glass panels (10 shattered)
+  ok   exceeding the per-tick collision budget carries travel into the next tick
+  ok   a pistol round also reaches all 10 panels
+  ok   a rifle round penetrates three planks in a row (3 hit)
+  ok   a muzzle pressed into an object hits it instead of tunnelling through
+  ok   the round bounces back and forth between the same two walls (5 ricochets)
+  ok   a ricocheting round never passes through a surface it bounced off before
+  ok   a round can ricochet and then penetrate glass
+== Phase 4: explosion saturation
+  ok   a single explosion request is accepted
+  ok   every one of 160 bodies in the radius is affected (was capped at 96)
+  ok   a 400-body blast is spread over several ticks (256 affected in the first tick)
+  ok   all 400 bodies are eventually affected
+  ok   100 simultaneous requests are all accepted (old cap: 64)
+  ok   all 100 queued explosions are processed
+WARNING: ExplosionSystem: queue full (256); request refused
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] request (res://scripts/world/systems/explosion_system.gd:86)
+         [1] _test_explosion_saturation (res://tests/reliability_test.gd:474)
+         [2] _wait_for_explosions (res://tests/reliability_test.gd:436)
+  ok   a full queue refuses requests explicitly and counts them (256 accepted)
+  ok   an explosive refused by a full queue stays armed instead of disappearing
+  ok   deferred detonations are reported
+  ok   the deferred explosive detonates once the queue drains
+  ok   its explosion really happened (257 processed)
+  ok   a 60-barrel chain reaction detonates every barrel
+  ok   each barrel explodes exactly once and the chain ends (60 explosions)
+  ok   an explosion at the boundary wall works and the wall shields the far side (80 vs 2)
+  ok   every limb of a ragdoll inside a 150-body crowd is affected
+== Phase 5: mod validation
+  ok   component 'health' has a typed schema
+  ok   component 'thermal' has a typed schema
+  ok   component 'electrical' has a typed schema
+  ok   component 'impact_damage' has a typed schema
+  ok   component 'magazine' has a typed schema
+  ok   component 'firearm' has a typed schema
+  ok   component 'explosive' has a typed schema
+  ok   component 'destructible' has a typed schema
+  ok   component 'debris' has a typed schema
+  ok   component 'melee' has a typed schema
+  ok   all built-in definitions pass schema validation []
+  ok   the example mod still loads
+  ok   a text fire rate is rejected with mod, file, entity, component, parameter and expected range
+  ok   an out-of-range pellet count is rejected
+WARNING: Exponent too high
+     at: built_in_strtod (core/string/ustring.cpp:2553)
+     GDScript backtrace (most recent call first):
+         [0] _read_json (res://scripts/core/mod_loader.gd:270)
+         [1] _load_entities (res://scripts/core/mod_loader.gd:184)
+         [2] load_all (res://scripts/core/mod_loader.gd:60)
+         [3] _load_test_mod (res://tests/reliability_test.gd:562)
+         [4] _test_mod_validation (res://tests/reliability_test.gd:596)
+         [5] _run_later_phases (res://tests/reliability_test.gd:56)
+         [6] _test_explosion_saturation (res://tests/reliability_test.gd:537)
+         [7] _reset (res://tests/reliability_test.gd:83)
+         [8] _frames (res://tests/reliability_test.gd:78)
+  ok   an infinite number (1e999) is rejected
+  ok   an invalid nested dictionary is rejected
+  ok   an unknown damage kind is rejected
+  ok   a missing required parameter is rejected
+  ok   an unknown projectile reference is rejected
+  ok   an invalid enumeration value is rejected
+  ok   an unsupported behaviour (component type) is rejected, not silently ignored
+  ok   an invalid component combination is rejected
+  ok   a missing component dependency is rejected
+  ok   a duplicate entity id is reported and only the first is kept
+  ok   an excessive assembly is rejected
+  ok   an unknown parameter is warned about without rejecting the definition
+  ok   an oversized definition file is skipped
+  ok   definitions beyond the per-mod limit are refused
+  ok   the generated-audio memory budget is enforced
+== Phase 6: audio voice limits
+  ok   max_instances = 1 allows one voice (1 playing)
+  ok   max_instances = 2 allows two voices (2 playing)
+  ok   limits are tracked per sound type
+  ok   the global pool saturates at 24 voices
+  ok   a saturated pool reuses (steals) a voice without exceeding the global limit
+  ok   rapid repeats within min_interval are refused
+== Phase 7: simulation-time damage cooldowns
+  ok   impacts 0.1 s apart (simulated) are blocked and 0.25 s apart are not, at 0.1×, 0.5×, 1× and 2× { 0.1: 2, 0.5: 2, 1.0: 2, 2.0: 2 }
+  ok   wall-clock time passing does not end a cooldown
+  ok   simulation time stops while paused
+  ok   cooldowns do not expire while paused
+  ok   a steel box resting on a crate does no damage at 0.5× speed
+  ok   a steel box resting on a crate does no damage at 2.0× speed
+== Phase 8: object lifecycle
+       live objects: baseline 2399, after each cycle [2400, 2400, 2397]
+  ok   repeated spawn/fire/explode/save/load/clear cycles do not accumulate objects
+  ok   projectiles, particles, debris and assemblies are all cleaned up
+
+Reliability test: 117 checks, 0 failure(s)

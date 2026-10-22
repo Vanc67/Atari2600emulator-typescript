@@ -1,0 +1,190 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[Content] Loaded 1 mod(s), 36 entity definition(s), 0 error(s).
+== Phase A: weapon architecture, pistol, projectiles, ragdoll damage
+[registry]
+  ok   all content loads without errors []
+  ok   registry has core:pistol
+  ok   registry has core:revolver
+  ok   registry has core:assault_rifle
+  ok   registry has core:shotgun
+  ok   registry has core:smg
+  ok   registry has core:baseball_bat
+  ok   registry has core:hammer
+  ok   registry has core:crowbar
+  ok   registry has core:metal_pipe
+  ok   registry has core:explosive_barrel
+  ok   registry has core:small_bomb
+  ok   registry has core:large_bomb
+  ok   registry has core:glass_panel
+  ok   core:pistol is a data-defined firearm in the Firearms category
+  ok   core:revolver is a data-defined firearm in the Firearms category
+  ok   core:assault_rifle is a data-defined firearm in the Firearms category
+  ok   core:shotgun is a data-defined firearm in the Firearms category
+  ok   core:smg is a data-defined firearm in the Firearms category
+  ok   projectile core:pistol_round registered
+  ok   projectile core:revolver_round registered
+  ok   projectile core:rifle_round registered
+  ok   projectile core:smg_round registered
+  ok   projectile core:buckshot registered
+  ok   new spawn menu categories ["Ragdolls", "Firearms", "Melee", "Explosives", "Boxes", "Barrels", "Construction", "Spheres"]
+  ok   debris pieces are hidden from the spawn menu
+  ok   materials carry ballistic properties
+[pistol]
+  ok   pistol spawns with a full 12-round magazine
+  ok   activating fires one projectile and uses one round
+  ok   semi-automatic: holding the trigger fires only once
+  ok   projectiles are removed after hitting something
+  ok   projectile statistics track shots
+  ok   a new trigger press fires again after the cooldown
+  ok   fire rate cooldown blocks an immediate extra shot
+  ok   steel box survives pistol rounds
+[projectile ragdoll damage]
+  ok   a pistol headshot deals 32 × 1.6 head multiplier (51.2)
+  ok   only the struck limb is damaged
+  ok   three headshots destroy the head
+  ok   a destroyed head kills (existing death rules)
+  ok   limb damage visuals update
+[detached limb]
+  ok   a detached limb still takes projectile damage once (32.0)
+== Phase B: firearms, recoil, ammunition
+[fire modes + ammunition]
+  ok   core:pistol fires and uses ammunition
+  ok   core:revolver fires and uses ammunition
+  ok   core:assault_rifle fires and uses ammunition
+  ok   core:shotgun fires and uses ammunition
+  ok   core:smg fires and uses ammunition
+  ok   assault rifle fires automatically at ~11 rounds/s (11 in 1 s)
+  ok   SMG fires faster, ~15 rounds/s (14 in 1 s)
+  ok   a shotgun shell fires 9 pellets
+  ok   shotgun holds 6 shells
+  ok   an empty weapon dry-fires (no projectile)
+  ok   reloading starts
+  ok   weapons cannot fire mid-reload
+  ok   a magazine reload refills all 12 rounds
+  ok   the revolver reloads one round at a time (1 after 0.58 s)
+  ok   the revolver cylinder fills to 6
+[recoil]
+  ok   core:pistol recoils backwards as a physics impulse (-250 px/s)
+  ok   core:pistol recoil stays within the stability caps
+  ok   core:revolver recoils backwards as a physics impulse (-423 px/s)
+  ok   core:revolver recoil stays within the stability caps
+  ok   core:assault_rifle recoils backwards as a physics impulse (-89 px/s)
+  ok   core:assault_rifle recoil stays within the stability caps
+  ok   core:shotgun recoils backwards as a physics impulse (-265 px/s)
+  ok   core:shotgun recoil stays within the stability caps
+  ok   core:smg recoils backwards as a physics impulse (-75 px/s)
+  ok   core:smg recoil stays within the stability caps
+  ok   the revolver kicks harder than the pistol
+[penetration + materials]
+  ok   a pistol round passes through a wooden plank and hits the box behind
+  ok   the round loses energy passing through wood
+  ok   a steel box stops pistol rounds
+  ok   rifle rounds damage a metal barrel (reduced by its 0.6 projectile multiplier)
+  ok   a bullet shatters a glass panel
+  ok   shattered glass spawns shards
+  ok   the bullet continues through glass almost unslowed (31.8)
+  ok   a hit pushes the target with a small impulse (51 px/s)
+[ricochets + world boundaries]
+  ok   grazing shots ricochet off the concrete floor (12)
+  ok   projectiles stop in world geometry
+  ok   projectiles that hit nothing expire after their lifetime
+[shotgun range]
+  ok   the shotgun is far stronger up close (inf near vs 19 at 15 m)
+== Phase C: explosions
+[explosions]
+  ok   an explosion is processed
+  ok   force pushes objects away and falls off with distance
+  ok   damage falls off with distance (80 vs 20)
+  ok   explosion speed change is capped (3997 px/s)
+[line of sight]
+  ok   a concrete block shields from the blast (12 vs 30)
+[chain reaction]
+  ok   activating an explosive barrel lights its fuse
+  ok   one barrel sets off the whole row
+  ok   each explosive detonates exactly once (3 explosions)
+  ok   no explosions left queued (no infinite loop)
+  ok   shooting an explosive barrel makes it explode
+[bombs + ragdolls]
+  ok   a small bomb waits for its 3 s fuse (armed indicator on)
+  ok   the small bomb explodes when the fuse runs out
+  ok   a large bomb damages every limb of a nearby ragdoll
+  ok   a point-blank large bomb kills
+  ok   the ragdoll stays numerically stable after the blast
+== Phase D: melee and destruction
+[melee]
+  ok   core:baseball_bat is a physical melee weapon
+  ok   core:hammer is a physical melee weapon
+  ok   core:crowbar is a physical melee weapon
+  ok   core:metal_pipe is a physical melee weapon
+  ok   melee lowers the impact threshold and multiplies damage
+  ok   a swung hammer damages the head it hits (46)
+  ok   no damage keeps accumulating after the hit
+  ok   a melee weapon resting on a crate causes no damage
+[destructibles]
+  ok   a destroyed crate breaks into 4 wood chunks
+  ok   debris only collides with the world
+  ok   debris removes itself after its lifetime
+  ok   debris is capped (60 alive after 25 crates)
+  ok   metal barrels are destructible
+  ok   wooden planks are destructible
+== Phase E: fire, effects, audio
+[fire]
+  ok   cold props and resting humans cost nothing to the heat system
+  ok   a wooden crate can be ignited
+  ok   steel cannot be ignited
+  ok   burning shows fire effects
+  ok   burning deals damage over time (37)
+  ok   fire spreads to the neighbouring crate
+  ok   heat transfers to nearby non-flammable objects (551 °C)
+  ok   extinguishing stops the fire
+  ok   a burning human takes fire damage
+  ok   extinguishing one limb puts out the whole body
+  ok   an explosive barrel heated by fire detonates
+[effects + audio]
+  ok   effects layer starts empty
+  ok   an explosion emits particles (80)
+  ok   particles are capped (2400)
+  ok   effects clean themselves up
+  ok   every sound is synthesized (20 sounds)
+  ok   sounds play through the audio manager
+  ok   rapid repeats of the same sound are rate-limited
+  ok   unknown sound ids are ignored safely
+== Phase F: tools, saves, performance
+[tools]
+  ok   Freeze tool freezes
+  ok   Freeze tool unfreezes
+  ok   Damage tool deals the configured amount
+  ok   Heal tool restores health
+  ok   Ignite tool sets objects on fire
+  ok   Ignite tool leaves non-flammable objects alone
+  ok   Extinguish tool puts out fires
+  ok   Inspect tool selects
+  ok   Delete tool removes objects
+  ok   Explode tool creates an explosion at the cursor
+  ok   the activation key fires the selected weapon
+  ok   the reload key reloads the selected weapon
+[save / load v3]
+  ok   save succeeds
+  ok   saves use format version 3
+  ok   debris is not saved
+  ok   save loads (Loaded 6 object(s).)
+  ok   weapon type, rotation and ammunition are restored
+  ok   an in-progress reload is restored
+  ok   an armed bomb keeps its fuse (activation state)
+  ok   burning state and health are restored
+  ok   temperature is restored (95 °C)
+  ok   restored fires keep simulating
+  ok   the restored bomb still explodes
+[v0.1 / v0.2 saves]
+  ok   v0_1_world.json loads (Loaded 3 object(s).)
+  ok   v0_2_world.json loads (Loaded 3 object(s).)
+  ok   a real v0.2 ragdoll save restores joints and limb health
+  ok   the restored v0.2 ragdoll is stable
+[performance: 20 ragdolls, 100 props, 4 firearms, explosions]
+       bodies=348, projectiles in flight=3, particles=1452, burning=50
+       average 1.82 ms per physics tick, worst 6.39 ms (headless, includes script and physics)
+       (timing is informational; see tests/benchmark.tscn for throughput benchmarks)
+  ok   the whole scene stays numerically stable
+
+Weapons test: 155 checks, 0 failure(s)

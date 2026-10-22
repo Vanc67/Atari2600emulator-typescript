@@ -1,0 +1,129 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[Content] Loaded 1 mod(s), 36 entity definition(s), 0 error(s).
+[registry]
+  ok   core content loads without errors []
+  ok   registry has core:wooden_box
+  ok   registry has core:steel_box
+  ok   registry has core:metal_barrel
+  ok   registry has core:concrete_block
+  ok   registry has core:rubber_ball
+  ok   registry has core:metal_sphere
+  ok   registry has core:wooden_plank
+  ok   core categories in order: ["Ragdolls", "Firearms", "Melee", "Explosives", "Boxes", "Barrels", "Construction", "Spheres"]
+  ok   core:assault_rifle has material and positive mass
+  ok   core:baseball_bat has material and positive mass
+  ok   core:concrete_block has material and positive mass
+  ok   core:crowbar has material and positive mass
+  ok   core:wood_chunk has material and positive mass
+  ok   core:wood_splinter has material and positive mass
+  ok   core:glass_shard has material and positive mass
+  ok   core:metal_scrap has material and positive mass
+  ok   core:explosive_barrel has material and positive mass
+  ok   core:glass_panel has material and positive mass
+  ok   core:hammer has material and positive mass
+  ok   core:human (assembly) has positive total mass
+  ok   core:human_head has material and positive mass
+  ok   core:human_upper_torso has material and positive mass
+  ok   core:human_pelvis has material and positive mass
+  ok   core:human_upper_arm_left has material and positive mass
+  ok   core:human_forearm_left has material and positive mass
+  ok   core:human_upper_arm_right has material and positive mass
+  ok   core:human_forearm_right has material and positive mass
+  ok   core:human_thigh_left has material and positive mass
+  ok   core:human_lower_leg_left has material and positive mass
+  ok   core:human_thigh_right has material and positive mass
+  ok   core:human_lower_leg_right has material and positive mass
+  ok   core:large_bomb has material and positive mass
+  ok   core:metal_barrel has material and positive mass
+  ok   core:metal_pipe has material and positive mass
+  ok   core:metal_sphere has material and positive mass
+  ok   core:pistol has material and positive mass
+  ok   core:revolver has material and positive mass
+  ok   core:rubber_ball has material and positive mass
+  ok   core:shotgun has material and positive mass
+  ok   core:small_bomb has material and positive mass
+  ok   core:smg has material and positive mass
+  ok   core:steel_box has material and positive mass
+  ok   core:wooden_box has material and positive mass
+  ok   core:wooden_plank has material and positive mass
+[mod loader]
+  ok   fixture mod loads without errors []
+  ok   core mod loads first
+  ok   example:ice_block registered
+  ok   mod entity resolves its own namespaced material
+  ok   mod-defined properties preserved
+  ok   components limited to those declared
+  ok   invalid definition reports errors (3)
+  ok   invalid definition still returns an object for reporting
+[save migrator]
+  ok   current version passes
+  ok   future version rejected
+  ok   missing version rejected
+[spawn + settle]
+  ok   spawned core:wooden_box
+  ok   spawned core:steel_box
+  ok   spawned core:metal_barrel
+  ok   spawned core:concrete_block
+  ok   spawned core:rubber_ball
+  ok   spawned core:metal_sphere
+  ok   spawned core:wooden_plank
+  ok   entity count = 7
+  ok   entity uids are unique
+  ok   HUD object counter updates (Objects: 7  ·  Bodies: 7)
+  ok   input action 'rotate_cw' registered
+  ok   input action 'toggle_freeze' registered
+  ok   input action 'duplicate_selected' registered
+  ok   input action 'toggle_pause' registered
+  ok   input action 'quick_save' registered
+  ok   core:wooden_box rests on the floor (y=-32.0)
+  ok   core:steel_box rests on the floor (y=-31.7)
+  ok   core:metal_barrel rests on the floor (y=-41.9)
+  ok   core:concrete_block rests on the floor (y=-31.7)
+  ok   core:rubber_ball rests on the floor (y=-18.0)
+  ok   core:metal_sphere rests on the floor (y=-19.7)
+  ok   core:wooden_plank rests on the floor (y=-9.7)
+  ok   clear_entities empties the world
+[drag]
+  ok   spring drag holds a 147 kg block at the target (error 0.07 px)
+  ok   moving the target gives the body velocity (2109 px/s) for throwing
+[materials]
+  ok   rubber ball bounces high (peak 256 px)
+  ok   metal sphere bounces much less (peak 26 px)
+[freeze / duplicate / delete]
+  ok   frozen box hangs in the air
+  ok   duplicate is selected
+  ok   duplicate copies frozen state
+  ok   duplicate gets a new uid
+  ok   duplicate copies component state
+  ok   unfrozen duplicate falls onto the frozen original (dy 32.6)
+  ok   deleted entity leaves the tree
+  ok   selection cleared after delete
+[save / load]
+  ok   save_to_slot returns OK
+  ok   save file is versioned JSON
+  ok   load_from_slot restores 2 entities (Loaded 2 object(s).)
+  ok   load replaces previous world contents
+  ok   next uid preserved
+  ok   uid 13 keeps type core:steel_box
+  ok   uid 13 position restored
+  ok   uid 13 rotation restored
+  ok   uid 13 velocity restored
+  ok   uid 13 frozen state restored
+  ok   uid 14 keeps type core:wooden_plank
+  ok   uid 14 position restored
+  ok   uid 14 rotation restored
+  ok   uid 14 velocity restored
+  ok   uid 14 frozen state restored
+  ok   unknown entity types are skipped and reported
+[pause]
+  ok   bodies do not move while paused
+  ok   picking works while paused
+  ok   bodies resume after unpausing
+  ok   time scale applied
+[spawn placement]
+  ok   free spot is placeable
+  ok   spot inside the floor is rejected
+  ok   overlapping spot is rejected
+
+Smoke test: 114 checks, 0 failure(s)

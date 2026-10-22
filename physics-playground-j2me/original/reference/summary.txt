@@ -1,0 +1,40 @@
+=== smoke_test ===
+smoke_test exit=0
+  ok   bodies resume after unpausing
+  ok   time scale applied
+[spawn placement]
+  ok   free spot is placeable
+  ok   spot inside the floor is rejected
+  ok   overlapping spot is rejected
+
+Smoke test: 114 checks, 0 failure(s)
+=== ragdoll_test ===
+ragdoll_test exit=0
+[20 ragdolls]
+  ok   20 humans = 220 bodies
+       average frame time with 20 falling ragdolls: 0.70 ms per physics tick
+  ok   all 20 ragdolls stay numerically stable
+  ok   no limbs torn off by ordinary falls (0 broken joints)
+  ok   20 ragdolls simulate within budget (0.70 ms/tick, headless)
+
+Ragdoll test: 120 checks, 0 failure(s)
+=== weapons_test ===
+weapons_test exit=0
+  ok   the restored v0.2 ragdoll is stable
+[performance: 20 ragdolls, 100 props, 4 firearms, explosions]
+       bodies=348, projectiles in flight=3, particles=1452, burning=50
+       average 1.82 ms per physics tick, worst 6.39 ms (headless, includes script and physics)
+       (timing is informational; see tests/benchmark.tscn for throughput benchmarks)
+  ok   the whole scene stays numerically stable
+
+Weapons test: 155 checks, 0 failure(s)
+=== reliability_test ===
+reliability_test exit=0
+  ok   a steel box resting on a crate does no damage at 0.5× speed
+  ok   a steel box resting on a crate does no damage at 2.0× speed
+== Phase 8: object lifecycle
+       live objects: baseline 2399, after each cycle [2400, 2400, 2397]
+  ok   repeated spawn/fire/explode/save/load/clear cycles do not accumulate objects
+  ok   projectiles, particles, debris and assemblies are all cleaned up
+
+Reliability test: 117 checks, 0 failure(s)

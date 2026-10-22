@@ -1,0 +1,144 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[Content] Loaded 1 mod(s), 36 entity definition(s), 0 error(s).
+[definitions]
+  ok   content loads without errors []
+  ok   core:human is registered as an assembly
+  ok   Ragdolls category exists and is listed first
+  ok   spawn menu lists only the human, not its limbs
+  ok   11 body parts and 10 joints
+  ok   part 'pelvis' resolves to a hidden limb definition
+  ok   part 'upper_torso' resolves to a hidden limb definition
+  ok   part 'head' resolves to a hidden limb definition
+  ok   part 'upper_arm_left' resolves to a hidden limb definition
+  ok   part 'forearm_left' resolves to a hidden limb definition
+  ok   part 'upper_arm_right' resolves to a hidden limb definition
+  ok   part 'forearm_right' resolves to a hidden limb definition
+  ok   part 'thigh_left' resolves to a hidden limb definition
+  ok   part 'lower_leg_left' resolves to a hidden limb definition
+  ok   part 'thigh_right' resolves to a hidden limb definition
+  ok   part 'lower_leg_right' resolves to a hidden limb definition
+  ok   head max health is 100
+  ok   upper_torso max health is 200
+  ok   pelvis max health is 150
+  ok   upper_arm_left max health is 100
+  ok   forearm_left max health is 80
+  ok   thigh_left max health is 120
+  ok   lower_leg_left max health is 100
+  ok   total human mass is 72 kg (72.0)
+  ok   limbs use capsule collision shapes
+  ok   limbs have health and impact damage
+[health component]
+  ok   apply_damage removes health
+  ok   damage fraction query
+  ok   damage clamps at zero and depletes
+  ok   no further damage once destroyed
+  ok   heal restores health
+  ok   heal_full restores to maximum
+  ok   damage, depleted, restored and healed events fire ({ "damaged": 2, "depleted": 1, "restored": 1, "healed": 100.0, "changed": 4 })
+  ok   health_changed fires on every change
+  ok   invulnerable ignores damage
+[impact damage formula]
+  ok   below the threshold does no damage
+  ok   damage grows linearly above the threshold
+  ok   damage per hit is capped
+[assembly validation]
+  ok   unknown parts and joint references are reported (2 errors)
+[spawn]
+  ok   spawn_assembly creates a human
+  ok   11 bodies and 1 assembly in the world
+  ok   the human counts as one object
+  ok   10 PinJoint2D pivots created
+  ok   every part knows its assembly and part name
+  ok   self-collision is disabled between every pair of parts
+  ok   limbs use the impact-sensing entity variant
+  ok   parts and assembly have unique uids
+  ok   new human is alive
+  ok   clearing the world frees the assembly
+[settle stability]
+  ok   no part falls through the floor
+  ok   collapsing does not break joints
+  ok   joints hold together at rest (max separation 0.00 px)
+  ok   angle limits hold at rest (worst violation 0.0°)
+  ok   collapsed ragdoll comes to rest and sleeps (11/11 asleep, no jitter)
+  ok   collapsing to the floor causes no damage (0.0)
+[limb dragging]
+  ok   grabbing a hand moves the whole connected body
+  ok   a 72 kg body is lifted by the hand (grab point 1.6 px from the cursor)
+  ok   the body hangs below the hand, off the floor
+  ok   lifting by a limb does not break joints (peak strain 13.1 px)
+  ok   fast swinging while dragging does not break joints
+  ok   released body falls and lands intact
+[paused drag]
+  ok   dragging while paused moves the whole body rigidly
+  ok   joints stay intact after a paused move
+[interaction with objects]
+  ok   a falling steel box collides with the ragdoll's limbs
+  ok   ragdoll stays stable under the box
+[fall damage]
+  ok   a 3 m fall is harmless (0 damage)
+  ok   a 9 m fall injures the legs (75% damage)
+  ok   a 9 m fall does not tear limbs off
+  ok   a 24 m fall incapacitates or kills (incapacitated)
+  ok   damaged limbs show damage visuals
+[head impact]
+  ok   an 18 m/s steel sphere destroys the head
+  ok   destroying the head kills the human
+  ok   dead humans are drawn lifeless
+  ok   inspector reports state and cause
+[impact detachment]
+  ok   a violent impact tears the forearm off
+  ok   the forearm is detached
+  ok   broken joints' PinJoint2D nodes are removed (3 broken)
+  ok   detached limb shows a wound
+  ok   detached limb keeps colliding and rests on the floor
+  ok   detached limb keeps its health state
+  ok   a detached limb is dragged on its own
+  ok   detached limb follows the cursor
+  ok   detached limb can be picked
+  ok   deleting a detached limb removes it
+  ok   the rest of the body is unaffected
+[strain detachment]
+  ok   an extreme sustained pull overstretches and tears the neck (peak 95 px)
+  ok   a severed neck kills (Neck severed)
+[group commands + inspector]
+  ok   inspector shows 'Body part: Left Thigh'
+  ok   inspector shows 'Health: 120 / 120'
+  ok   inspector shows 'Damage: 0%'
+  ok   inspector shows 'Human state: Alive'
+  ok   inspector shows 'Mass: 8.0 kg'
+  ok   inspector shows 'Velocity:'
+  ok   inspector title names the human (Human #147)
+  ok   freezing a limb freezes the whole connected body
+  ok   duplicating a limb duplicates the whole human
+  ok   the copy's matching limb is selected
+  ok   duplicate keeps limb health
+  ok   duplicate has its own joints
+  ok   heal restores the human
+  ok   deleting a limb deletes its connected body
+[breakable objects]
+  ok   a wooden box is removed when its health is depleted
+  ok   objects with on_depleted 'none' and no destructible stay, showing full damage
+[save / load ragdolls]
+  ok   save with ragdolls succeeds
+  ok   save stores assemblies and joint connection states
+  ok   both ragdolls are reconstructed (Loaded 2 object(s).)
+  ok   ragdoll identities (uids) are preserved
+  ok   broken joints are restored
+  ok   joints are created exactly once (no duplicates)
+  ok   human states are restored
+  ok   detached limb stays detached
+  ok   every limb's position, rotation, velocity, health and freeze state are restored
+  ok   restored ragdolls stay stable (no joints break after loading)
+[v0.1 save compatibility]
+  ok   a version 0.1 save loads (Loaded 3 object(s).)
+  ok   v0.1 entity state is preserved
+  ok   v0.1 uid counter is preserved
+[20 ragdolls]
+  ok   20 humans = 220 bodies
+       average frame time with 20 falling ragdolls: 0.70 ms per physics tick
+  ok   all 20 ragdolls stay numerically stable
+  ok   no limbs torn off by ordinary falls (0 broken joints)
+  ok   20 ragdolls simulate within budget (0.70 ms/tick, headless)
+
+Ragdoll test: 120 checks, 0 failure(s)
