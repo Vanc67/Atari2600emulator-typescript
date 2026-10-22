@@ -5,12 +5,15 @@ import wreckbox.core.Buildings;
 import wreckbox.core.CellGrid;
 import wreckbox.core.DebrisSystem;
 import wreckbox.core.EffectSystem;
+import wreckbox.core.FireSystem;
 import wreckbox.core.Game;
 import wreckbox.core.Maps;
 import wreckbox.core.Materials;
 import wreckbox.core.Math2;
 import wreckbox.core.PeopleStore;
 import wreckbox.core.Props;
+import wreckbox.core.RadiationSystem;
+import wreckbox.core.RagdollStore;
 import wreckbox.core.StructuralSolver;
 import wreckbox.core.Tools;
 
@@ -23,7 +26,7 @@ public final class CoreTest {
   private static final int[] HASHES = {0x8e7344c8, 0x2534cc78, 0x90b403ed, 0xf21c1dee, 0x2a5c4f18, 0xca89cf9a, 0x87e85369, 0x4f6b17e0};
 
   public static void main(String[] args) {
-    content(); mathAndCells(); maps(); structure(); strikeOracle(); effects();
+    content(); mathAndCells(); maps(); structure(); strikeOracle(); effects(); radiation(); residents();
     System.out.println("Wreckbox CoreTest: " + checks + " checks, " + failures + " failures");
     if (failures != 0) throw new RuntimeException("FAILED " + failures);
   }
@@ -145,6 +148,77 @@ public final class CoreTest {
     check(game.grid.material(at) != 0, "brush builds cell");
     game.selectTool(Tools.find("eraser")); game.pointerDown(5 * 6.0f + 3.0f, 5 * 6.0f + 3.0f); game.pointerUp();
     eq(0, game.grid.material(at), "eraser removes cell");
+  }
+
+  private static void radiation() {
+    RadiationSystem air = new RadiationSystem(), ground = new RadiationSystem();
+    air.addNuclear(1000.0f, 0.0f, 15.0f, false, 460.0f);
+    ground.addNuclear(1000.0f, 0.0f, 15.0f, true, 460.0f);
+    near(19.2f, air.D0[0], 0.01f, "air-burst fallout scale");
+    near(1600.0f, ground.D0[0], 0.01f, "ground-burst fallout scale");
+    near(858.0f, air.L[0], 0.01f, "fallout length");
+    near(40000.0f, air.prompt[0], 0.01f, "prompt scale");
+    check(air.rate(1000.0f, 1.0f) > 1000.0f, "dosimeter prompt pulse");
+    near(0.0f, air.falloutRate(1000.0f, 0.5f), 0.0f, "no fallout before 0.8 seconds");
+    check(air.falloutRate(1000.0f, 6.0f) > 0.0f, "fallout after ramp starts");
+    check(air.falloutRate(1010.0f, 6.0f) != air.falloutRate(1010.0f, 30.0f), "fallout decays and drifts");
+
+    RadiationSystem npp = new RadiationSystem();
+    npp.addNppRelease(500.0f, 0.0f, 1.0f, -1);
+    npp.addNppRelease(500.0f, 1.0f, 1.0f, 1);
+    npp.addNppRelease(500.0f, 2.0f, 2.0f, 1);
+    eq(1, npp.count, "single NPP cloud");
+    near(60.0f, npp.D0[0], 0.0f, "NPP release cap");
+    near(1.0f, npp.core[0], 0.0f, "NPP core cap");
+    check(npp.rate(400.0f, 8.0f) > RadiationSystem.BACKGROUND, "NPP wind cloud");
+
+    for (int i = 0; i < 8; i++) air.addNuclear(2000.0f + i, i, 1.0f, true, 100.0f);
+    eq(RadiationSystem.MAX_SOURCES, air.count, "six radiation sources maximum");
+    near(2002.0f, air.x[0], 0.0f, "oldest radiation source shifted out");
+
+    CellGrid shield = new CellGrid(8);
+    shield.set(shield.index(3, 100), 3, 0, 0);
+    near(0.5f, ground.shielding(shield, 18.0f, 103 * 6.0f), 0.0001f, "overhead concrete attenuation");
+    check(RadiationSystem.formatDose(0.000015f).endsWith("Р/ч"), "dosimeter units");
+  }
+
+  private static void residents() {
+    CellGrid grid = new CellGrid(64);
+    for (int x = 0; x < grid.width; x++) grid.set(grid.index(x, 200), 9, 0, 0);
+    PeopleStore people = new PeopleStore(); people.allocate(4);
+    FireSystem fire = new FireSystem(); RadiationSystem radiation = new RadiationSystem();
+    int person = people.add(18.0f, 1198.0f, 100.0f, 22.0f, 85.0f, 1, 0, 0);
+    people.hold(person, 24.0f, 1160.0f);
+    check(people.held[person] && people.rag.active[person], "grab creates physical body");
+    people.release(person, 20.0f, -10.0f); check(!people.held[person], "grab release");
+    people.hurt(person, 60.0f, 0.0f, 0.0f);
+    check(people.rag.active[person] && people.state[person] == PeopleStore.DOWN, "injury starts ragdoll");
+    boolean finite = true;
+    for (int step = 0; step < 20; step++) people.update(grid, fire, 1.0f / 30.0f, 450.0f, radiation, step / 30.0f);
+    for (int n = 0; n < RagdollStore.POINTS; n++) {
+      int at = person * RagdollStore.POINTS + n;
+      if (Float.isNaN(people.rag.x[at]) || Float.isInfinite(people.rag.y[at])) finite = false;
+    }
+    check(finite, "ragdoll finite positions");
+    people.hurt(person, 100.0f, 0.0f, 0.0f);
+    eq(PeopleStore.DEAD, people.state[person], "lethal injury");
+    eq(1, people.deaths, "death counted once");
+
+    int getup = people.add(42.0f, 1198.0f, 100.0f, 22.0f, 85.0f, 1, 1, 0);
+    people.startRagdoll(getup, 0.0f, 0.0f, 0.0f);
+    float time = 1.0f;
+    for (int step = 0; step < 240; step++) { time += 1.0f / 30.0f; people.update(grid, fire, 1.0f / 30.0f, 450.0f, radiation, time); }
+    check(!people.rag.active[getup] && people.state[getup] == PeopleStore.ALIVE, "resident gets up after settling");
+
+    int spawn = people.spawnAt(grid, 60.0f, 1100.0f);
+    check(spawn >= 0 && people.y[spawn] <= 1200.0f, "people tool finds floor and clearance");
+    people.ignite(spawn); check(people.burnTime[spawn] > 0.0f, "resident ignition");
+    people.douse(people.x[spawn], people.y[spawn], 20.0f); near(0.0f, people.burnTime[spawn], 0.0f, "resident douse");
+
+    int exposed = people.add(90.0f, 1198.0f, 100.0f, 22.0f, 85.0f, 1, 2, 0);
+    radiation.addNppRelease(90.0f, time, 1.0f, 1);
+    for (int step = 0; step < 500; step++) { time += 0.05f; people.update(grid, fire, 0.05f, 450.0f, radiation, time); }
+    check(people.dose[exposed] > 0.8f && people.sick[exposed] > 0.0f, "resident accumulated dose and sickness");
   }
 
   private static int findDestructible(CellGrid grid) {

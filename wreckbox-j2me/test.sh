@@ -17,3 +17,4 @@ find "$ROOT/src/test/java" -name '*.java' -print | sort > "$BUILD/test-sources.l
     -d "$BUILD/test-classes" @"$BUILD/test-sources.list"
 "$JAVA" -Xmx256m -cp "$BUILD/test-classes:$CP:$BOOT" wreckbox.test.CoreTest
 "$JAVA" -Xmx256m -cp "$BUILD/test-classes:$CP:$BOOT" wreckbox.test.PlatformTest
+"$JAVA" -Xmx256m -cp "$BUILD/test-classes:$CP:$BOOT" wreckbox.platform.CanvasTest

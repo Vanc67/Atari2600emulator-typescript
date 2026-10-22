@@ -14,6 +14,8 @@ import wreckbox.core.Maps;
 import wreckbox.core.PeopleStore;
 import wreckbox.core.PowerGrid;
 import wreckbox.core.Props;
+import wreckbox.core.RadiationSystem;
+import wreckbox.core.RagdollStore;
 import wreckbox.core.Tools;
 
 /** MIDP 2.0 software renderer, intentionally independent from simulation. */
@@ -31,6 +33,7 @@ public final class WreckboxRenderer {
   public void render(Graphics g, int width, int height, int cursorX, int cursorY) {
     this.width = width; this.height = height; viewHeight = height - TOP - BOTTOM;
     offsetX = game.shakeX(); offsetY = game.shakeY();
+    g.setColor(0x111722); g.fillRect(0, 0, width, height);
     drawSky(g);
     g.setClip(0, TOP, width, viewHeight);
     drawRiver(g);
@@ -40,11 +43,12 @@ public final class WreckboxRenderer {
     drawPeople(g);
     drawDebris(g);
     drawFire(g);
+    drawFallout(g);
     drawEffects(g);
     drawDisasters(g);
     drawCursor(g, cursorX, cursorY);
     g.setClip(0, 0, width, height);
-    drawHud(g);
+    if (!game.uiHidden) drawHud(g);
   }
 
   private int sx(float worldX) { return (int)((worldX - game.cameraX) * game.zoom + width * 0.5f + offsetX); }
@@ -107,6 +111,11 @@ public final class WreckboxRenderer {
       g.fillRect(px, py, cellSize, cellSize);
       if (health < 0.5f && cellSize >= 3) {
         g.setColor(scaleColor(color, 0.45f)); g.drawLine(px, py, px + cellSize - 1, py + cellSize - 1);
+      }
+      if (game.showStress && at < game.structure.stress.length && game.structure.stress[at] > 0.0f) {
+        float stress = game.structure.stress[at];
+        g.setColor(stress > 1.0f ? 0xe84c3d : stress > 0.7f ? 0xe5b83f : 0x58b96b);
+        if (cellSize >= 3) g.drawRect(px, py, cellSize - 1, cellSize - 1); else g.fillRect(px, py, cellSize, cellSize);
       }
       if ((grid.flags(at) & CellGrid.FLAG_REINFORCED) != 0 && cellSize >= 4) {
         g.setColor(0x775540); g.drawRect(px, py, cellSize - 1, cellSize - 1);
@@ -200,21 +209,53 @@ public final class WreckboxRenderer {
     PeopleStore people = game.people;
     for (int i = 0; i < people.count; i++) {
       if (people.state[i] == PeopleStore.GONE) continue;
-      int x = sx(people.x[i]), y = sy(people.y[i]);
-      if (x < -5 || x > width + 5 || y < TOP - 8 || y > TOP + viewHeight + 8) continue;
-      int h = Math.max(4, size(12));
       int skin = (people.variant[i] & 1) == 0 ? 0xd9a077 : 0x9b6547;
       int shirt = (people.variant[i] & 2) == 0 ? 0x4675a0 : 0xa34e4e;
-      if (people.state[i] >= PeopleStore.DOWN) {
-        g.setColor(shirt); g.drawLine(x - h / 2, y, x + h / 2, y - 1);
-        g.setColor(skin); g.fillArc(x + h / 2 - 1, y - 3, 3, 3, 0, 360);
-      } else {
-        g.setColor(skin); g.fillArc(x - 1, y - h, 3, 3, 0, 360);
-        g.setColor(shirt); g.drawLine(x, y - h + 3, x, y - 2);
-        g.drawLine(x, y - h + 5, x + people.direction[i] * 2, y - h + 7);
-        g.setColor(0x333b4c); g.drawLine(x, y - 2, x - 2, y); g.drawLine(x, y - 2, x + 2, y);
+      int pants = (people.variant[i] & 4) == 0 ? 0x333b4c : 0x51463e;
+      if (people.sick[i] > 0.0f) skin = people.sick[i] > 0.5f ? 0x91a85c : 0xb5ac70;
+      if (people.charred[i] > 0.0f) {
+        float scale = 1.0f - people.charred[i] * 0.8f;
+        skin = scaleColor(skin, scale); shirt = scaleColor(shirt, scale); pants = scaleColor(pants, scale);
+      }
+      if (people.state[i] == PeopleStore.DEAD) { skin = scaleColor(skin, 0.65f); shirt = scaleColor(shirt, 0.7f); }
+      if (people.rag.active[i]) drawRagdoll(g, people, i, skin, shirt, pants);
+      else drawStandingPerson(g, people, i, skin, shirt, pants);
+      if (people.burnTime[i] > 0.0f) {
+        int x = sx(people.centerX(i)), y = sy(people.centerY(i)) - 5;
+        g.setColor(0xff6b24); g.fillTriangle(x - 3, y + 5, x + 3, y + 5, x + ((i & 1) == 0 ? 1 : -1), y - 4);
+        g.setColor(0xffd44a); g.fillTriangle(x - 1, y + 4, x + 1, y + 4, x, y - 1);
       }
     }
+  }
+
+  private void drawStandingPerson(Graphics g, PeopleStore p, int i, int skin, int shirt, int pants) {
+    int x = sx(p.x[i]), feet = sy(p.y[i]);
+    if (x < -8 || x > width + 8 || feet < TOP - 16 || feet > TOP + viewHeight + 16) return;
+    int headY = sy(p.y[i] - 20.8f), neckY = sy(p.y[i] - 16.0f), hipY = sy(p.y[i] - 8.0f);
+    int headSize = Math.max(2, size(4.6f)), direction = p.direction[i];
+    float swing = p.mode[i] == PeopleStore.WALK || p.mode[i] == PeopleStore.FLEE || p.mode[i] == PeopleStore.BURN ? Math2.sin(p.phase[i]) : 0.0f;
+    int leg = Math.max(1, size(3.8f * swing)), arm = Math.max(1, size(4.0f));
+    g.setColor(skin); g.fillArc(x - headSize / 2, headY - headSize / 2, headSize, headSize, 0, 360);
+    g.setColor(shirt); g.drawLine(x, neckY, x, hipY);
+    int shoulderY = sy(p.y[i] - 15.5f), handY = sy(p.y[i] - 9.0f);
+    if (p.mode[i] == PeopleStore.COWER) handY = sy(p.y[i] - 22.0f);
+    else if (p.mode[i] == PeopleStore.ILL) handY = sy(p.y[i] - 13.0f);
+    g.drawLine(x, shoulderY, x - arm, handY); g.drawLine(x, shoulderY, x + arm, handY + (int)(leg * 0.4f));
+    g.setColor(pants);
+    g.drawLine(x, hipY, x - 1 - leg / 2, feet); g.drawLine(x, hipY, x + 1 + leg / 2, feet);
+    if (p.mode[i] == PeopleStore.ILL) { g.setColor(0x7b9b45); g.fillRect(x + direction * 3, headY + 3, 2, 2); }
+  }
+
+  private void drawRagdoll(Graphics g, PeopleStore p, int i, int skin, int shirt, int pants) {
+    RagdollStore rag = p.rag; int base = i * RagdollStore.POINTS;
+    for (int n = 0; n < RagdollStore.JOINT_A.length; n++) {
+      int a = base + RagdollStore.JOINT_A[n], b = base + RagdollStore.JOINT_B[n];
+      int ax = sx(rag.x[a]), ay = sy(rag.y[a]), bx = sx(rag.x[b]), by = sy(rag.y[b]);
+      if ((ax < -10 && bx < -10) || (ax > width + 10 && bx > width + 10)) continue;
+      g.setColor(n < 5 ? shirt : n < 7 ? skin : pants); g.drawLine(ax, ay, bx, by);
+    }
+    int head = base + RagdollStore.HEAD, x = sx(rag.x[head]), y = sy(rag.y[head]), d = Math.max(2, size(4.6f));
+    g.setColor(skin); g.fillArc(x - d / 2, y - d / 2, d, d, 0, 360);
   }
 
   private void drawDebris(Graphics g) {
@@ -241,6 +282,25 @@ public final class WreckboxRenderer {
     }
   }
 
+  private void drawFallout(Graphics g) {
+    RadiationSystem radiation = game.radiationSystem;
+    for (int i = 0; i < radiation.count; i++) if (radiation.D0[i] > 0.0f || radiation.prompt[i] > 0.0f) {
+      float age = game.time - radiation.t0[i];
+      if (age < 0.0f || (!radiation.npp[i] && age > 60.0f)) continue;
+      float front = Math.min(age * 22.0f, 14000.0f);
+      float center = radiation.npp[i] ? radiation.x[i] + radiation.direction[i] * front * 0.5f : radiation.x[i] + 6.0f * Math.min(age, 120.0f);
+      float length = radiation.npp[i] ? Math.max(200.0f, front * 0.5f + radiation.L[i] * 0.5f) : radiation.L[i];
+      int x = sx(center), y = sy(1300.0f), rx = Math.max(2, size(length)), ry = Math.max(3, size(120.0f));
+      if (x + rx < 0 || x - rx > width) continue;
+      g.setColor(0x71834b); g.drawArc(x - rx, y - ry, rx * 2, ry * 2, 0, 360);
+      for (int n = 0; n < 12; n++) {
+        int px = x + ((n * 37 + i * 19) % Math.max(2, rx * 2)) - rx;
+        int py = y + ((n * 23 + i * 11) % Math.max(2, ry * 2)) - ry;
+        if (px >= 0 && px < width && py >= TOP && py < TOP + viewHeight) g.fillRect(px, py, 1, 1);
+      }
+    }
+  }
+
   private void drawEffects(Graphics g) {
     EffectSystem e = game.effects;
     for (int i = 0; i < EffectSystem.MAX; i++) {
@@ -260,6 +320,10 @@ public final class WreckboxRenderer {
         g.setColor(0xff7a1e); g.fillRect(x - 1, y - 1, 3, 3);
       } else if (type == EffectSystem.WATER) {
         g.setColor(0x6cbbe3); g.fillRect(x, y, 2, 2);
+      } else if (type == EffectSystem.FLASH) {
+        float fraction = e.life[i] / Math.max(0.01f, e.maxLife[i]);
+        int r = Math.max(4, size(e.radius[i] * (1.2f - 0.2f * fraction)));
+        g.setColor(fraction > 0.45f ? 0xffffe8 : 0xffc34d); g.fillArc(x - r, y - r, r * 2, r * 2, 0, 360);
       } else if (type == EffectSystem.BLAST) {
         float fraction = 1.0f - e.life[i] / e.maxLife[i];
         int r = Math.max(2, size(e.radius[i] * fraction));
@@ -305,7 +369,10 @@ public final class WreckboxRenderer {
     g.setFont(small);
     g.setColor(game.night ? 0x111722 : 0x17222e); g.fillRect(0, 0, width, TOP); g.fillRect(0, height - BOTTOM, width, BOTTOM);
     g.setColor(0xe6c34e); g.drawString("WRECKBOX", 2, 1, Graphics.LEFT | Graphics.TOP);
-    g.setColor(0xe8edf0); g.drawString(game.destructionPercent() + "%", width - 2, 1, Graphics.RIGHT | Graphics.TOP);
+    boolean showDose = game.radiationSystem.count > 0 && (game.doseRate > 0.00006f
+        || game.time - game.radiationSystem.t0[game.radiationSystem.count - 1] < 30.0f);
+    g.setColor(showDose && game.doseRate > 0.001f ? 0xb9e36b : 0xe8edf0);
+    g.drawString(showDose ? RadiationSystem.formatDose(game.doseRate) : game.destructionPercent() + "%", width - 2, 1, Graphics.RIGHT | Graphics.TOP);
     String map = Maps.NAMES[game.mapIndex];
     g.setColor(0xaebbc6); g.drawString(map, 2, 10, Graphics.LEFT | Graphics.TOP);
     String status = game.statusText(); if (status.length() > 24) status = status.substring(0, 24);
@@ -315,7 +382,7 @@ public final class WreckboxRenderer {
     String power = game.powerText(); if (power.length() > 28) power = power.substring(0, 28);
     g.setColor(0xe8c65c); g.drawString(power, width / 2, height - BOTTOM + 12, Graphics.HCENTER | Graphics.TOP);
     g.setColor(0x9aa8b4); g.drawString("1<", 2, height - BOTTOM + 2, Graphics.LEFT | Graphics.TOP); g.drawString(">3", width - 2, height - BOTTOM + 2, Graphics.RIGHT | Graphics.TOP);
-    if (game.messageTime > 0.0f && !game.uiHidden) {
+    if (game.messageTime > 0.0f && game.showToasts && !game.uiHidden) {
       String text = game.message; if (text.length() > 34) text = text.substring(0, 34);
       int y = TOP + viewHeight - 13;
       g.setColor(0x17222e); g.fillRect(2, y - 1, width - 4, 13);

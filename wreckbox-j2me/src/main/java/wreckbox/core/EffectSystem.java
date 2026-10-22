@@ -79,6 +79,9 @@ public final class EffectSystem {
           game.fire.igniteArea(grid, game.bodies, x[i], y[i], radius[i]);
           game.scarePeople(x[i], y[i], radius[i] * 1.5f, 4.0f);
           game.spawnFireVisual(x[i], y[i], radius[i]);
+        } else if (t == BOMB && flags[i] >= 100) {
+          int level = Math.max(1, Math.min(10, flags[i] % 1000 - 100));
+          game.nuclearExplode(x[i], y[i], Game.NUKE_KT[level - 1], radius[i], power[i], 0.2f, flags[i] >= 1000);
         } else {
           float multiplier = t == METEOR || t == VOLCANIC ? 1.35f : 1.0f;
           game.explode(x[i], y[i], radius[i], power[i] * multiplier, t == METEOR ? 0.5f : 0.2f);

@@ -4,29 +4,81 @@ import javax.microedition.lcdui.Canvas;
 import javax.microedition.lcdui.Font;
 import javax.microedition.lcdui.Graphics;
 import javax.microedition.lcdui.Image;
-import wreckbox.core.Buildings;
 import wreckbox.core.Game;
 import wreckbox.core.Maps;
-import wreckbox.core.Materials;
-import wreckbox.core.Props;
 import wreckbox.core.Tools;
 
+/** K510i keypad interface: original menu pages plus the original simulation toolbar. */
 public final class WreckboxCanvas extends Canvas implements Runnable {
-  private static final int MENU_NONE = 0, MENU_MAIN = 1, MENU_TOOLS = 2, MENU_MAPS = 3, MENU_OPTIONS = 4, MENU_HELP = 5;
+  private static final int MENU_NONE = 0, MENU_MAIN = 1, MENU_SETTINGS = 2, MENU_HELP = 3,
+      MENU_ABOUT = 4, MENU_CONTROL = 5;
   private static final String[] MAIN_ITEMS = {
-    "Продолжить", "Инструменты", "Карты", "Новый город", "Материал / предмет",
-    "Гравитация", "Slow motion", "День / ночь", "Звук", "Скрыть / показать HUD", "Управление"
+    "Играть", "Карта", "Настройки", "Как играть", "Об игре", "Полный экран"
   };
+  private static final String[] SETTINGS_ITEMS = {
+    "Выключить звук", "Проверить громкость взрывом", "Экстренные службы",
+    "Подсказки на экране", "Кровь", "Замедление в ярких моментах"
+  };
+  private static final String[] CONTROL_ITEMS = {
+    "Пауза", "Замедление времени", "Гравитация", "День / ночь", "Показать нагрузку",
+    "Звук", "Кровь", "Убрать обломки", "Перезапуск города", "Справка",
+    "Скрыть интерфейс", "Меню и настройки"
+  };
+  private static final String[] HELP_LINES = {
+    "КАМЕРА", "Инструмент «Камера»: стрелки двигают",
+    "вид, 7/9 меняют масштаб.", "",
+    "ИНСТРУМЕНТЫ", "1/3 — выбор, 7/9 — сила/вариант.",
+    "5 — действие; удерживайте и ведите.",
+    "Динамит: # подрывает заряды по очереди.",
+    "Грави-пушка: схватите и бросьте рывком.",
+    "Ядерная бомба: 7/9 — мощность, # — тип",
+    "взрыва. 6 секунд спада радиации = час.", "",
+    "ЖИТЕЛИ", "11-точечные тела падают и кувыркаются.",
+    "Ранят удары, падения, взрывы и огонь.",
+    "Облученные бледнеют, тошнотят, слабеют.",
+    "Перекрытия ослабляют радиоактивный след.", "",
+    "СТРОЙКА", "1/3 — кисть, здания, люди и нагрузка.",
+    "Кисть рисует выбранным материалом.", "",
+    "КЛАВИШИ", "Стрелки — курсор; 5 — применить.",
+    "0 — гравитация; # — детонация.",
+    "* — панель управления; правый soft — пауза.",
+    "Левый soft — меню; H скрывает интерфейс",
+    "через панель. Весь контент открыт сразу."
+  };
+  private static final String[] ABOUT_LINES = {
+    "Wreckbox — песочница сноса.", "Каждый этаж давит на нижние;",
+    "выбейте опору — здание рушится само.", "",
+    "Кувалда, динамит, контролируемый снос",
+    "и ядерная бомба до 50 мегатонн.",
+    "Землетрясения, торнадо, цунами, метеоры,",
+    "молнии и извержение вулкана.",
+    "Жители, ragdoll, радиация и экстренные",
+    "службы. Вода наполняет ямы и подвалы.", "",
+    "Автор оригинала: ItsLamba",
+    "Оригинальная версия: 1.8",
+    "J2ME: адаптация для Sony Ericsson K510i", "128×160, CLDC 1.1 / MIDP 2.0", "",
+    "Есть и секреты. Например, клавиша ~."
+  };
+  private static final String[] SPLASHES = {
+    "Кирпич, бетон, паника.", "Гравитация не берёт выходных.",
+    "Сталь гнётся. Стекло — нет.", "Каждый этаж давит на нижний. Проверьте.",
+    "Страховка не покрывает ядерные удары.", "Чем выше этаж, тем дольше падать."
+  };
+
   private final Game game = new Game();
   private final SoundSynth sound = new SoundSynth();
   private final SettingsStore settings = new SettingsStore();
   private final WreckboxRenderer renderer = new WreckboxRenderer(game);
-  private final int[] optionMap = new int[Props.COUNT];
-  private final Font font = Font.getFont(Font.FACE_SYSTEM, Font.STYLE_PLAIN, Font.SIZE_SMALL);
+  private final Font font = createFont();
+  private static Font createFont() {
+    Font value = Font.getFont(Font.FACE_SYSTEM, Font.STYLE_PLAIN, Font.SIZE_SMALL);
+    return value != null ? value : Font.getDefaultFont();
+  }
   private Thread thread;
-  private boolean running;
-  private int menu = MENU_NONE, selection, scroll, optionCount;
+  private boolean running, started;
+  private int menu = MENU_NONE, selection, scroll;
   private int cursorX = 64, cursorY = 78, lastPointerX, lastPointerY;
+  private int viewWidth = 128, viewHeight = 160;
   private Image buffer;
 
   public WreckboxCanvas() {
@@ -34,7 +86,8 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
     game.listener = sound;
     if (!game.loadMap(0)) System.out.println(game.loadError);
     settings.load(game, sound);
-    cursorX = getWidth() / 2; cursorY = (getHeight() + WreckboxRenderer.TOP - WreckboxRenderer.BOTTOM) / 2;
+    started = game.time > 0.0f;
+    cursorX = viewWidth / 2; cursorY = (viewHeight + WreckboxRenderer.TOP - WreckboxRenderer.BOTTOM) / 2;
   }
 
   public void start() {
@@ -62,42 +115,51 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
   }
 
   protected void sizeChanged(int w, int h) {
-    cursorX = Math.max(2, Math.min(w - 3, cursorX)); cursorY = Math.max(WreckboxRenderer.TOP + 2, Math.min(h - WreckboxRenderer.BOTTOM - 3, cursorY));
+    viewWidth = w; viewHeight = h;
+    cursorX = Math.max(2, Math.min(w - 3, cursorX));
+    cursorY = Math.max(WreckboxRenderer.TOP + 2, Math.min(h - WreckboxRenderer.BOTTOM - 3, cursorY));
     if (!isDoubleBuffered() && w > 0 && h > 0) buffer = Image.createImage(w, h);
   }
 
   protected void paint(Graphics graphics) {
-    if (game.grid == null) { graphics.setColor(0); graphics.fillRect(0, 0, getWidth(), getHeight()); return; }
+    if (game.grid == null) { graphics.setColor(0); graphics.fillRect(0, 0, viewWidth, viewHeight); return; }
     Graphics g = graphics;
     if (buffer != null) g = buffer.getGraphics();
     if (game.loadError != null) {
-      g.setColor(0x111820); g.fillRect(0, 0, getWidth(), getHeight()); g.setColor(0xffaa88); g.setFont(font);
-      g.drawString("Ошибка карты", 4, 20, Graphics.LEFT | Graphics.TOP); g.drawString(game.loadError, 4, 36, Graphics.LEFT | Graphics.TOP);
+      g.setColor(0x111820); g.fillRect(0, 0, viewWidth, viewHeight); g.setColor(0xffaa88); g.setFont(font);
+      g.drawString("Ошибка карты", 4, 20, Graphics.LEFT | Graphics.TOP);
+      g.drawString(game.loadError, 4, 36, Graphics.LEFT | Graphics.TOP);
     } else {
-      renderer.render(g, getWidth(), getHeight(), cursorX, cursorY);
+      renderer.render(g, viewWidth, viewHeight, cursorX, cursorY);
       if (menu != MENU_NONE) drawMenu(g);
     }
     if (buffer != null) graphics.drawImage(buffer, 0, 0, Graphics.TOP | Graphics.LEFT);
   }
 
-  private float worldX(int screenX) { return game.worldX(screenX, getWidth()); }
-  private float worldY(int screenY) { return game.worldY(screenY, WreckboxRenderer.TOP, getHeight() - WreckboxRenderer.TOP - WreckboxRenderer.BOTTOM); }
-  private void useCursor() { if (!game.paused) game.pointerDown(worldX(cursorX), worldY(cursorY)); }
+  private float worldX(int screenX) { return game.worldX(screenX, viewWidth); }
+  private float worldY(int screenY) { return game.worldY(screenY, WreckboxRenderer.TOP, viewHeight - WreckboxRenderer.TOP - WreckboxRenderer.BOTTOM); }
+  private void useCursor() { game.pointerDown(worldX(cursorX), worldY(cursorY)); }
 
   protected void keyPressed(int keyCode) {
     int action = getGameAction(keyCode);
     if (menu != MENU_NONE) {
-      if (keyCode == -6) { if (menu == MENU_MAIN) menu = MENU_NONE; else menu = MENU_MAIN; ensureVisible(); return; }
-      if (keyCode == -7) { menu = MENU_NONE; return; }
+      if (keyCode == -6) { if (menu == MENU_MAIN) closeMenu(); else openMenu(MENU_MAIN); return; }
+      if (keyCode == -7) { if (menu == MENU_MAIN) closeMenu(); else openMenu(MENU_MAIN); return; }
       if (action == UP || keyCode == KEY_NUM2) { moveSelection(-1); return; }
       if (action == DOWN || keyCode == KEY_NUM8) { moveSelection(1); return; }
+      if ((action == LEFT || keyCode == KEY_NUM4) && menu == MENU_MAIN && selection == 1) { changeMap(-1); return; }
+      if ((action == RIGHT || keyCode == KEY_NUM6) && menu == MENU_MAIN && selection == 1) { changeMap(1); return; }
       if (action == FIRE || keyCode == KEY_NUM5) { activate(); return; }
       return;
     }
     if (keyCode == -6) { openMenu(MENU_MAIN); return; }
-    if (keyCode == -7 || keyCode == KEY_STAR && game.paused) { game.paused = !game.paused; return; }
-    if (keyCode == KEY_STAR) { game.slowMotion = !game.slowMotion; settings.save(game); return; }
-    if (keyCode == KEY_POUND) { game.detonate(); return; }
+    if (keyCode == -7) { game.paused = !game.paused; return; }
+    if (keyCode == KEY_STAR) { openMenu(MENU_CONTROL); return; }
+    if (keyCode == KEY_POUND) {
+      if ("nuke".equals(Tools.IDS[game.toolIndex]) && game.effects.chargeCount() == 0) game.cycleOption(1);
+      else game.detonate();
+      return;
+    }
     if (keyCode == KEY_NUM0) { game.cycleGravity(); settings.save(game); return; }
     if (keyCode == KEY_NUM1) { cycleTool(-1); return; }
     if (keyCode == KEY_NUM3) { cycleTool(1); return; }
@@ -114,16 +176,20 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
     int action = getGameAction(keyCode);
     if (action != FIRE && keyCode != KEY_NUM5) keyPressed(keyCode);
   }
-  protected void keyReleased(int keyCode) { if (getGameAction(keyCode) == FIRE || keyCode == KEY_NUM5) game.pointerUp(); }
+  protected void keyReleased(int keyCode) {
+    if (menu == MENU_NONE && (getGameAction(keyCode) == FIRE || keyCode == KEY_NUM5)) game.pointerUp();
+  }
 
   private void moveCursor(int dx, int dy) {
     if ("camera".equals(Tools.IDS[game.toolIndex])) { game.pan(dx, dy); return; }
-    cursorX = Math.max(2, Math.min(getWidth() - 3, cursorX + dx));
-    cursorY = Math.max(WreckboxRenderer.TOP + 2, Math.min(getHeight() - WreckboxRenderer.BOTTOM - 3, cursorY + dy));
+    cursorX = Math.max(2, Math.min(viewWidth - 3, cursorX + dx));
+    cursorY = Math.max(WreckboxRenderer.TOP + 2, Math.min(viewHeight - WreckboxRenderer.BOTTOM - 3, cursorY + dy));
     if (game.held) game.pointerMove(worldX(cursorX), worldY(cursorY), 1.0f / 15.0f);
   }
   private void cycleTool(int delta) {
-    int index = game.toolIndex + delta; if (index < 0) index = Tools.COUNT - 1; if (index >= Tools.COUNT) index = 0;
+    int index = game.toolIndex + delta;
+    if (index < 0) index = Tools.COUNT - 1;
+    if (index >= Tools.COUNT) index = 0;
     game.selectTool(index);
   }
   private void adjustTool(int delta) {
@@ -134,19 +200,21 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
 
   protected void pointerPressed(int x, int y) {
     if (menu != MENU_NONE) {
-      int row = (y - 27) / 13 + scroll;
+      if (menu == MENU_HELP || menu == MENU_ABOUT) return;
+      int row = (y - rowTop()) / 13 + scroll;
       if (row >= 0 && row < menuCount()) { selection = row; activate(); }
       return;
     }
-    if (game.paused) { game.paused = false; return; }
-    cursorX = Math.max(0, Math.min(getWidth() - 1, x)); cursorY = Math.max(WreckboxRenderer.TOP, Math.min(getHeight() - WreckboxRenderer.BOTTOM, y));
+    cursorX = Math.max(0, Math.min(viewWidth - 1, x));
+    cursorY = Math.max(WreckboxRenderer.TOP, Math.min(viewHeight - WreckboxRenderer.BOTTOM, y));
     lastPointerX = x; lastPointerY = y; useCursor();
   }
   protected void pointerDragged(int x, int y) {
-    if (menu != MENU_NONE || game.paused) return;
+    if (menu != MENU_NONE) return;
     if ("camera".equals(Tools.IDS[game.toolIndex])) game.pan(x - lastPointerX, y - lastPointerY);
     else {
-      cursorX = Math.max(0, Math.min(getWidth() - 1, x)); cursorY = Math.max(WreckboxRenderer.TOP, Math.min(getHeight() - WreckboxRenderer.BOTTOM, y));
+      cursorX = Math.max(0, Math.min(viewWidth - 1, x));
+      cursorY = Math.max(WreckboxRenderer.TOP, Math.min(viewHeight - WreckboxRenderer.BOTTOM, y));
       game.pointerMove(worldX(cursorX), worldY(cursorY), 1.0f / 15.0f);
     }
     lastPointerX = x; lastPointerY = y;
@@ -154,25 +222,38 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
   protected void pointerReleased(int x, int y) { if (menu == MENU_NONE) game.pointerUp(); }
 
   private void openMenu(int which) {
+    if (game.held) game.pointerUp();
     menu = which; selection = 0; scroll = 0;
-    if (which == MENU_TOOLS) selection = game.toolIndex;
-    if (which == MENU_MAPS) selection = game.mapIndex;
-    if (which == MENU_OPTIONS) buildOptions();
     ensureVisible();
+  }
+  private void closeMenu() { menu = MENU_NONE; started = true; }
+  private void changeMap(int delta) {
+    int index = game.mapIndex + delta;
+    if (index < 0) index = Maps.COUNT - 1;
+    if (index >= Maps.COUNT) index = 0;
+    game.loadMap(index); settings.save(game);
   }
   private int menuCount() {
     if (menu == MENU_MAIN) return MAIN_ITEMS.length;
-    if (menu == MENU_TOOLS) return Tools.COUNT;
-    if (menu == MENU_MAPS) return Maps.COUNT;
-    if (menu == MENU_OPTIONS) return optionCount;
+    if (menu == MENU_SETTINGS) return SETTINGS_ITEMS.length;
+    if (menu == MENU_CONTROL) return CONTROL_ITEMS.length;
+    if (menu == MENU_HELP) return HELP_LINES.length;
+    if (menu == MENU_ABOUT) return ABOUT_LINES.length;
     return 1;
   }
+  private int rowTop() { return menu == MENU_MAIN ? 48 : 29; }
+  private int rowHeight() { return menu == MENU_HELP || menu == MENU_ABOUT ? 11 : 13; }
+  private int visibleRows() { return Math.max(3, (viewHeight - rowTop() - 17) / rowHeight()); }
   private void moveSelection(int delta) {
     selection += delta; int count = menuCount();
-    if (selection < 0) selection = count - 1; if (selection >= count) selection = 0;
+    if (menu == MENU_HELP || menu == MENU_ABOUT) {
+      selection = Math.max(0, Math.min(count - 1, selection));
+    } else {
+      if (selection < 0) selection = count - 1;
+      if (selection >= count) selection = 0;
+    }
     ensureVisible();
   }
-  private int visibleRows() { return Math.max(3, (getHeight() - 43) / 13); }
   private void ensureVisible() {
     int rows = visibleRows();
     if (selection < scroll) scroll = selection;
@@ -180,100 +261,118 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
     if (scroll < 0) scroll = 0;
   }
 
-  private void buildOptions() {
-    optionCount = 0;
-    String id = Tools.IDS[game.toolIndex];
-    if (id.equals("brush")) {
-      for (int i = 0; i < Game.BUILD_MATERIAL.length; i++) optionMap[optionCount++] = i;
-      selection = game.buildMaterial;
-    } else if (id.equals("building")) {
-      for (int i = 0; i < Buildings.COUNT; i++) optionMap[optionCount++] = i;
-      selection = game.buildingSelection;
-    } else if (id.equals("furniture") || id.equals("explosives")) {
-      boolean explosives = id.equals("explosives");
-      for (int i = 0; i < Props.COUNT; i++) {
-        boolean match = explosives ? Props.EXPLOSION_RADIUS[i] > 0.0f : Props.CATEGORIES[i].equals("furniture");
-        if (match) { if (i == game.propSelection) selection = optionCount; optionMap[optionCount++] = i; }
-      }
-    } else optionMap[optionCount++] = -1;
-  }
-
   private void activate() {
-    if (menu == MENU_HELP) { menu = MENU_MAIN; return; }
-    if (menu == MENU_TOOLS) { game.selectTool(selection); menu = MENU_NONE; return; }
-    if (menu == MENU_MAPS) { game.loadMap(selection); menu = MENU_NONE; settings.save(game); return; }
-    if (menu == MENU_OPTIONS) {
-      String id = Tools.IDS[game.toolIndex]; int value = optionMap[selection];
-      if (value >= 0) {
-        if (id.equals("brush")) game.buildMaterial = value;
-        else if (id.equals("building")) game.buildingSelection = value;
-        else game.propSelection = value;
+    if (menu == MENU_HELP) { openMenu(MENU_MAIN); return; }
+    if (menu == MENU_ABOUT) { openMenu(MENU_MAIN); return; }
+    if (menu == MENU_SETTINGS) {
+      switch (selection) {
+        case 0: toggleSound(); break;
+        case 1: sound.sound("boom", 0.8f); break;
+        case 2: game.servicesEnabled = !game.servicesEnabled; settings.save(game); break;
+        case 3: game.showToasts = !game.showToasts; settings.save(game); break;
+        case 4: game.bloodEnabled = !game.bloodEnabled; settings.save(game); break;
+        case 5: game.epicSlow = !game.epicSlow; settings.save(game); break;
+        default: break;
       }
-      menu = MENU_NONE; return;
+      return;
     }
+    if (menu == MENU_CONTROL) { activateControl(); return; }
     switch (selection) {
-      case 0: menu = MENU_NONE; break;
-      case 1: openMenu(MENU_TOOLS); break;
-      case 2: openMenu(MENU_MAPS); break;
-      case 3: game.loadMap(game.mapIndex); menu = MENU_NONE; break;
-      case 4: openMenu(MENU_OPTIONS); break;
-      case 5: game.cycleGravity(); settings.save(game); break;
-      case 6: game.slowMotion = !game.slowMotion; settings.save(game); break;
-      case 7: game.night = !game.night; settings.save(game); break;
-      case 8: sound.enabled = !sound.enabled; settings.sound = sound.enabled; settings.save(game); break;
-      case 9: game.uiHidden = !game.uiHidden; menu = MENU_NONE; break;
-      case 10: openMenu(MENU_HELP); break;
+      case 0: closeMenu(); break;
+      case 1: game.loadMap(game.mapIndex); closeMenu(); settings.save(game); break;
+      case 2: openMenu(MENU_SETTINGS); break;
+      case 3: openMenu(MENU_HELP); break;
+      case 4: openMenu(MENU_ABOUT); break;
+      case 5: setFullScreenMode(true); break;
       default: break;
     }
   }
 
+  private void activateControl() {
+    switch (selection) {
+      case 0: game.paused = !game.paused; closeMenu(); break;
+      case 1: game.slowMotion = !game.slowMotion; settings.save(game); break;
+      case 2: game.cycleGravity(); settings.save(game); break;
+      case 3: game.night = !game.night; settings.save(game); break;
+      case 4:
+        game.showStress = !game.showStress;
+        if (game.showStress) game.structuralDirty = true;
+        settings.save(game); break;
+      case 5: toggleSound(); break;
+      case 6: game.bloodEnabled = !game.bloodEnabled; settings.save(game); break;
+      case 7: game.clearDebris(); closeMenu(); break;
+      case 8: game.loadMap(game.mapIndex); closeMenu(); settings.save(game); break;
+      case 9: openMenu(MENU_HELP); break;
+      case 10: game.uiHidden = !game.uiHidden; closeMenu(); break;
+      case 11: openMenu(MENU_MAIN); break;
+      default: break;
+    }
+  }
+  private void toggleSound() { sound.enabled = !sound.enabled; settings.sound = sound.enabled; settings.save(game); }
+
   private String menuTitle() {
-    if (menu == MENU_TOOLS) return "ИНСТРУМЕНТЫ";
-    if (menu == MENU_MAPS) return "КАРТЫ 1.8";
-    if (menu == MENU_OPTIONS) return "ВАРИАНТ";
-    if (menu == MENU_HELP) return "УПРАВЛЕНИЕ";
-    return "WRECKBOX 1.8";
+    if (menu == MENU_SETTINGS) return "Настройки";
+    if (menu == MENU_CONTROL) return "Управление симуляцией";
+    if (menu == MENU_HELP) return "Как пользоваться";
+    if (menu == MENU_ABOUT) return "Об игре";
+    return "";
   }
   private String menuItem(int index) {
-    if (menu == MENU_TOOLS) return Tools.NAMES[index];
-    if (menu == MENU_MAPS) return Maps.NAMES[index];
-    if (menu == MENU_OPTIONS) {
-      int value = optionMap[index]; String id = Tools.IDS[game.toolIndex];
-      if (value < 0) return "Нет вариантов";
-      if (id.equals("brush")) return Materials.NAMES[Game.BUILD_MATERIAL[value]];
-      if (id.equals("building")) return Buildings.NAMES[value];
-      return Props.NAMES[value];
+    if (menu == MENU_HELP) return HELP_LINES[index];
+    if (menu == MENU_ABOUT) return ABOUT_LINES[index];
+    if (menu == MENU_SETTINGS) {
+      if (index == 0) return SETTINGS_ITEMS[index] + ": " + (sound.enabled ? "нет" : "да");
+      if (index == 2) return SETTINGS_ITEMS[index] + ": " + onOff(game.servicesEnabled);
+      if (index == 3) return SETTINGS_ITEMS[index] + ": " + onOff(game.showToasts);
+      if (index == 4) return SETTINGS_ITEMS[index] + ": " + onOff(game.bloodEnabled);
+      if (index == 5) return SETTINGS_ITEMS[index] + ": " + onOff(game.epicSlow);
+      return SETTINGS_ITEMS[index];
     }
-    if (menu == MENU_HELP) return "5 / огонь — назад";
-    if (index == 5) return MAIN_ITEMS[index] + ": " + (game.gravityIndex == 0 ? "1g" : game.gravityIndex == 1 ? "Луна" : "0g");
-    if (index == 6) return MAIN_ITEMS[index] + ": " + (game.slowMotion ? "вкл" : "выкл");
-    if (index == 7) return game.night ? "Ночь" : "День";
-    if (index == 8) return MAIN_ITEMS[index] + ": " + (sound.enabled ? "вкл" : "выкл");
+    if (menu == MENU_CONTROL) {
+      if (index == 0) return game.paused ? "Продолжить" : CONTROL_ITEMS[index];
+      if (index == 1) return CONTROL_ITEMS[index] + ": " + onOff(game.slowMotion);
+      if (index == 2) return CONTROL_ITEMS[index] + ": " + (game.gravityIndex == 0 ? "1g" : game.gravityIndex == 1 ? "Луна" : "0g");
+      if (index == 3) return game.night ? "Ночь" : "День";
+      if (index == 4) return CONTROL_ITEMS[index] + ": " + onOff(game.showStress);
+      if (index == 5 || index == 6) return CONTROL_ITEMS[index] + ": " + onOff(index == 5 ? sound.enabled : game.bloodEnabled);
+      if (index == 10 && game.uiHidden) return "Показать интерфейс";
+      return CONTROL_ITEMS[index];
+    }
+    if (index == 0 && started) return "Продолжить";
+    if (index == 1) return "Карта: ‹ " + Maps.NAMES[game.mapIndex] + " ›";
     return MAIN_ITEMS[index];
   }
+  private String onOff(boolean value) { return value ? "вкл" : "выкл"; }
 
   private void drawMenu(Graphics g) {
-    int w = getWidth(), h = getHeight();
+    int w = viewWidth, h = viewHeight;
     g.setFont(font); g.setColor(0x101923); g.fillRect(0, 0, w, h);
-    g.setColor(0x263b4c); g.fillRect(0, 0, w, 23);
-    g.setColor(0xf0ce62); g.drawString(menuTitle(), w / 2, 5, Graphics.HCENTER | Graphics.TOP);
-    int rows = visibleRows();
+    g.setColor(0x263b4c); g.fillRect(0, 0, w, menu == MENU_MAIN ? 43 : 24);
+    if (menu == MENU_MAIN) {
+      g.setColor(0xf2f2ed); g.drawString("Wreck", w / 2 - 23, 5, Graphics.LEFT | Graphics.TOP);
+      g.setColor(0xf0ce62); g.drawString("box", w / 2 + 13, 5, Graphics.LEFT | Graphics.TOP);
+      g.setColor(0xaebbc6); g.drawString("песочница сноса", w / 2, 18, Graphics.HCENTER | Graphics.TOP);
+      g.setColor(0x8093a1); drawFit(g, SPLASHES[game.mapIndex % SPLASHES.length], w / 2, 31, w - 6, true);
+    } else {
+      g.setColor(0xf0ce62); g.drawString(menuTitle(), w / 2, 6, Graphics.HCENTER | Graphics.TOP);
+    }
+    int rows = visibleRows(), top = rowTop(), rowHeight = rowHeight();
     for (int row = 0; row < rows && scroll + row < menuCount(); row++) {
-      int index = scroll + row, y = 27 + row * 13;
-      if (index == selection) { g.setColor(0x385365); g.fillRect(2, y - 2, w - 4, 13); }
-      g.setColor(index == selection ? 0xffe595 : 0xd4dce2);
-      String text = menuItem(index); if (text.length() > 27) text = text.substring(0, 27);
-      g.drawString(text, 6, y, Graphics.LEFT | Graphics.TOP);
+      int index = scroll + row, y = top + row * rowHeight;
+      boolean textPage = menu == MENU_HELP || menu == MENU_ABOUT;
+      if (!textPage && index == selection) { g.setColor(0x385365); g.fillRect(2, y - 2, w - 4, rowHeight); }
+      g.setColor(!textPage && index == selection ? 0xffe595 : textPage && menuItem(index).equals(menuItem(index).toUpperCase()) ? 0xf0ce62 : 0xd4dce2);
+      drawFit(g, menuItem(index), textPage ? 4 : 6, y, w - (textPage ? 8 : 12), false);
     }
-    if (menu == MENU_HELP) {
-      g.setColor(0xcbd5dc);
-      g.drawString("1/3 инструмент  7/9 сила", 4, 43, Graphics.LEFT | Graphics.TOP);
-      g.drawString("2/4/6/8 курсор  5 действие", 4, 57, Graphics.LEFT | Graphics.TOP);
-      g.drawString("# детонация  0 гравитация", 4, 71, Graphics.LEFT | Graphics.TOP);
-      g.drawString("* slow motion  soft пауза", 4, 85, Graphics.LEFT | Graphics.TOP);
-      g.drawString("Камера: 7/9 зум, стрелки пан", 4, 99, Graphics.LEFT | Graphics.TOP);
-      g.drawString("Весь контент открыт сразу", 4, 113, Graphics.LEFT | Graphics.TOP);
-    }
-    g.setColor(0x8fa1ae); g.drawString("Лево: назад   Право: закрыть", w / 2, h - 13, Graphics.HCENTER | Graphics.TOP);
+    g.setColor(0x8fa1ae);
+    String footer = menu == MENU_MAIN ? "ItsLamba · v1.8 · 5 — выбрать" : "Левый soft: назад · 5: действие";
+    if (menu == MENU_HELP || menu == MENU_ABOUT) footer = "2/8 — листать · 5 — назад";
+    g.drawString(footer, w / 2, h - 12, Graphics.HCENTER | Graphics.TOP);
+  }
+
+  private void drawFit(Graphics g, String text, int x, int y, int maxWidth, boolean centered) {
+    String value = text;
+    while (value.length() > 1 && font.stringWidth(value) > maxWidth) value = value.substring(0, value.length() - 1);
+    g.drawString(value, x, y, (centered ? Graphics.HCENTER : Graphics.LEFT) | Graphics.TOP);
   }
 }

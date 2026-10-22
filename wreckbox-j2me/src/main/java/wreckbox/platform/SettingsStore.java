@@ -19,9 +19,14 @@ public final class SettingsStore {
       if (store.getNumRecords() > 0) {
         byte[] data = store.getRecord(1);
         DataInputStream in = new DataInputStream(new ByteArrayInputStream(data));
-        if (in.readUnsignedByte() == 1) {
+        int version = in.readUnsignedByte();
+        if (version == 1 || version == 2) {
           int map = in.readUnsignedByte(), tool = in.readUnsignedByte(), gravity = in.readUnsignedByte();
           game.night = in.readBoolean(); game.slowMotion = in.readBoolean(); sound = in.readBoolean();
+          if (version >= 2) {
+            game.bloodEnabled = in.readBoolean(); game.servicesEnabled = in.readBoolean();
+            game.epicSlow = in.readBoolean(); game.showToasts = in.readBoolean(); game.showStress = in.readBoolean();
+          }
           synth.enabled = sound;
           if (gravity < 3) { game.gravityIndex = gravity; game.gravity = Game.GRAVITIES[gravity]; }
           game.selectTool(tool);
@@ -38,8 +43,10 @@ public final class SettingsStore {
     try {
       ByteArrayOutputStream bytes = new ByteArrayOutputStream();
       DataOutputStream out = new DataOutputStream(bytes);
-      out.writeByte(1); out.writeByte(game.mapIndex); out.writeByte(game.toolIndex); out.writeByte(game.gravityIndex);
-      out.writeBoolean(game.night); out.writeBoolean(game.slowMotion); out.writeBoolean(sound); out.flush();
+      out.writeByte(2); out.writeByte(game.mapIndex); out.writeByte(game.toolIndex); out.writeByte(game.gravityIndex);
+      out.writeBoolean(game.night); out.writeBoolean(game.slowMotion); out.writeBoolean(sound);
+      out.writeBoolean(game.bloodEnabled); out.writeBoolean(game.servicesEnabled); out.writeBoolean(game.epicSlow);
+      out.writeBoolean(game.showToasts); out.writeBoolean(game.showStress); out.flush();
       byte[] data = bytes.toByteArray();
       store = RecordStore.openRecordStore(NAME, true);
       if (store.getNumRecords() == 0) store.addRecord(data, 0, data.length);

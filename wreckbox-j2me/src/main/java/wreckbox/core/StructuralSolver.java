@@ -7,10 +7,12 @@ public final class StructuralSolver {
   private final int[] queue = new int[MAX_COMPONENT];
   private final int[] histogram = new int[Materials.COUNT];
   public int collapsedCells;
+  public float[] stress = new float[0];
   public int overloadedCells;
   public int chunksCreated;
 
   public int solve(CellGrid grid, DebrisSystem debris, float gravity) {
+    if (stress.length != grid.size) stress = new float[grid.size];
     collapsedCells = overloadedCells = chunksCreated = 0;
     grid.clearMarks();
     for (int start = 0; start < grid.size; start++) {
@@ -95,14 +97,15 @@ public final class StructuralSolver {
       float load = 0.0f;
       for (int y = 0; y < CellGrid.HEIGHT; y++) {
         int at = y * grid.width + x, m = grid.material(at);
-        if (m == 0 || m == 12) { load = 0.0f; continue; }
-        if (Materials.FIXED[m]) { load = 0.0f; continue; }
+        if (m == 0 || m == 12) { stress[at] = 0.0f; load = 0.0f; continue; }
+        if (Materials.FIXED[m]) { stress[at] = 0.0f; load = 0.0f; continue; }
         load += Materials.DENSITY[m] * gravityScale;
         float health = Math.max(0.25f, grid.healthFraction(at));
         float capacity = Materials.COMPRESSION[m] * health;
         if ((grid.flags(at) & CellGrid.FLAG_REINFORCED) != 0) capacity *= 2.0f;
         if ((grid.flags(at) & CellGrid.FLAG_JOINT) != 0) capacity *= m == 4 ? 0.45f : 0.8f;
         float ratio = (load + 0.01f) / Math.max(0.01f, capacity);
+        stress[at] = ratio;
         if (ratio > 1.05f) {
           // Intact recovered cities are already certified by the original solver. A crack starts
           // where damage or changed support has made this local column exceed its reserve.

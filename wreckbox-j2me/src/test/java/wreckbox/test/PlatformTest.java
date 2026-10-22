@@ -56,8 +56,11 @@ public final class PlatformTest {
     if (bomb >= 0) {
       check(game.effects.radius[bomb] > 6000.0f, "50 Mt original radius scale");
       long start = System.currentTimeMillis();
-      game.explode(3603.0f, 1281.0f, game.effects.radius[bomb], game.effects.power[bomb], 0.7f);
-      check(game.grid.destroyed > 0 && game.radiation > 0.0f, "50 Mt simulated damage");
+      game.effects.y[bomb] = game.effects.ty[bomb];
+      game.update(0.02f);
+      check(game.grid.destroyed > 0 && game.radiation > 0.0f && game.radiationSystem.count == 1, "50 Mt simulated damage and fallout");
+      check(game.doseRate > 0.000015f, "50 Mt dosimeter response");
+      game.showStress = true;
       new WreckboxRenderer(game).render(graphics, 128, 160, 64, 80);
       System.out.println("50 Mt explosion ms=" + (System.currentTimeMillis() - start) + " destroyed=" + game.grid.destroyed);
     }

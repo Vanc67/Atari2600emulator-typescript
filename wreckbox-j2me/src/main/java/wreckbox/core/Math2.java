@@ -12,6 +12,8 @@ public final class Math2 {
   public static float cos(float v) { return (float)Math.cos(v); }
   public static int round(float v) { return (int)Math.floor(v + 0.5); }
   public static float log10(float v) { return (float)(log(v) / 2.302585092994046); }
+  public static float ln(float v) { return (float)log(v); }
+  public static float exp(float v) { return (float)exp((double)v); }
   public static float pow(float v, float p) {
     if (v == 0.0f) return p == 0.0f ? 1.0f : 0.0f;
     return (float)exp(p * log(v));
