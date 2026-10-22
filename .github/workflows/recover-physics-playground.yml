@@ -1,0 +1,52 @@
+name: Recover original Physics Playground
+
+on:
+  push:
+    branches:
+      - arena/a254aa0f-atari2600emulator-typescript
+    paths:
+      - PhysicsPlayground.pck
+      - .github/workflows/recover-physics-playground.yml
+
+permissions:
+  contents: write
+
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arena/a254aa0f-atari2600emulator-typescript
+
+      - name: Download GDRE Tools
+        run: |
+          mkdir -p /tmp/gdre
+          curl -fL --retry 3 \
+            https://github.com/GDRETools/gdsdecomp/releases/download/v2.7.4/GDRE_tools-v2.7.4-linux.zip \
+            -o /tmp/gdre/gdre.zip
+          unzip -q /tmp/gdre/gdre.zip -d /tmp/gdre/bin
+          test -x /tmp/gdre/bin/gdre_tools.x86_64 || chmod +x /tmp/gdre/bin/gdre_tools.x86_64
+          /tmp/gdre/bin/gdre_tools.x86_64 --headless --version
+
+      - name: Recover the original Godot project
+        run: |
+          set -o pipefail
+          mkdir -p physics-playground-j2me/original/recovered
+          /tmp/gdre/bin/gdre_tools.x86_64 --headless \
+            --recover="$PWD/PhysicsPlayground.pck" \
+            --output="$PWD/physics-playground-j2me/original/recovered" \
+            2>&1 | tee physics-playground-j2me/original/recovery.log
+
+      - name: Return recovered sources to this branch
+        if: always()
+        run: |
+          git add physics-playground-j2me/original
+          if git diff --cached --quiet; then
+            echo "No recovered files were produced"
+            exit 0
+          fi
+          git config user.name "Arena Recovery Bot"
+          git config user.email "arena-recovery@users.noreply.github.com"
+          git commit -m "Recover original Physics Playground sources"
+          git push origin HEAD:arena/a254aa0f-atari2600emulator-typescript
