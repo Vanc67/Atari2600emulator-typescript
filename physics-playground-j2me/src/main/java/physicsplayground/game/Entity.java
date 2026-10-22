@@ -14,6 +14,7 @@ public final class Entity {
     public final long uid;
     public final Body body;
     public final Vector components = new Vector();
+    public final Vector componentTypes = new Vector();
     public final Json.Map properties;
     public HealthComponent health;
     public DestructibleComponent destructible;
@@ -52,7 +53,7 @@ public final class Entity {
             if (component == null) continue;
             component.entity = this;
             component.configure(params == null ? new Json.Map() : params, definition, material);
-            components.addElement(component);
+            components.addElement(component); componentTypes.addElement(type);
         }
         for (int i = 0; i < components.size(); i++) ((EntityComponent) components.elementAt(i)).ready();
     }
@@ -70,6 +71,19 @@ public final class Entity {
         else if ("explosive".equals(type)) { explosive = new ExplosiveComponent(); component = explosive; }
         else if ("melee".equals(type)) { melee = new MeleeComponent(); component = melee; }
         return component;
+    }
+
+    public EntityComponent component(String type) {
+        if ("health".equals(type)) return health; if ("destructible".equals(type)) return destructible;
+        if ("debris".equals(type)) return debris; if ("impact_damage".equals(type)) return impactDamage;
+        if ("thermal".equals(type)) return thermal; if ("electrical".equals(type)) return electrical;
+        if ("magazine".equals(type)) return magazine; if ("firearm".equals(type)) return firearm;
+        if ("explosive".equals(type)) return explosive; if ("melee".equals(type)) return melee;
+        return null;
+    }
+    public void resetImpactHistory() {
+        body.previousLinear.set(body.linearVelocity); body.previousAngular = body.angularVelocity;
+        body.lastLinearChange.zero(); body.priorLinearChange.zero(); body.lastAngularChange = body.priorAngularChange = 0;
     }
 
     public void tick(float dt) {

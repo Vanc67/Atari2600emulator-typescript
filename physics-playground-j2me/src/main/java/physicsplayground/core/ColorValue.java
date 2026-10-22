@@ -14,6 +14,7 @@ public final class ColorValue {
     }
 
     public int rgb() { return (r << 16) | (g << 8) | b; }
+    public int argb() { return (a << 24) | rgb(); }
     public ColorValue alpha(int alpha) { return new ColorValue(r, g, b, alpha); }
     public ColorValue darkened(float amount) {
         float scale = 1.0f - amount;

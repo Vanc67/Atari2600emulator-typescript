@@ -97,6 +97,7 @@ public final class Math2 {
     }
 
     public static int round(float value) { return (int) Math.floor(value + 0.5); }
+    public static int round(double value) { return (int) Math.floor(value + 0.5); }
 
     public static float wrapAngle(float angle) {
         while (angle > Math.PI) angle -= Math.PI * 2;

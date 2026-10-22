@@ -426,6 +426,7 @@ public final class Definitions {
         private final Hashtable projectiles = new Hashtable();
         private final Hashtable sounds = new Hashtable();
         private final Vector entityOrder = new Vector();
+        private final Vector soundOrder = new Vector();
         private final Vector categoryOrder = new Vector();
 
         public void registerMod(Mod mod) {
@@ -441,7 +442,7 @@ public final class Definitions {
             return true;
         }
         public boolean registerProjectile(Projectile value) { if (projectiles.containsKey(value.id)) return false; projectiles.put(value.id, value); return true; }
-        public boolean registerSound(Sound value) { if (sounds.containsKey(value.id)) return false; sounds.put(value.id, value); return true; }
+        public boolean registerSound(Sound value) { if (sounds.containsKey(value.id)) return false; sounds.put(value.id, value); soundOrder.addElement(value.id); return true; }
         public Material material(String id) { return (Material) materials.get(id); }
         public Entity entity(String id) { return (Entity) entities.get(id); }
         public Projectile projectile(String id) { return (Projectile) projectiles.get(id); }
@@ -452,6 +453,8 @@ public final class Definitions {
         public boolean hasSound(String id) { return sounds.containsKey(id); }
         public void unregisterEntity(String id) { entities.remove(id); entityOrder.removeElement(id); }
         public Vector entityIds() { return copy(entityOrder); }
+        public Vector soundIds() { return copy(soundOrder); }
+        public Vector allSounds() { Vector result = new Vector(); for (int i = 0; i < soundOrder.size(); i++) result.addElement(sounds.get(soundOrder.elementAt(i))); return result; }
         public Vector allEntities() {
             Vector result = new Vector();
             for (int i = 0; i < entityOrder.size(); i++) result.addElement(entities.get(entityOrder.elementAt(i)));
@@ -488,8 +491,8 @@ public final class Definitions {
             for (java.util.Enumeration e = sounds.elements(); e.hasMoreElements();) result.addElement(e.nextElement());
             return result;
         }
-        public Hashtable modVersions() {
-            Hashtable result = new Hashtable();
+        public Json.Map modVersions() {
+            Json.Map result = new Json.Map();
             for (int i = 0; i < mods.size(); i++) { Mod mod = (Mod) mods.elementAt(i); result.put(mod.id, mod.version); }
             return result;
         }

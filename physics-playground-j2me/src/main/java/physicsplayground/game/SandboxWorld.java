@@ -1,5 +1,6 @@
 package physicsplayground.game;
 
+import java.util.Hashtable;
 import java.util.Vector;
 import physicsplayground.core.Content;
 import physicsplayground.core.Definitions;
@@ -24,14 +25,17 @@ public final class SandboxWorld {
     public final Vector entities = new Vector(), assemblies = new Vector(), debris = new Vector();
     public final Vector debrisRequests = new Vector();
     private final Vector destroyQueue = new Vector();
+    private final Hashtable placementQueries = new Hashtable();
     public final Random random;
     public final Effects effects;
     public final ProjectileSystem projectiles;
     public final ExplosionSystem explosions;
     public final ThermalSystem thermal;
     public AudioSink audio = AudioSink.NONE;
+    public InteractionController interaction;
     public float simulationTime;
     public boolean paused;
+    public boolean gridVisible = true;
     public float halfWidth = 6000, floorY = 0, wallHeight = 5000, escapeMargin = 3000;
     private long nextUid = 1;
     private int ticksSinceBoundsCheck;
@@ -108,10 +112,25 @@ public final class SandboxWorld {
         while (entityByUid(uid) != null || assemblyByUid(uid) != null) uid++;
         nextUid = Math.max(nextUid, uid + 1); return uid;
     }
+    public EntityAssembly duplicateGroup(Vector group, Vec2 offset) {
+        if (group.isEmpty()) return null;
+        Entity first = (Entity) group.elementAt(0); EntityAssembly source = first.assembly; if (source == null) return null;
+        Vector parts = new Vector();
+        for (int i = 0; i < group.size(); i++) {
+            Entity original = (Entity) group.elementAt(i); spawnPosition.set(original.body.position).add(offset);
+            Entity copy = spawnEntity(original.definition.id, spawnPosition, original.body.rotation);
+            if (copy == null) continue;
+            physicsplayground.save.EntitySerializer.applyState(copy, physicsplayground.save.EntitySerializer.serialize(original), false);
+            copy.assemblyPartName = original.assemblyPartName; parts.addElement(copy);
+        }
+        return restoreAssembly(source.definition.id, 0, parts, source.brokenJointNames(), source.controller.serializeState());
+    }
+
     public void requestDestroy(Entity entity) { if (!destroyQueue.contains(entity)) destroyQueue.addElement(entity); }
     public void removeEntity(Entity entity) {
         if (entity == null || entity.removed || !entities.contains(entity)) return;
         entities.removeElement(entity); entity.removed = true; physics.removeBody(entity.body); debris.removeElement(entity); effects.setBurning(entity, false);
+        if (interaction != null) interaction.onEntityRemoved(entity);
         EntityAssembly assembly = entity.assembly;
         if (assembly != null) {
             assembly.onPartRemoved(entity);
@@ -119,6 +138,9 @@ public final class SandboxWorld {
         }
     }
     public void removeAssembly(EntityAssembly assembly) { if (assembly == null) return; while (!assembly.parts.isEmpty()) removeEntity((Entity) assembly.parts.elementAt(0)); }
+    public void toggleGrid() { gridVisible = !gridVisible; }
+    public void setGridVisible(boolean value) { gridVisible = value; }
+    public boolean isGridVisible() { return gridVisible; }
     public void clearEntities() {
         while (!entities.isEmpty()) removeEntity((Entity) entities.elementAt(0));
         debris.removeAllElements(); destroyQueue.removeAllElements(); debrisRequests.removeAllElements();
@@ -179,7 +201,9 @@ public final class SandboxWorld {
     }
     public boolean isInsidePlayArea(Vec2 point) { return point.x > -halfWidth && point.x < halfWidth && point.y < floorY; }
     public boolean isAreaFree(Definitions.Entity definition, Vec2 at, float rotation) {
-        Body query = new Body(definition, content.registry.material(definition.materialId)); query.setTransform(at.x, at.y, rotation);
+        Body query = (Body) placementQueries.get(definition.id);
+        if (query == null) { query = new Body(definition, content.registry.material(definition.materialId)); placementQueries.put(definition.id, query); }
+        query.collisionGroup = null; query.setTransform(at.x, at.y, rotation);
         return !physics.overlaps(query, Body.WORLD | Body.ENTITIES, null);
     }
     public boolean canPlace(Definitions.Entity definition, Vec2 at, float rotation) {

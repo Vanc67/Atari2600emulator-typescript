@@ -40,6 +40,7 @@ public final class EntityAssembly {
     public Entity part(String name) { for (int i = 0; i < parts.size(); i++) { Entity part = (Entity) parts.elementAt(i); if (part.assemblyPartName.equals(name)) return part; } return null; }
     public AssemblyJoint joint(String name) { for (int i = 0; i < joints.size(); i++) { AssemblyJoint joint = (AssemblyJoint) joints.elementAt(i); if (joint.definition.name.equals(name)) return joint; } return null; }
     public Vector brokenJointNames() { Vector names = new Vector(); for (int i = 0; i < joints.size(); i++) { AssemblyJoint joint = (AssemblyJoint) joints.elementAt(i); if (joint.broken) names.addElement(joint.definition.name); } return names; }
+    public int brokenJointCount() { int count = 0; for (int i = 0; i < joints.size(); i++) if (((AssemblyJoint) joints.elementAt(i)).broken) count++; return count; }
     public boolean isPartAttached(Entity part) { for (int i = 0; i < joints.size(); i++) { AssemblyJoint joint = (AssemblyJoint) joints.elementAt(i); if (!joint.broken && joint.connects(part)) return true; } return false; }
     public Vector connectedParts(Entity start) {
         Vector result = new Vector(); result.addElement(start); int index = 0;
