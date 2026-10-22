@@ -19,31 +19,35 @@ jobs:
         with:
           ref: arena/a254aa0f-atari2600emulator-typescript
 
-      - name: Download GDRE Tools
-        run: |
-          mkdir -p /tmp/gdre
-          curl -fL --retry 3 \
-            https://github.com/GDRETools/gdsdecomp/releases/download/v2.7.4/GDRE_tools-v2.7.4-linux.zip \
-            -o /tmp/gdre/gdre.zip
-          unzip -q /tmp/gdre/gdre.zip -d /tmp/gdre/bin
-          test -x /tmp/gdre/bin/gdre_tools.x86_64 || chmod +x /tmp/gdre/bin/gdre_tools.x86_64
-          /tmp/gdre/bin/gdre_tools.x86_64 --headless --version
-
       - name: Recover the original Godot project
         run: |
           set -o pipefail
           mkdir -p physics-playground-j2me/original/recovered
-          /tmp/gdre/bin/gdre_tools.x86_64 --headless \
-            --recover="$PWD/PhysicsPlayground.pck" \
-            --output="$PWD/physics-playground-j2me/original/recovered" \
-            2>&1 | tee physics-playground-j2me/original/recovery.log
+          {
+            set -x
+            mkdir -p /tmp/gdre/bin
+            curl -fL --retry 3 \
+              https://github.com/GDRETools/gdsdecomp/releases/download/v2.7.4/GDRE_tools-v2.7.4-linux.zip \
+              -o /tmp/gdre/gdre.zip
+            unzip -q /tmp/gdre/gdre.zip -d /tmp/gdre/bin
+            find /tmp/gdre/bin -maxdepth 2 -type f -printf '%p %s bytes\n'
+            GDRE=$(find /tmp/gdre/bin -type f -name 'gdre_tools.x86_64' -print -quit)
+            test -n "$GDRE"
+            chmod +x "$GDRE"
+            "$GDRE" --headless --version
+            "$GDRE" --headless \
+              --recover="$PWD/PhysicsPlayground.pck" \
+              --output="$PWD/physics-playground-j2me/original/recovered"
+            find physics-playground-j2me/original/recovered -type f -printf '%p %s bytes\n'
+          } 2>&1 | tee physics-playground-j2me/original/recovery.log
 
-      - name: Return recovered sources to this branch
+      - name: Return recovered sources and diagnostics to this branch
         if: always()
         run: |
-          git add physics-playground-j2me/original
+          mkdir -p physics-playground-j2me/original
+          git add -A physics-playground-j2me/original
           if git diff --cached --quiet; then
-            echo "No recovered files were produced"
+            echo "No recovered files or diagnostics were produced"
             exit 0
           fi
           git config user.name "Arena Recovery Bot"
