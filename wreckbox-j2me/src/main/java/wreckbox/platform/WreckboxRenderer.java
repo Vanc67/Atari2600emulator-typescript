@@ -7,6 +7,7 @@ import wreckbox.core.CellGrid;
 import wreckbox.core.DebrisSystem;
 import wreckbox.core.EffectSystem;
 import wreckbox.core.FireSystem;
+import wreckbox.core.FluidSystem;
 import wreckbox.core.Game;
 import wreckbox.core.Materials;
 import wreckbox.core.Math2;
@@ -16,6 +17,7 @@ import wreckbox.core.PowerGrid;
 import wreckbox.core.Props;
 import wreckbox.core.RadiationSystem;
 import wreckbox.core.RagdollStore;
+import wreckbox.core.ServiceSystem;
 import wreckbox.core.Tools;
 
 /** MIDP 2.0 software renderer, intentionally independent from simulation. */
@@ -40,13 +42,17 @@ public final class WreckboxRenderer {
     drawRiver(g);
     drawPower(g);
     drawCells(g);
+    drawFluids(g);
     drawBodies(g);
+    drawReactorAlarm(g);
+    drawServices(g);
     drawPeople(g);
     drawDebris(g);
     drawFire(g);
     drawFallout(g);
     drawEffects(g);
     drawDisasters(g);
+    drawIncidentFlash(g);
     drawCursor(g, cursorX, cursorY);
     g.setClip(0, 0, width, height);
     if (!game.uiHidden) drawHud(g);
@@ -155,25 +161,69 @@ public final class WreckboxRenderer {
   }
 
   private void drawMaterialDetail(Graphics g, int material, int x, int y, int size, int color, int gx, int gy) {
-    if (material == 2) {
-      g.setColor(scaleColor(color, 0.62f));
+    // Small, deterministic marks preserve the original pixel-material look
+    // without images, gradients or per-frame allocations on MIDP.
+    if (material == 2 || material == 20) {
+      // Brick/rubble: staggered mortar, not a flat red rectangle.
+      g.setColor(scaleColor(color, 0.58f));
       g.drawLine(x, y + size - 1, x + size - 1, y + size - 1);
-      if (size > 3) g.drawLine(x + ((gy & 1) == 0 ? size / 2 : size / 3), y, x + ((gy & 1) == 0 ? size / 2 : size / 3), y + size / 2);
-    } else if (material == 4 || material == 7) {
+      if (size >= 4) g.drawLine(x, y + size / 2, x + size - 1, y + size / 2);
+      int joint = x + ((gy & 1) == 0 ? size / 2 : Math.max(1, size / 3));
+      if (size > 3) g.drawLine(joint, y, joint, y + size / 2);
+      g.setColor(scaleColor(color, 1.18f));
+      if (((gx * 5 + gy * 3) & 3) == 0) g.fillRect(x + 1, y + 1, 1, 1);
+    } else if (material == 4 || material == 7 || material == 18 || material == 19) {
+      // Metal: lit upper edge, dark seam and a rivet.
       g.setColor(scaleColor(color, 1.35f)); g.drawLine(x, y, x + size - 1, y);
-      g.setColor(scaleColor(color, 0.6f)); g.drawLine(x + size - 1, y + 1, x + size - 1, y + size - 1);
+      g.setColor(scaleColor(color, 0.55f)); g.drawLine(x + size - 1, y + 1, x + size - 1, y + size - 1);
+      if (size >= 4) { g.setColor(0xb5b7ae); g.fillRect(x + 1, y + 1, 1, 1); }
     } else if (material == 5 || material == 17) {
-      g.setColor(game.night ? 0xffe2a0 : 0xd5f1f4);
+      // Glass blocks: a diagonal reflection and a cool lower edge.
+      g.setColor(game.night ? 0xffe2a0 : 0xe0f7fa);
       g.drawLine(x, y + size - 1, x + size - 1, y);
+      if (size >= 4) { g.setColor(0x6eafc5); g.drawLine(x + 1, y + size - 1, x + size - 1, y + 1); }
     } else if (material == 1) {
-      g.setColor(scaleColor(color, 0.7f)); g.drawLine(x + size / 2, y, x + size / 2 - 1, y + size - 1);
-    } else if (material == 3 || material == 14 || material == 15 || material == 20) {
+      g.setColor(scaleColor(color, 0.62f));
+      g.drawLine(x + size / 2, y, x + size / 2 - 1, y + size - 1);
+      if (size >= 4) g.drawLine(x + 1, y + size / 2, x + size - 2, y + size / 2 - 1);
+      g.setColor(scaleColor(color, 1.2f)); g.fillRect(x + ((gx + gy) & 1), y + 1, 1, 1);
+    } else if (material == 3 || material == 14 || material == 15) {
+      // Concrete/panel aggregate and a quiet formwork seam.
       g.setColor(scaleColor(color, ((gx * 13 + gy * 7) & 1) == 0 ? 1.18f : 0.72f));
       g.fillRect(x + ((gx + gy) & 1), y + ((gx * 3 + gy) & 1), 1, 1);
+      if (size >= 4 && (gy & 1) == 0) { g.setColor(scaleColor(color, 0.78f)); g.drawLine(x, y + size - 1, x + size - 1, y + size - 1); }
+    } else if (material == 6 || material == 16) {
+      // Gypsum/slate: fine seams rather than noise on every pixel.
+      g.setColor(scaleColor(color, 0.72f));
+      if ((gy & 1) == 0) g.drawLine(x, y + size - 1, x + size - 1, y + size - 1);
+      if (material == 16 && size >= 4) g.drawLine(x + size / 2, y, x + size / 2, y + size - 1);
     } else if (material == 8 || material == 9 || material == 11 || material == 13) {
+      // Soil/rock strata, with deterministic pebbles.
       g.setColor(scaleColor(color, 0.68f)); g.fillRect(x + ((gx + gy) & 1), y + ((gx + gy * 3) & 1), 1, 1);
+      if (size >= 4 && material != 9) { g.setColor(scaleColor(color, 1.16f)); g.drawLine(x, y + size / 2, x + size - 1, y + size / 2); }
+    } else if (material == 10) {
+      g.setColor(scaleColor(color, 0.62f)); g.drawLine(x, y + size - 1, x + size - 1, y + 1);
+      if (size >= 4) g.drawLine(x + size / 2, y, x + size / 2, y + size - 1);
     } else if (material == 12) {
       g.setColor(0xffc13b); g.fillRect(x + ((gx + gy) & 1), y, 1, Math.max(1, size - 1));
+      if (((gx + gy + (int)(game.time * 3.0f)) & 3) == 0) { g.setColor(0xffffb0); g.fillRect(x + size / 2, y + size / 2, 1, 1); }
+    }
+  }
+
+  private void drawFluids(Graphics g) {
+    FluidSystem fluid = game.fluids;
+    int cellSize = Math.max(1, (int)Math.ceil(6.0f * game.zoom));
+    for (int i = 0; i < FluidSystem.TABLE; i++) {
+      int level = fluid.amount[i] & 255;
+      if (level == 0) continue;
+      int at = fluid.cell[i], gx = at % game.grid.width, gy = at / game.grid.width;
+      int x = sx(gx * 6.0f), y = sy(gy * 6.0f);
+      if (x + cellSize < 0 || x > width || y + cellSize < TOP || y > TOP + viewHeight) continue;
+      int fill = Math.max(1, cellSize * level / 255);
+      g.setColor(game.night ? 0x1c5277 : 0x3f96c2);
+      g.fillRect(x, y + cellSize - fill, cellSize, fill);
+      g.setColor(game.night ? 0x5b8ca5 : 0xa5e0ea);
+      g.drawLine(x, y + cellSize - fill, x + cellSize - 1, y + cellSize - fill);
     }
   }
 
@@ -236,6 +286,77 @@ public final class WreckboxRenderer {
       }
       if ((bodies.flags[i] & BodyStore.F_BURNING) != 0) {
         g.setColor(0xff8a28); g.fillTriangle(x - 2, y - h / 2, x + 2, y - h / 2, x, y - h / 2 - 5);
+      }
+    }
+  }
+
+  /** SCRAM/redOn and civil-release lighting, kept in world coordinates. */
+  private void drawReactorAlarm(Graphics g) {
+    if (game.metadata == null || !game.metadata.npp || !game.reactorRedLight) return;
+    boolean on = ((int)(game.time * (game.reactorAlarmLevel >= 2 ? 8.0f : 5.0f)) & 1) == 0;
+    int beacon = Props.find("beacon"), panel = Props.find("flpanel");
+    int core = Props.find("gcn"), steam = Props.find("steamgen");
+    for (int i = 0; i < game.bodies.count; i++) {
+      if (!game.bodies.alive(i)) continue;
+      int type = game.bodies.type[i];
+      if (type != beacon && type != panel && type != core && type != steam) continue;
+      int x = sx(game.bodies.x[i]), y = sy(game.bodies.y[i]);
+      if (x < -8 || x > width + 8 || y < TOP - 8 || y > TOP + viewHeight + 8) continue;
+      drawAlarmLamp(g, x, y - Math.max(2, size(game.bodies.height[i]) / 2), on, type == beacon || type == core);
+    }
+    int x = sx(game.reactorX()), y = sy(game.reactorY() - 34.0f);
+    if (x >= -12 && x <= width + 12 && y >= TOP - 12 && y <= TOP + viewHeight + 12)
+      drawAlarmLamp(g, x, y, on, true);
+  }
+
+  private void drawAlarmLamp(Graphics g, int x, int y, boolean on, boolean large) {
+    int r = large ? 6 : 3;
+    g.setColor(on ? 0x6e2028 : 0x351d26);
+    g.fillArc(x - r, y - r, r * 2, r * 2, 0, 360);
+    g.setColor(on ? 0xe63835 : 0x792c35);
+    g.fillArc(x - r / 2, y - r / 2, Math.max(2, r), Math.max(2, r), 0, 360);
+    if (on) {
+      g.setColor(0xffb07b);
+      g.fillRect(x - 1, y - 1, large ? 3 : 2, large ? 3 : 2);
+      if (large) { g.setColor(0xb52e35); g.drawLine(x - r - 2, y, x - r, y); g.drawLine(x + r, y, x + r + 2, y); }
+    }
+  }
+
+  private void drawIncidentFlash(Graphics g) {
+    if (game.alarmFlash <= 0.0f) return;
+    // A border flash reads on a 128x160 screen without hiding the simulation.
+    g.setColor(game.alarmFlash > 0.25f ? 0xffd58a : 0xd87945);
+    g.drawRect(1, TOP + 1, Math.max(1, width - 3), Math.max(1, viewHeight - 3));
+    if (game.alarmFlash > 0.3f) g.drawRect(2, TOP + 2, Math.max(1, width - 5), Math.max(1, viewHeight - 5));
+  }
+
+  private void drawServices(Graphics g) {
+    ServiceSystem service = game.services;
+    for (int i = 0; i < ServiceSystem.MAX_UNITS; i++) {
+      int kind = service.type[i];
+      if (kind == ServiceSystem.NONE) continue;
+      int x = sx(service.x[i]), y = sy(service.y[i]);
+      if (x < -30 || x > width + 30 || y < TOP - 20 || y > TOP + viewHeight + 20) continue;
+      int w = Math.max(9, size(48.0f)), h = Math.max(4, size(17.0f));
+      int color = kind == ServiceSystem.FIRE ? 0xb9362e : kind == ServiceSystem.MED ? 0xe2e5df : 0x304f78;
+      g.setColor(0x171b20); g.fillArc(x - w / 2 + 1, y, 3, 3, 0, 360); g.fillArc(x + w / 2 - 4, y, 3, 3, 0, 360);
+      g.setColor(color); g.fillRect(x - w / 2, y - h, w, h);
+      g.setColor(kind == ServiceSystem.MED ? 0xc83b3b : 0xe8e4d8);
+      if (kind == ServiceSystem.MED) { g.fillRect(x - 1, y - h + 1, 2, Math.max(2, h - 2)); g.fillRect(x - 3, y - h / 2, 6, 1); }
+      else g.fillRect(x - w / 2 + 2, y - h + 1, Math.max(2, w / 3), 1);
+      boolean flash = ((int)(game.time * 7.0f) & 1) == 0;
+      g.setColor(flash ? 0xff3e35 : 0x49a8ef); g.fillRect(x - 2, y - h - 2, 2, 2);
+      g.setColor(flash ? 0x49a8ef : 0xff3e35); g.fillRect(x + 1, y - h - 2, 2, 2);
+      if (service.work[i] > 0.0f) {
+        int tx = sx(service.targetX[i]), ty = sy(service.targetY[i]);
+        if (kind == ServiceSystem.FIRE) {
+          g.setColor(0x74c6e0); g.drawLine(x, y - h, tx, ty);
+          g.setColor(0xe4b63c); g.fillRect(x + w / 2 + 2, y - 3, 2, 3);
+        } else if (kind == ServiceSystem.MED) {
+          g.setColor(0xf0eee5); g.fillRect(tx - 2, ty - 3, 4, 1); g.fillRect(tx, ty - 5, 1, 5);
+        } else {
+          g.setColor(0x4d78b5); g.drawLine(tx - 5, ty, tx + 5, ty);
+        }
       }
     }
   }
@@ -325,7 +446,7 @@ public final class WreckboxRenderer {
       g.setColor(color); g.fillRect(left, top, w, h); g.setColor(scaleColor(color, 0.58f)); g.drawRect(left, top, Math.max(0, w - 1), Math.max(0, h - 1));
       g.setColor(id.equals("vending") ? 0x477785 : 0x39474b); g.fillRect(left + 1, top + 2, Math.max(1, w - 3), Math.max(1, h / 3));
       g.setColor(0xd8ddd5); g.fillRect(left + w - 2, top + h / 2, 1, Math.max(1, h / 4));
-    } else if (id.equals("transformer") || id.equals("bigtrafo") || id.equals("turbine") || id.equals("condenser") || id.equals("deaerator") || id.equals("steamgen") || id.equals("gcn") || id.equals("diesel") || id.equals("boiler") || id.equals("hvac")) {
+      } else if (id.equals("transformer") || id.equals("bigtrafo") || id.equals("turbine") || id.equals("condenser") || id.equals("deaerator") || id.equals("steamgen") || id.equals("gcn") || id.equals("diesel") || id.equals("boiler") || id.equals("hvac")) {
       g.setColor(scaleColor(color, 0.55f)); g.fillRect(left + 1, top + 1, w, h);
       g.setColor(color); g.fillRect(left, top, w, h); g.setColor(scaleColor(color, 0.55f));
       for (int yy = top + 2; yy < top + h - 1; yy += 3) g.drawLine(left + 1, yy, left + Math.max(1, w / 2), yy);
@@ -366,7 +487,7 @@ public final class WreckboxRenderer {
   private void drawPeople(Graphics g) {
     PeopleStore people = game.people;
     for (int i = 0; i < people.count; i++) {
-      if (people.state[i] == PeopleStore.GONE) continue;
+      if (people.state[i] == PeopleStore.GONE || people.hidden[i]) continue;
       int skin = (people.variant[i] & 1) == 0 ? 0xd9a077 : 0x9b6547;
       int shirt = (people.variant[i] & 2) == 0 ? 0x4675a0 : 0xa34e4e;
       int pants = (people.variant[i] & 4) == 0 ? 0x333b4c : 0x51463e;
@@ -507,18 +628,31 @@ public final class WreckboxRenderer {
   private void drawEffects(Graphics g) {
     EffectSystem e = game.effects;
     for (int i = 0; i < EffectSystem.MAX; i++) {
-      int type = e.type[i]; if (type == EffectSystem.NONE) continue;
+      int type = e.type[i];
+      if (type == EffectSystem.NONE || (!game.effectsEnabled && (type == EffectSystem.SMOKE || type == EffectSystem.FIRE))) continue;
       int x = sx(e.x[i]), y = sy(e.y[i]);
       if (x < -100 || x > width + 100 || y < TOP - 100 || y > TOP + viewHeight + 100) continue;
       if (type == EffectSystem.CHARGE) {
         g.setColor(0xc53d32); g.fillRect(x - 2, y - 1, 5, 3); g.setColor(0xf2d35c); g.fillRect(x, y - 3, 1, 2);
       } else if (type == EffectSystem.BOMB || type == EffectSystem.METEOR || type == EffectSystem.VOLCANIC) {
+        if (type == EffectSystem.BOMB && (e.flags[i] & EffectSystem.NUKE_CHUTE) != 0) {
+          g.setColor(0xd5d2bd); g.drawArc(x - 10, y - 28, 20, 15, 0, 180);
+          g.setColor(0xaaa997); g.drawLine(x - 10, y - 20, x - 2, y - 5); g.drawLine(x + 10, y - 20, x + 2, y - 5);
+        }
         g.setColor(type == EffectSystem.BOMB ? 0x343b42 : 0x5d4a3d); g.fillArc(x - 2, y - 4, 5, 8, 0, 360);
         if (type != EffectSystem.BOMB) { g.setColor(0xff9b35); g.drawLine(x - 3, y - 5, x - 8, y - 12); }
       } else if (type == EffectSystem.ROCKET) {
         g.setColor(0xe3e0d5); g.fillRect(x - 1, y - 3, 3, 6); g.setColor(0xff8a2c); g.fillRect(x - 1, y + 3, 3, 3);
       } else if (type == EffectSystem.MOLOTOV) {
         g.setColor(0x6b8c54); g.fillRect(x - 1, y - 3, 3, 6); g.setColor(0xffb13b); g.fillRect(x, y - 5, 1, 2);
+      } else if (type == EffectSystem.BOMBER) {
+        int direction = e.vx[i] < 0.0f ? -1 : 1;
+        g.setColor(0x3d484b); g.fillRect(x - 12, y - 2, 24, 4);
+        g.fillTriangle(x - 4, y, x + 4, y, x - direction * 2, y + 8);
+        g.fillRect(x - direction * 10, y - 6, 3, 6);
+        g.setColor(0x75878a); g.fillRect(x - 8, y - 1, 16, 1);
+        int prop = ((int)(game.time * 24.0f) & 1) == 0 ? 3 : 1;
+        g.setColor(0x222a2c); g.fillRect(x + direction * 11, y - prop, 1, prop * 2 + 1);
       } else if (type == EffectSystem.LAVA) {
         g.setColor(0xff7a1e); g.fillRect(x - 1, y - 1, 3, 3);
       } else if (type == EffectSystem.WATER) {
@@ -581,13 +715,18 @@ public final class WreckboxRenderer {
     g.setFont(small);
     g.setColor(game.night ? 0x111722 : 0x17222e); g.fillRect(0, 0, width, TOP); g.fillRect(0, height - BOTTOM, width, BOTTOM);
     g.setColor(0xe6c34e); g.drawString("WRECKBOX", 2, 1, Graphics.LEFT | Graphics.TOP);
+    if (game.reactorAlarmLevel > 0) {
+      g.setColor(game.reactorAlarmLevel >= 2 ? 0xb73535 : 0xb08a35);
+      g.fillRect(0, TOP - 2, width, 2);
+    }
     boolean showDose = game.radiationSystem.count > 0 && (game.doseRate > 0.00006f
         || game.time - game.radiationSystem.t0[game.radiationSystem.count - 1] < 30.0f);
-    g.setColor(showDose && game.doseRate > 0.001f ? 0xb9e36b : 0xe8edf0);
+    g.setColor(game.reactorAlarmLevel >= 2 ? 0xff8070 : showDose && game.doseRate > 0.001f ? 0xb9e36b : 0xe8edf0);
     g.drawString(showDose ? RadiationSystem.formatDose(game.doseRate) : game.destructionPercent() + "%", width - 2, 1, Graphics.RIGHT | Graphics.TOP);
     String map = Maps.NAMES[game.mapIndex];
     g.setColor(0xaebbc6); g.drawString(map, 2, 10, Graphics.LEFT | Graphics.TOP);
     String status = game.statusText(); if (status.length() > 24) status = status.substring(0, 24);
+    g.setColor(game.reactorAlarmLevel >= 2 ? 0xff8070 : game.reactorAlarmLevel == 1 ? 0xf0c26c : 0xaebbc6);
     g.drawString(status, width - 2, 10, Graphics.RIGHT | Graphics.TOP);
     String tool = Tools.NAMES[game.toolIndex];
     g.setColor(0xf0f2f3); g.drawString(tool, width / 2, height - BOTTOM + 2, Graphics.HCENTER | Graphics.TOP);

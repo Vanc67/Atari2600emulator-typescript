@@ -29,6 +29,11 @@ public final class LowHeapTest {
     Game game = new Game(); load(game, 0); game.selectTool(Tools.find("nuke"));
     game.toolValues[game.toolIndex] = 10;
     game.pointerDown(3603.0f, 1281.0f); game.pointerUp();
+    for (int i = 0; i < EffectSystem.MAX; i++) if (game.effects.type[i] == EffectSystem.BOMBER) {
+      game.effects.x[i] = game.effects.tx[i];
+      break;
+    }
+    game.update(0.02f);
     for (int i = 0; i < EffectSystem.MAX; i++) if (game.effects.type[i] == EffectSystem.BOMB) {
       game.effects.y[i] = game.effects.ty[i];
       break;

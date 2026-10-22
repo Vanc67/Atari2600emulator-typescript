@@ -17,6 +17,7 @@ public final class RadiationSystem {
   public final float[] core = new float[MAX_SOURCES];
   public final int[] direction = new int[MAX_SOURCES];
 
+  public int memoryBytes() { return MAX_SOURCES * 33; }
   public void reset() { count = 0; }
   private int slot() {
     if (count < MAX_SOURCES) return count++;

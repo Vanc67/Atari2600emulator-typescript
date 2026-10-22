@@ -51,7 +51,7 @@ public final class CanvasTest {
     press(-6); down(2); press(Canvas.KEY_NUM5);
     eq(WreckboxCanvas.MENU_SETTINGS, canvas.menuPage(), "settings page opens");
     paint("settings page");
-    for (int i = 0; i < 6; i++) { press(Canvas.KEY_NUM5); press(Canvas.KEY_NUM8); }
+    for (int i = 0; i < 8; i++) { press(Canvas.KEY_NUM5); press(Canvas.KEY_NUM8); }
     paint("all settings toggles");
 
     press(-6); down(3); press(Canvas.KEY_NUM5); paint("help page");

@@ -1,18 +1,20 @@
 package wreckbox.test;
 
+import java.io.InputStream;
 import javax.microedition.lcdui.Graphics;
 import wreckbox.core.EffectSystem;
 import wreckbox.core.Game;
 import wreckbox.core.Maps;
 import wreckbox.core.Tools;
 import wreckbox.platform.WreckboxRenderer;
+import wreckbox.platform.SoundSynth;
 
 /** Headless MIDP stub smoke suite: executes rendering and every tool on the packaged JAR. */
 public final class PlatformTest {
   private static int checks, failures;
   public static void main(String[] args) {
     Graphics graphics = new Graphics();
-    renderMaps(graphics); renderDestruction(graphics); exerciseTools(graphics); maximumNuke(graphics);
+    renderMaps(graphics); renderReactorAlarm(graphics); renderDestruction(graphics); exerciseTools(graphics); audioResources(); maximumNuke(graphics);
     System.out.println("Wreckbox PlatformTest: " + checks + " checks, " + failures + " failures");
     if (failures != 0) throw new RuntimeException("FAILED " + failures);
   }
@@ -30,6 +32,18 @@ public final class PlatformTest {
       } catch (RuntimeException e) { check(false, "render " + Maps.IDS[i] + " " + e); }
     }
   }
+  private static void renderReactorAlarm(Graphics graphics) {
+    Game game = new Game(); check(game.loadMap(5), "NPP alarm render map");
+    game.reactorAlarmLevel = 2; game.reactorRedLight = game.reactorRelease = true;
+    game.radiationSystem.addNppRelease(game.reactorX(), game.time, 1.0f, -1);
+    try {
+      WreckboxRenderer renderer = new WreckboxRenderer(game);
+      renderer.render(graphics, 128, 160, 64, 80);
+      game.night = true; renderer.render(graphics, 128, 160, 64, 80);
+      check(true, "NPP red alarm and evacuation overlay");
+    } catch (RuntimeException e) { check(false, "NPP alarm renderer " + e); }
+  }
+
   private static void renderDestruction(Graphics graphics) {
     Game game = new Game(); game.loadMap(0); game.zoom = 0.65f;
     for (int i = 0; i < 12; i++) {
@@ -62,15 +76,36 @@ public final class PlatformTest {
       } catch (RuntimeException e) { check(false, "tool " + Tools.IDS[tool] + " " + e); }
     }
   }
+  private static void audioResources() {
+    String[] names = {"boom_00", "boom_01", "boom_low_00", "bomber_00", "chute_00", "bomb_whistle_00",
+      "pour_00", "splash_small_00", "sirenS", "sirenC", "scream_m_00", "scream_f_00", "thunder_00"};
+    int found = 0;
+    for (int i = 0; i < names.length; i++) {
+      InputStream stream = SoundSynth.class.getResourceAsStream("/audio/" + names[i] + ".amr");
+      if (stream != null) { found++; try { stream.close(); } catch (Exception ignored) { } }
+    }
+    check(found == names.length, "original AMR sound resources " + found + "/" + names.length);
+    SoundSynth synth = new SoundSynth();
+    try { synth.sound("boom", 0.5f); synth.sound("bomber", 0.4f); synth.sound("reactorSiren", 0.6f); synth.close(); check(true, "AMR/tone fallback does not throw"); }
+    catch (RuntimeException e) { check(false, "audio fallback " + e); }
+  }
+
   private static void maximumNuke(Graphics graphics) {
     Game game = new Game(); game.loadMap(0); game.selectTool(Tools.find("nuke"));
     game.toolValues[game.toolIndex] = 10;
     game.pointerDown(3603.0f, 1281.0f); game.pointerUp();
+    int bomber = -1;
+    for (int i = 0; i < EffectSystem.MAX; i++) if (game.effects.type[i] == EffectSystem.BOMBER) { bomber = i; break; }
+    check(bomber >= 0, "50 Mt bomber approach created");
     int bomb = -1;
-    for (int i = 0; i < EffectSystem.MAX; i++) if (game.effects.type[i] == EffectSystem.BOMB) { bomb = i; break; }
-    check(bomb >= 0, "50 Mt bomb created");
+    if (bomber >= 0) {
+      check(game.effects.radius[bomber] > 6000.0f, "50 Mt original radius scale");
+      game.effects.x[bomber] = game.effects.tx[bomber];
+      game.update(0.02f);
+      for (int i = 0; i < EffectSystem.MAX; i++) if (game.effects.type[i] == EffectSystem.BOMB) { bomb = i; break; }
+      check(bomb >= 0, "bomber releases parachute bomb");
+    }
     if (bomb >= 0) {
-      check(game.effects.radius[bomb] > 6000.0f, "50 Mt original radius scale");
       long start = System.currentTimeMillis();
       game.effects.y[bomb] = game.effects.ty[bomb];
       game.update(0.02f);

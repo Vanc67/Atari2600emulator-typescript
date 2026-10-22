@@ -9,6 +9,8 @@ public final class FireSystem {
   private final Random random = new Random(0xf1ae);
   private float spreadClock;
 
+  public int memoryBytes() { return MAX * 13; }
+
   public void reset() {
     for (int i = 0; i < MAX; i++) active[i] = false;
     spreadClock = 0.0f;
@@ -48,7 +50,9 @@ public final class FireSystem {
     }
   }
 
-  public void update(CellGrid grid, DebrisSystem debris, float dt) {
+  public void update(CellGrid grid, DebrisSystem debris, float dt) { update(grid, null, debris, dt); }
+
+  public void update(CellGrid grid, FluidSystem fluids, DebrisSystem debris, float dt) {
     spreadClock += dt;
     boolean spread = spreadClock >= 0.28f;
     if (spread) spreadClock = 0.0f;
@@ -56,6 +60,7 @@ public final class FireSystem {
       if (!active[i]) continue;
       int at = cell[i], m = grid.material(at);
       if (m == 0 || Materials.FLAMMABILITY[m] <= 0.0f) { active[i] = false; continue; }
+      if (fluids != null && fluids.amountNear(grid, at) > 12) { active[i] = false; continue; }
       age[i] += dt; nextDamage[i] -= dt;
       if (nextDamage[i] <= 0.0f) {
         nextDamage[i] = 0.35f;

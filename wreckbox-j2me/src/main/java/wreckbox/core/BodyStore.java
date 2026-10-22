@@ -19,6 +19,8 @@ public final class BodyStore {
   public float[] mass, hp, width, height;
   public byte[] variant, flags;
   public float[] restTime, fuse;
+  public int quality = 1;
+  private int tick;
 
   public void allocate(int count) {
     this.capacity = count;
@@ -70,8 +72,22 @@ public final class BodyStore {
   }
 
   public void update(CellGrid grid, DebrisSystem debris, float dt, float gravity) {
+    update(grid, null, null, debris, dt, gravity);
+  }
+
+  public void update(CellGrid grid, FluidSystem fluids, MapMetadata metadata, DebrisSystem debris, float dt, float gravity) {
+    tick++;
     for (int i = 0; i < count; i++) {
-      if (!alive(i) || sleeping(i) || (flags[i] & (F_PINNED | F_HELD)) != 0) continue;
+      if (!alive(i) || (flags[i] & F_HELD) != 0) continue;
+      boolean boat = type[i] >= 0 && (Props.FLAGS[type[i]] & 32) != 0;
+      float oldBottom = y[i] + height[i] * 0.5f;
+      float submerged = fluids == null ? 0.0f : fluids.submersion(grid, metadata, x[i], oldBottom - height[i] * 0.25f);
+      boolean floating = submerged > 0.05f;
+      if ((flags[i] & F_PINNED) != 0 && !floating) continue;
+      if (sleeping(i)) {
+        if (floating || ((tick + i) & 15) == 0 && !hasSupport(grid, i)) wake(i);
+        else continue;
+      }
       if ((flags[i] & F_BURNING) != 0) {
         hp[i] -= 3.0f * dt;
         if (type[i] >= 0 && Props.EXPLOSION_FUSE[type[i]] > 0.0f) {
@@ -80,7 +96,15 @@ public final class BodyStore {
         }
         if (hp[i] <= 0.0f) { kill(i); continue; }
       }
-      vy[i] += gravity * dt;
+      if (submerged > 0.0f) {
+        float density = mass[i] / Math.max(0.3f, width[i] * height[i] / 36.0f);
+        float buoyancy = boat ? 1.45f : Math2.clamp(1.1f / Math.max(0.2f, density), 0.0f, 1.3f);
+        vy[i] += gravity * dt * (1.0f - submerged * buoyancy);
+        float drag = Math.min(0.85f, dt * (0.35f + submerged * 2.2f));
+        vx[i] *= 1.0f - drag; vy[i] *= 1.0f - drag; angleVelocity[i] *= 1.0f - drag;
+        vx[i] += fluids.flow(grid, x[i], oldBottom - height[i] * 0.25f) * 36.0f * dt;
+        if ((flags[i] & F_BURNING) != 0 && submerged > 0.2f) flags[i] &= ~F_BURNING;
+      } else vy[i] += gravity * dt;
       x[i] += vx[i] * dt; y[i] += vy[i] * dt;
       angle[i] += angleVelocity[i] * dt;
       vx[i] *= 1.0f - Math.min(0.8f, 0.08f * dt);
@@ -89,8 +113,13 @@ public final class BodyStore {
       float right = grid.width * 6.0f - width[i] * 0.5f;
       if (x[i] > right) { x[i] = right; vx[i] = -Math.abs(vx[i]) * 0.2f; }
       float bottom = y[i] + height[i] * 0.5f;
-      int gx = (int)(x[i] / 6.0f), gy = (int)(bottom / 6.0f);
-      if (grid.solid(gx, gy)) {
+      int gx = (int)(x[i] / 6.0f), gy = -1;
+      if (vy[i] >= 0.0f) {
+        int first = Math.max(0, (int)Math.floor(oldBottom / 6.0f));
+        int last = Math.min(CellGrid.HEIGHT - 1, (int)Math.floor(bottom / 6.0f));
+        for (int scan = first; scan <= last; scan++) if (grid.solid(gx, scan)) { gy = scan; break; }
+      }
+      if (gy >= 0) {
         float impact = vy[i];
         y[i] = gy * 6.0f - height[i] * 0.5f - 0.01f;
         if (impact > 115.0f) {
@@ -99,18 +128,25 @@ public final class BodyStore {
           hp[i] -= (impact - 80.0f) * fragile(i) * 0.06f;
           if (hp[i] <= 0.0f) { kill(i); debris.spawnDust(x[i], y[i], 0x888888, 5); continue; }
         }
-        vy[i] = -impact * 0.12f;
+        vy[i] = -impact * (submerged > 0.2f ? 0.04f : 0.12f);
         vx[i] *= 0.72f; angleVelocity[i] *= 0.65f;
         if (Math.abs(vy[i]) < 9.0f) vy[i] = 0.0f;
         if (Math.abs(vx[i]) + Math.abs(vy[i]) < 7.0f) restTime[i] += dt;
         else restTime[i] = 0.0f;
-        if (restTime[i] > 0.65f) { flags[i] |= F_SLEEPING; vx[i] = vy[i] = angleVelocity[i] = 0.0f; }
+        if (restTime[i] > 0.65f && !floating) { flags[i] |= F_SLEEPING; vx[i] = vy[i] = angleVelocity[i] = 0.0f; }
       } else restTime[i] = 0.0f;
       if (y[i] > 1620.0f) kill(i);
     }
   }
 
+  private boolean hasSupport(CellGrid grid, int i) {
+    float bottom = y[i] + height[i] * 0.5f + 1.0f;
+    return grid.solidPixel(x[i], bottom) || grid.solidPixel(x[i] - width[i] * 0.35f, bottom)
+        || grid.solidPixel(x[i] + width[i] * 0.35f, bottom);
+  }
+
   private float fragile(int i) { return type[i] >= 0 ? Props.FRAGILE[type[i]] : 0.5f; }
+  public int memoryBytes() { return capacity * 53; }
 
   /** Returns explosive prop id or -1; actual blast is dispatched by Game. */
   public int damageArea(float cx, float cy, float radius, float damage, float impulse) {

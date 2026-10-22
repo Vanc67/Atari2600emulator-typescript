@@ -22,6 +22,8 @@ public final class Game {
   public final DebrisSystem debris = new DebrisSystem();
   public final FireSystem fire = new FireSystem();
   public final EffectSystem effects = new EffectSystem();
+  public final FluidSystem fluids = new FluidSystem();
+  public final ServiceSystem services = new ServiceSystem();
   public final RadiationSystem radiationSystem = new RadiationSystem();
   public final StructuralSolver structure = new StructuralSolver();
   public final BuildingGenerator buildingGenerator = new BuildingGenerator();
@@ -29,16 +31,21 @@ public final class Game {
   public GameListener listener;
   public MapMetadata metadata;
 
-  public int mapIndex, toolIndex = Tools.find("hammer"), gravityIndex;
+  public int mapIndex, toolIndex = Tools.find("hammer"), gravityIndex, physicsMode = StructuralSolver.NORMAL;
   public final int[] toolValues = new int[Tools.COUNT];
   public int buildMaterial = 1, propSelection = Props.find("sofa"), buildingSelection;
   public float gravity = EARTH_GRAVITY;
   public float cameraX, cameraY, zoom = 0.34f;
   public float pointerX, pointerY, pointerVelocityX, pointerVelocityY;
   public boolean held, paused, slowMotion, night, buildMode, uiHidden;
-  public boolean nuclearGroundBurst, showStress, bloodEnabled = true, servicesEnabled = true, epicSlow = true, showToasts = true;
+  public boolean nuclearGroundBurst, showStress, bloodEnabled = true, servicesEnabled = true, epicSlow = true, showToasts = true, effectsEnabled = true;
   public boolean structuralDirty;
-  public float time, shake, radiation, doseRate = RadiationSystem.BACKGROUND, reactorTemperature = 85.0f, reactorHydrogen;
+  public float time, shake, radiation, doseRate = RadiationSystem.BACKGROUND, reactorTemperature = 320.0f, reactorHydrogen;
+  /** 0 = normal, 1 = SCRAM/civil warning, 2 = radioactive release/evacuation. */
+  public int reactorAlarmLevel;
+  public boolean reactorRedLight, reactorScram, reactorRelease;
+  public float reactorSirenClock, reactorEvacuationClock, incidentSirenClock, alarmFlash;
+  private float reactorBackupTime;
   public String message = "", loadError;
   public float messageTime;
 
@@ -70,11 +77,13 @@ public final class Game {
       try { stream.close(); } catch (IOException ignored) {}
       return false;
     }
-    debris.reset(); fire.reset(); effects.reset(); radiationSystem.reset(); doseRate = RadiationSystem.BACKGROUND;
-    people.debris = debris; people.bloodEnabled = bloodEnabled;
+    debris.reset(); fire.reset(); effects.reset(); fluids.reset(); services.reset(); radiationSystem.reset(); doseRate = RadiationSystem.BACKGROUND;
+    people.debris = debris; people.bloodEnabled = bloodEnabled; people.physicsMode = physicsMode;
     structuralDirty = false; structureClock = 0.0f; epicTimer = 0.0f; time = 0.0f;
     quakeTime = tornadoTime = tsunamiTime = holeTime = eruptionTime = 0.0f;
-    radiation = reactorHydrogen = 0.0f; reactorTemperature = 85.0f;
+    radiation = reactorHydrogen = 0.0f; reactorTemperature = 320.0f;
+    reactorAlarmLevel = 0; reactorRedLight = reactorScram = reactorRelease = false;
+    reactorSirenClock = reactorEvacuationClock = incidentSirenClock = alarmFlash = reactorBackupTime = 0.0f;
     heldKind = -1; heldIndex = -1; held = false;
     loadError = null; initialLoad = true;
     resetCamera();
@@ -136,6 +145,11 @@ public final class Game {
     return Tools.SLIDER_LABELS[toolIndex] + ": " + value;
   }
   public void cycleGravity() { gravityIndex = (gravityIndex + 1) % 3; gravity = GRAVITIES[gravityIndex]; setMessage(gravityIndex == 0 ? "1g" : gravityIndex == 1 ? "Луна" : "0g"); }
+  public void cyclePhysics() {
+    physicsMode = (physicsMode + 1) % 3;
+    setMessage("Физика: " + (physicsMode == 0 ? "экономная" : physicsMode == 1 ? "нормальная" : "точная"));
+  }
+  public String physicsText() { return physicsMode == 0 ? "экономная" : physicsMode == 1 ? "нормальная" : "точная"; }
   public void detonate() { effects.detonateCharges(); setMessage("Подрыв зарядов"); }
 
   public void pointerDown(float x, float y) {
@@ -201,29 +215,35 @@ public final class Game {
     if (epicTimer > 0.0f) epicTimer -= realDt;
     float dt = slowMotion || epicSlow && epicTimer > 0.0f ? realDt * 0.25f : realDt;
     time += dt;
+    updateAlarms(dt);
     if (held) updateContinuous(dt);
     effects.update(this, dt);
     processExplosiveBodies();
-    fire.update(grid, debris, dt);
-    bodies.update(grid, debris, dt, gravity);
+    fluids.update(this, dt, physicsMode);
+    fire.update(grid, fluids, debris, dt);
+    bodies.quality = physicsMode; debris.quality = physicsMode; people.physicsMode = physicsMode;
+    debris.maxDust = !effectsEnabled ? 0 : physicsMode == StructuralSolver.ECONOMY ? 64 : physicsMode == StructuralSolver.NORMAL ? 160 : DebrisSystem.MAX_DUST;
+    bodies.update(grid, fluids, metadata, debris, dt, gravity);
     people.bloodEnabled = bloodEnabled;
-    people.update(grid, fire, dt, gravity, radiationSystem, time);
+    people.update(grid, fire, fluids, metadata, dt, gravity, radiationSystem, time);
     radiationSystem.update(time);
     doseRate = radiationSystem.rate(grid, cameraX, cameraY + 12.0f, time);
-    if (debris.update(grid, people, dt, gravity)) structuralDirty = true;
+    if (debris.update(grid, fluids, metadata, people, dt, gravity)) { structuralDirty = true; sound("debris", 0.2f); }
+    services.update(this, dt);
     updateDisasters(dt);
     specialClock += dt;
     if (specialClock >= 0.25f) { updateSpecial(specialClock); specialClock = 0.0f; }
     lavaClock += dt;
     if (lavaClock >= 0.4f) { coolLava(); lavaClock = 0.0f; }
     structureClock += dt;
-    if (structuralDirty && structureClock >= 0.32f) {
+    float structureInterval = physicsMode == StructuralSolver.ECONOMY ? 0.48f : physicsMode == StructuralSolver.DETAILED ? 0.20f : 0.32f;
+    if (structuralDirty && structureClock >= structureInterval) {
       structuralDirty = false; structureClock = 0.0f;
-      int changed = structure.solve(grid, debris, gravity, showStress);
+      int changed = structure.solve(grid, debris, gravity, showStress, physicsMode);
       if (changed > 0) {
         structuralDirty = true;
         bodies.wakeArea(grid, cameraX, cameraY, 420.0f / zoom);
-        power.recompute(grid);
+        power.recompute(grid); sound("creak", 0.25f);
       }
     }
     if (shake > 0.0f) shake = Math.max(0.0f, shake - dt * 1.8f);
@@ -239,7 +259,7 @@ public final class Game {
       float radius = 6.0f * (1.0f + 0.45f * toolValues[toolIndex]);
       fire.igniteArea(grid, bodies, pointerX, pointerY, radius);
       scarePeople(pointerX, pointerY, radius * 1.5f, 1.0f);
-      spawnFireVisual(pointerX, pointerY, radius); continuousClock = 0.07f;
+      spawnFireVisual(pointerX, pointerY, radius); sound("flame", 0.25f); continuousClock = 0.07f;
     } else if (id.equals("lava") || id.equals("water")) {
       int count = id.equals("lava") ? toolValues[toolIndex] : 2 + toolValues[toolIndex];
       for (int i = 0; i < count; i++) {
@@ -249,7 +269,7 @@ public final class Game {
           effects.vx[effect] = random.range(-45.0f, 45.0f); effects.vy[effect] = random.range(-70.0f, 5.0f);
         }
       }
-      if (id.equals("water")) douse(pointerX, pointerY, 6.0f * (2.0f + 0.5f * toolValues[toolIndex]));
+      if (id.equals("water")) { douse(pointerX, pointerY, 6.0f * (2.0f + 0.5f * toolValues[toolIndex])); sound("water", 0.3f); }
       continuousClock = 0.08f;
     } else if (id.equals("eraser")) { erase(pointerX, pointerY); continuousClock = 0.05f; }
     else if (id.equals("brush")) { paint(pointerX, pointerY); continuousClock = 0.05f; }
@@ -359,22 +379,32 @@ public final class Game {
     float targetY = y, kt = 0.0f, blastRadius = 0.0f;
     if (nuclear) {
       kt = NUKE_KT[level - 1]; blastRadius = 460.0f * Math2.cbrt(kt / 15.0f);
-      float groundY = firstSolidY(x);
+      float groundY = nuclearGroundBurst ? findGround((int)(x / 6.0f)) * 6.0f : firstSolidY(x);
       targetY = nuclearGroundBurst ? groundY - 1.0f : Math.max(-40.0f, Math.min(y, Math.min(1284.0f - 0.5f * blastRadius, groundY - 24.0f)));
     }
     float startY = Math.max(-250.0f, Math.min(targetY - 30.0f, y - (nuclear ? 500.0f : 260.0f)));
+    if (nuclear) {
+      float direction = x >= cameraX ? 1.0f : -1.0f;
+      float startX = cameraX - direction * 220.0f / zoom;
+      startY = Math.max(-160.0f, Math.min(targetY - 120.0f, y - 420.0f));
+      int plane = effects.spawn(EffectSystem.BOMBER, startX, startY, 20.0f);
+      if (plane < 0) return;
+      float speed = 230.0f + 12.0f * level, e = kt / 15.0f;
+      effects.vx[plane] = direction * speed; effects.tx[plane] = x; effects.ty[plane] = targetY;
+      effects.radius[plane] = blastRadius;
+      effects.power[plane] = 900.0f + 120.0f * Math2.pow(Math.max(0.02f, e), 0.35f);
+      effects.flags[plane] = 100 + level + (nuclearGroundBurst ? EffectSystem.NUKE_GROUND_BURST : 0);
+      float warning = 4.5f + Math.abs(x - startX) / speed + Math.abs(targetY - startY) / 68.0f;
+      people.airRaid(grid, metadata, x, targetY, warning);
+      setMessage("Бомбардировщик на подлёте · " + powerText());
+      sound("bomber", 0.65f); sound("siren", 0.45f);
+      return;
+    }
     int i = effects.spawn(EffectSystem.BOMB, x, startY, 8.0f);
     if (i < 0) return;
-    effects.vy[i] = nuclear ? 180.0f : 260.0f; effects.vx[i] = random.range(-8.0f, 8.0f); effects.ty[i] = targetY;
-    if (nuclear) {
-      float e = kt / 15.0f;
-      effects.radius[i] = blastRadius;
-      effects.power[i] = 900.0f + 120.0f * Math2.pow(Math.max(0.02f, e), 0.35f);
-      effects.flags[i] = 100 + level + (nuclearGroundBurst ? 1000 : 0);
-    } else {
-      effects.radius[i] = 28.0f + 8.0f * level; effects.power[i] = 360.0f + 52.0f * level;
-    }
-    setMessage(nuclear ? nuclearGroundBurst ? "Наземный ядерный взрыв" : "Воздушный ядерный взрыв" : "Бомба сброшена");
+    effects.vy[i] = 260.0f; effects.vx[i] = random.range(-8.0f, 8.0f); effects.ty[i] = targetY;
+    effects.radius[i] = 28.0f + 8.0f * level; effects.power[i] = 360.0f + 52.0f * level;
+    setMessage("Бомба сброшена");
   }
 
   private float firstSolidY(float x) {
@@ -549,6 +579,11 @@ public final class Game {
   public void explode(float x, float y, float radius, float power, float fireAmount) {
     if (epicSlow && (radius > 180.0f || power > 900.0f)) epicTimer = Math.max(epicTimer, 1.1f);
     damageCircle(x, y, radius, power, true);
+    if (metadata != null && metadata.npp && !reactorScram && radius >= 20.0f) {
+      float dx = x - reactorX(), dy = y - reactorY();
+      float tripRadius = radius + 90.0f;
+      if (dx * dx + dy * dy < tripRadius * tripRadius) scramReactor("внешний удар");
+    }
     bodies.damageArea(x, y, radius * 1.25f, power * 0.42f, power * 1.4f);
     debris.applyExplosion(x, y, radius * 1.4f, power * 1.6f);
     scarePeople(x, y, radius * 1.7f, power * 0.13f);
@@ -558,11 +593,17 @@ public final class Game {
       people.igniteArea(x, y, radius * fireAmount);
     }
     effects.spawnBlast(x, y, radius, radius > 250.0f ? 2.2f : 0.65f);
+    if (radius >= 42.0f && incidentSirenClock <= 0.0f) {
+      sound("siren", Math.min(0.7f, 0.28f + radius / 900.0f));
+      incidentSirenClock = 9.0f;
+    }
+    alarmFlash = Math.max(alarmFlash, radius > 250.0f ? 0.42f : 0.18f);
     int smoke = effects.spawn(EffectSystem.SMOKE, x, y, 1.5f);
     if (smoke >= 0) { effects.vy[smoke] = -30.0f; effects.radius[smoke] = radius * 0.5f; }
     shake = Math.max(shake, Math.min(1.2f, radius / 180.0f));
     if (radius > 250.0f) radiation = Math.max(radiation, radius / 800.0f);
-    structuralDirty = true; sound(radius > 250.0f ? "nuke" : "boom", Math.min(1.0f, 0.3f + radius / 300.0f));
+    structuralDirty = true; services.notifyIncident(ServiceSystem.POLICE, x, y);
+    sound(radius > 250.0f ? "nuke" : "boom", Math.min(1.0f, 0.3f + radius / 300.0f));
   }
 
   public void nuclearExplode(float x, float y, float kt, float radius, float power, float fireAmount) {
@@ -573,6 +614,7 @@ public final class Game {
     float fireball = Math2.clamp(92.0f * Math2.pow(kt / 15.0f, 0.4f), 7.0f, 1100.0f);
     boolean touch = groundBurst || firstSolidY(x) - y < 0.9f * fireball;
     radiationSystem.addNuclear(x, time, kt, touch, radius);
+    people.finishRaid(3.0f);
     doseRate = radiationSystem.rate(grid, cameraX, cameraY + 12.0f, time);
     int flash = effects.spawn(EffectSystem.FLASH, x, y, Math2.clamp(0.32f * Math2.pow(kt / 15.0f, 0.2f), 0.08f, 1.5f));
     if (flash >= 0) effects.radius[flash] = fireball;
@@ -590,7 +632,10 @@ public final class Game {
     }
   }
 
-  public void scarePeople(float x, float y, float radius, float damage) { people.scare(x, y, radius, damage); }
+  public void scarePeople(float x, float y, float radius, float damage) {
+    people.scare(x, y, radius, damage);
+    if (radius > 45.0f) sound(damage > 12.0f ? "scream" : "groan", Math.min(0.5f, radius / 500.0f));
+  }
   public void douse(float x, float y, float radius) {
     fire.douse(grid, x, y, radius); people.douse(x, y, radius);
     for (int i = 0; i < bodies.count; i++) if (bodies.alive(i)) {
@@ -642,7 +687,16 @@ public final class Game {
     if (holeTime > 0.0f) {
       holeTime -= dt;
       float eat = (9.0f + 1.3f * toolValues[Tools.find("hole")]) * (1.0f + (9.0f - holeTime) * 0.12f);
-      if (random.chance(dt * 12.0f)) erase(holeX + random.range(-eat, eat), holeY + random.range(-eat, eat));
+      if (random.chance(dt * 12.0f)) {
+        erase(holeX + random.range(-eat, eat), holeY + random.range(-eat, eat));
+        for (int p = 0; p < people.count; p++) if (people.state[p] < PeopleStore.DEAD) {
+          float dx = holeX - people.centerX(p), dy = holeY - people.centerY(p), distance = Math2.sqrt(dx * dx + dy * dy) + 1.0f;
+          if (distance < holeRadius) {
+            people.hurt(p, dt * 90.0f * (1.0f - distance / holeRadius), dx / distance * 80.0f, dy / distance * 80.0f, PeopleStore.CAUSE_HOLE);
+            if (distance < eat) people.remove(p);
+          }
+        }
+      }
       for (int i = 0; i < bodies.count; i++) if (bodies.alive(i)) {
         float dx = holeX - bodies.x[i], dy = holeY - bodies.y[i], d2 = dx * dx + dy * dy;
         if (d2 < holeRadius * holeRadius) {
@@ -669,27 +723,94 @@ public final class Game {
     }
   }
 
+  private void updateAlarms(float dt) {
+    if (incidentSirenClock > 0.0f) incidentSirenClock -= dt;
+    if (alarmFlash > 0.0f) alarmFlash = Math.max(0.0f, alarmFlash - dt);
+    if (reactorAlarmLevel <= 0) return;
+    reactorSirenClock -= dt;
+    if (reactorSirenClock <= 0.0f) {
+      sound("reactorSiren", reactorAlarmLevel >= 2 ? 0.75f : 0.55f);
+      reactorSirenClock = reactorAlarmLevel >= 2 ? 12.0f : 18.0f;
+    }
+    if (reactorAlarmLevel >= 2) {
+      reactorEvacuationClock -= dt;
+      if (reactorEvacuationClock <= 0.0f) {
+        people.evacuateFrom(reactorX(), reactorY(), grid.width * 6.0f + 600.0f);
+        reactorEvacuationClock = 2.5f;
+      }
+    }
+  }
+
+  private void startReactorAlarm(int level, String text) {
+    if (level > reactorAlarmLevel) {
+      reactorAlarmLevel = level;
+      reactorRedLight = true;
+      reactorSirenClock = level >= 2 ? 12.0f : 18.0f;
+      reactorEvacuationClock = 0.0f;
+      sound("reactorSiren", level >= 2 ? 0.75f : 0.55f);
+      // AM(1)/AM(2) also raise the civil-defence siren, distinct from the
+      // plant's own sirenC loop.
+      sound("siren", level >= 2 ? 0.55f : 0.4f);
+    }
+    setMessage(text);
+  }
+
+  private void scramReactor(String cause) {
+    if (reactorScram) return;
+    reactorScram = true;
+    startReactorAlarm(1, "АЭС: SCRAM · " + cause);
+    float x = reactorX(), y = reactorY();
+    // Civil level 1 in the recovered game: shelter before a release is known.
+    people.airRaid(grid, metadata, x, y, 12.0f);
+  }
+
+  private void releaseReactor(float x, float y) {
+    if (reactorRelease) return;
+    reactorRelease = true; reactorScram = true;
+    startReactorAlarm(2, "АЭС: ВЫБРОС · эвакуация!");
+    // Civil level 2: residents leave the station/plume rather than remain in
+    // shelter.  Repeat from updateAlarms so newly active residents also flee.
+    people.evacuateFrom(x, y, grid.width * 6.0f + 600.0f);
+    services.notifyIncident(ServiceSystem.POLICE, x, y);
+    services.notifyIncident(ServiceSystem.MED, x, y);
+  }
+
+  public float reactorX() { return propCenterX("gcn"); }
+  public float reactorY() { return propCenterY("gcn"); }
+
   private void updateSpecial(float dt) {
     if (metadata.npp) {
       boolean coolant = aliveProp("gcn") && aliveProp("condenser");
       boolean diesel = aliveProp("diesel"), steam = aliveProp("steamgen");
-      if (coolant && steam) reactorTemperature += (85.0f - reactorTemperature) * dt * 0.25f;
-      else if (diesel) reactorTemperature += (120.0f - reactorTemperature) * dt * 0.08f;
-      else reactorTemperature += dt * 18.0f;
-      if (reactorTemperature > 250.0f) reactorHydrogen += dt * (reactorTemperature - 220.0f) * 0.015f;
+      if ((!coolant || !steam) && !reactorScram)
+        scramReactor(!coolant ? "потеря охлаждения" : "парогенератор повреждён");
+      if (coolant && steam) {
+        reactorBackupTime = Math.max(0.0f, reactorBackupTime - dt * 2.0f);
+        // Recovered initial reactor state is 320 C; SCRAM cooling brings it
+        // back down instead of silently treating a damaged plant as normal.
+        reactorTemperature += ((reactorScram ? 85.0f : 320.0f) - reactorTemperature) * dt * 0.25f;
+      } else if (diesel && reactorBackupTime < 18.0f) {
+        reactorBackupTime += dt;
+        reactorTemperature += (120.0f - reactorTemperature) * dt * 0.08f;
+      } else {
+        reactorBackupTime += dt;
+        reactorTemperature += dt * 18.0f;
+      }
+      if (reactorTemperature > 250.0f && (!coolant || !steam || reactorScram && reactorTemperature > 400.0f))
+        reactorHydrogen += dt * (reactorTemperature - 220.0f) * 0.015f;
       else reactorHydrogen = Math.max(0.0f, reactorHydrogen - dt * 2.0f);
-      if (reactorTemperature > 850.0f || reactorHydrogen > 100.0f) {
-        float x = propCenterX("gcn"), y = propCenterY("gcn");
+      if (!reactorRelease && (reactorTemperature > 850.0f || reactorHydrogen > 100.0f)) {
+        float x = reactorX(), y = reactorY();
         explode(x, y, 120.0f, 650.0f, 0.5f);
         radiation = Math.max(radiation, 1.5f);
         radiationSystem.addNppRelease(x, time, 1.0f, random.chance(0.7f) ? -1 : 1);
         reactorTemperature = 400.0f; reactorHydrogen = 0.0f;
-        setMessage("Авария реактора · радиоактивный выброс");
+        releaseReactor(x, y);
       }
     }
     if (metadata.base) {
       boolean defence = aliveProp("sam") || aliveProp("aagun");
-      if (defence) for (int i = 0; i < EffectSystem.MAX; i++) if (effects.type[i] == EffectSystem.BOMB && effects.y[i] < effects.ty[i] - 50.0f) {
+      if (defence) for (int i = 0; i < EffectSystem.MAX; i++) if ((effects.type[i] == EffectSystem.BOMB || effects.type[i] == EffectSystem.BOMBER) && effects.y[i] < effects.ty[i] - 50.0f) {
         float sx = propCenterX("sam"), sy = propCenterY("sam") - 20.0f;
         int rocket = effects.spawn(EffectSystem.ROCKET, sx, sy, 1.0f);
         if (rocket >= 0) {
@@ -697,7 +818,7 @@ public final class Game {
           effects.vx[rocket] = dx / len * 700.0f; effects.vy[rocket] = dy / len * 700.0f; effects.radius[rocket] = 20.0f; effects.power[rocket] = 180.0f;
         }
         explode(effects.x[i], effects.y[i], 24.0f, 140.0f, 0.0f); effects.type[i] = EffectSystem.NONE;
-        setMessage("ПВО перехватило бомбу"); break;
+        people.finishRaid(2.0f); setMessage("ПВО перехватило бомбу"); break;
       }
     }
   }
@@ -756,7 +877,11 @@ public final class Game {
     return Math.min(100, (int)(grid.destroyed * 100.0f / total));
   }
   public String statusText() {
-    if (metadata != null && metadata.npp) return "АЭС " + Math2.round(reactorTemperature) + "°C · H " + Math2.round(reactorHydrogen) + "%";
+    if (metadata != null && metadata.npp) {
+      if (reactorAlarmLevel >= 2) return "АЭС ВЫБРОС · бегите!";
+      if (reactorAlarmLevel == 1) return "АЭС АВАРИЯ · укрытие";
+      return "АЭС " + Math2.round(reactorTemperature) + "°C · H " + Math2.round(reactorHydrogen) + "%";
+    }
     return "ранено " + people.injuredCount() + (people.sickCount() > 0 ? " · ☢ " + people.sickCount() : "") + " · живы " + people.livingCount();
   }
   public boolean disasterActive(int type) {
@@ -777,6 +902,13 @@ public final class Game {
   public float shakeX() { return shake > 0.0f ? Math2.sin(time * 71.0f) * shake * 4.0f : 0.0f; }
   public float shakeY() { return shake > 0.0f ? Math2.cos(time * 83.0f) * shake * 3.0f : 0.0f; }
 
+  public int simulationMemoryBytes() {
+    return grid.memoryBytes() + structure.memoryBytes() + fluids.memoryBytes() + services.memoryBytes()
+        + bodies.memoryBytes() + people.memoryBytes() + debris.memoryBytes() + effects.memoryBytes()
+        + fire.memoryBytes() + radiationSystem.memoryBytes() + power.memoryBytes();
+  }
+
+  public void announce(String text) { setMessage(text); }
   private void setMessage(String text) { message = text; messageTime = 3.0f; if (listener != null) listener.message(text); }
-  private void sound(String id, float volume) { if (listener != null) listener.sound(id, volume); }
+  public void sound(String id, float volume) { if (listener != null) listener.sound(id, volume); }
 }

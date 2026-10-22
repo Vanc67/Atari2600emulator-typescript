@@ -29,6 +29,12 @@ public final class MapLoader {
     int special = in.readInt();
     metadata.river = (special & 1) != 0; metadata.volcano = (special & 2) != 0;
     metadata.npp = (special & 4) != 0; metadata.base = (special & 8) != 0;
+    // Recovered 1.8 military bunker: entrance at the surface, rooms at rows 230..237.
+    if (metadata.base) {
+      metadata.shelter = true;
+      metadata.shelterEntranceX = 143.0f * 6.0f + 3.0f; metadata.shelterEntranceY = 1284.0f;
+      metadata.shelterInsideX = 157.0f * 6.0f + 3.0f; metadata.shelterInsideY = 238.0f * 6.0f - 2.05f;
+    }
 
     int position = 0;
     grid.beginLoad(runs);

@@ -6,7 +6,9 @@ import wreckbox.core.CellGrid;
 import wreckbox.core.DebrisSystem;
 import wreckbox.core.EffectSystem;
 import wreckbox.core.FireSystem;
+import wreckbox.core.FluidSystem;
 import wreckbox.core.Game;
+import wreckbox.core.GameListener;
 import wreckbox.core.Maps;
 import wreckbox.core.Materials;
 import wreckbox.core.Math2;
@@ -15,6 +17,7 @@ import wreckbox.core.Props;
 import wreckbox.core.RadiationSystem;
 import wreckbox.core.RagdollStore;
 import wreckbox.core.StructuralSolver;
+import wreckbox.core.ServiceSystem;
 import wreckbox.core.Tools;
 
 public final class CoreTest {
@@ -27,7 +30,7 @@ public final class CoreTest {
   private static final int[] TINT_HASHES = {0x0b777286, 0x21a86b22, 0x218e87aa, 0x9001a2f3, 0xb1cad0f9, 0x0c6a9629, 0xf0ed4208, 0x9980d3cf};
 
   public static void main(String[] args) {
-    content(); mathAndCells(); maps(); structure(); debris(); strikeOracle(); effects(); radiation(); residents();
+    content(); mathAndCells(); maps(); structure(); debris(); strikeOracle(); effects(); radiation(); reactorEmergency(); residents(); fluidsAndServices();
     System.out.println("Wreckbox CoreTest: " + checks + " checks, " + failures + " failures");
     if (failures != 0) throw new RuntimeException("FAILED " + failures);
   }
@@ -241,6 +244,67 @@ public final class CoreTest {
     check(game.grid.material(at) != 0, "brush builds cell");
     game.selectTool(Tools.find("eraser")); game.pointerDown(5 * 6.0f + 3.0f, 5 * 6.0f + 3.0f); game.pointerUp();
     eq(0, game.grid.material(at), "eraser removes cell");
+
+    // A nuclear air burst must not detonate on the first solid pixel it
+    // crosses; only its computed target altitude (or a ground-burst impact)
+    // may trigger it.
+    Game air = new Game(); check(air.loadMap(0), "air-burst map");
+    int terrain = findDestructible(air.grid); check(terrain >= 0, "air-burst terrain");
+    x = (terrain % air.grid.width) * 6.0f + 3.0f; y = (terrain / air.grid.width) * 6.0f + 3.0f;
+    check(air.grid.solidPixel(x, y), "air-burst starts inside terrain");
+    int bomb = air.effects.spawn(EffectSystem.BOMB, x, y, 5.0f);
+    check(bomb >= 0, "air-burst fixture");
+    air.effects.flags[bomb] = 101; air.effects.ty[bomb] = y + 60.0f;
+    air.effects.radius[bomb] = 20.0f; air.effects.power[bomb] = 100.0f;
+    air.effects.update(air, 0.01f);
+    eq(EffectSystem.BOMB, air.effects.type[bomb], "air burst ignores premature terrain impact");
+    eq(0, air.radiationSystem.count, "premature impact creates no nuclear source");
+    air.effects.ty[bomb] = y - 60.0f; air.effects.y[bomb] = air.effects.ty[bomb]; air.effects.update(air, 0.01f);
+    eq(EffectSystem.NONE, air.effects.type[bomb], "air burst detonates at target altitude");
+    eq(1, air.radiationSystem.count, "target air burst creates radiation source");
+    Game ground = new Game(); check(ground.loadMap(0), "ground-burst map");
+    int groundBomb = ground.effects.spawn(EffectSystem.BOMB, x, y, 5.0f);
+    ground.effects.flags[groundBomb] = 101 | EffectSystem.NUKE_GROUND_BURST;
+    ground.effects.ty[groundBomb] = y + 60.0f; ground.effects.radius[groundBomb] = 20.0f; ground.effects.power[groundBomb] = 100.0f;
+    ground.effects.update(ground, 0.01f);
+    eq(EffectSystem.NONE, ground.effects.type[groundBomb], "ground burst still detonates on terrain");
+    check(ground.radiationSystem.count == 1 && ground.radiationSystem.D0[0] > air.radiationSystem.D0[0],
+        "ground-burst bit remains distinct from air-burst flags");
+  }
+
+  private static void reactorEmergency() {
+    Game npp = new Game(); SoundProbe probe = new SoundProbe(); npp.listener = probe;
+    check(npp.loadMap(5), "NPP emergency map");
+    for (int i = 0; i < 10; i++) npp.update(0.05f);
+    eq(0, npp.reactorAlarmLevel, "healthy reactor has no alarm");
+    near(320.0f, npp.reactorTemperature, 0.01f, "recovered normal reactor temperature");
+    int core = Props.find("gcn");
+    for (int i = 0; i < npp.bodies.count; i++) if (npp.bodies.type[i] == core) { npp.bodies.kill(i); break; }
+    for (int i = 0; i < 8; i++) npp.update(0.05f);
+    eq(1, npp.reactorAlarmLevel, "cooling loss triggers SCRAM warning");
+    check(npp.reactorRedLight && npp.reactorScram, "SCRAM enables red emergency lighting");
+    check(probe.sirens > 0, "SCRAM uses original NPP siren");
+    check(probe.civil > 0, "SCRAM raises separate civil-defence siren");
+    npp.people.hidden[0] = true; npp.people.shelterStage[0] = 1; npp.people.mode[0] = PeopleStore.HIDE; npp.people.stateTime[0] = 10.0f;
+    npp.reactorTemperature = 900.0f;
+    for (int i = 0; i < 8; i++) npp.update(0.05f);
+    eq(2, npp.reactorAlarmLevel, "radioactive release raises civil alarm");
+    check(npp.reactorRelease && npp.radiationSystem.count == 1, "NPP release creates one cloud");
+    int fleeing = 0;
+    for (int i = 0; i < npp.people.count; i++) if (npp.people.mode[i] == PeopleStore.FLEE && !npp.people.hidden[i]) fleeing++;
+    check(fleeing > 0, "release evacuates residents instead of hiding them");
+    check(!npp.people.hidden[0] && npp.people.mode[0] == PeopleStore.FLEE, "sheltered residents leave for evacuation");
+    check(probe.sirens >= 2, "release repeats the reactor siren");
+    check(probe.civil >= 2, "release repeats the civil-defence siren");
+  }
+
+  private static final class SoundProbe implements GameListener {
+    int sirens, civil;
+    public void sound(String id, float volume) {
+      if (id.equals("reactorSiren")) sirens++;
+      if (id.equals("siren")) civil++;
+    }
+    public void message(String text) { }
   }
 
   private static void radiation() {
@@ -312,6 +376,61 @@ public final class CoreTest {
     radiation.addNppRelease(90.0f, time, 1.0f, 1);
     for (int step = 0; step < 500; step++) { time += 0.05f; people.update(grid, fire, 0.05f, 450.0f, radiation, time); }
     check(people.dose[exposed] > 0.8f && people.sick[exposed] > 0.0f, "resident accumulated dose and sickness");
+  }
+
+  private static void fluidsAndServices() {
+    Game fluidGame = new Game(); check(fluidGame.loadMap(0), "fluid test map");
+    FluidSystem fluid = new FluidSystem();
+    int added = fluid.add(fluidGame.grid, 15.0f, 15.0f, 255);
+    eq(255, added, "water source volume");
+    for (int i = 0; i < 300; i++) fluid.update(fluidGame, 0.11f, StructuralSolver.NORMAL);
+    check(fluid.count > 1 && fluid.rejected == 0, "water falls and levels into neighboring cells");
+    eq(255, totalFluid(fluid), "water volume conserved without lava");
+    boolean wet = false;
+    for (int i = 0; i < FluidSystem.TABLE; i++) if (fluid.amount[i] != 0) {
+      int at = fluid.cell[i];
+      wet = fluid.submersion(fluidGame.grid, fluidGame.metadata, (at % fluidGame.grid.width) * 6.0f + 3.0f,
+          (at / fluidGame.grid.width) * 6.0f + 5.5f) > 0.0f;
+      if (wet) break;
+    }
+    check(wet, "fluid submersion query");
+
+    CellGrid fireGrid = new CellGrid(8);
+    int burning = fireGrid.index(3, 3); fireGrid.set(burning, 1, 0, 0);
+    FireSystem fire = new FireSystem(); check(fire.ignite(fireGrid, burning), "fluid fire fixture ignites");
+    FluidSystem dousing = new FluidSystem(); dousing.add(fireGrid, 27.0f, 21.0f, 255);
+    fire.update(fireGrid, dousing, new DebrisSystem(), 0.1f);
+    check(!fire.active[0], "adjacent water extinguishes fire");
+
+    Game bodyGame = new Game(); bodyGame.loadMap(0); bodyGame.bodies.allocate(1);
+    bodyGame.bodies.add(0, -1, 15.0f, 15.0f, 6.0f, 6.0f, 0.2f, 10.0f);
+    FluidSystem buoyancy = new FluidSystem(); buoyancy.add(bodyGame.grid, 15.0f, 15.0f, 255);
+    bodyGame.bodies.update(bodyGame.grid, buoyancy, bodyGame.metadata, bodyGame.debris, 0.05f, 450.0f);
+    check(bodyGame.bodies.vy[0] < 0.0f, "light body receives buoyancy");
+
+    Game serviceGame = new Game(); serviceGame.loadMap(0);
+    serviceGame.services.notifyIncident(ServiceSystem.FIRE, serviceGame.cameraX, serviceGame.cameraY);
+    serviceGame.services.notifyIncident(ServiceSystem.MED, serviceGame.people.x[0], serviceGame.people.y[0]);
+    serviceGame.services.notifyIncident(ServiceSystem.POLICE, serviceGame.cameraX, serviceGame.cameraY);
+    serviceGame.services.update(serviceGame, 0.9f);
+    check(serviceGame.services.activeCount(ServiceSystem.FIRE) == 1
+        && serviceGame.services.activeCount(ServiceSystem.MED) == 1
+        && serviceGame.services.activeCount(ServiceSystem.POLICE) == 1, "automatic emergency dispatch");
+    for (int i = 0; i < 12; i++) serviceGame.services.notifyIncident(ServiceSystem.FIRE, serviceGame.cameraX, serviceGame.cameraY);
+    serviceGame.services.update(serviceGame, 0.9f);
+    check(serviceGame.services.activeCount(ServiceSystem.FIRE) == 1 && serviceGame.services.memoryBytes() < 1024,
+        "service pool remains bounded");
+
+    Game raid = new Game(); raid.loadMap(0);
+    raid.people.airRaid(raid.grid, raid.metadata, raid.cameraX, raid.cameraY, 8.0f);
+    for (int i = 0; i < 160; i++) raid.update(0.05f);
+    int sheltered = 0;
+    for (int i = 0; i < raid.people.count; i++) if (raid.people.shelterStage[i] >= 2) sheltered++;
+    check(sheltered > 0, "residents reach simulated shelter during air raid");
+  }
+
+  private static int totalFluid(FluidSystem fluid) {
+    int total = 0; for (int i = 0; i < FluidSystem.TABLE; i++) total += fluid.amount[i] & 255; return total;
   }
 
   private static int findDestructible(CellGrid grid) {

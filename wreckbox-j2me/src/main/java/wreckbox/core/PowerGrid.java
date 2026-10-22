@@ -17,6 +17,8 @@ public final class PowerGrid {
     powered = new boolean[nodes];
   }
 
+  public int memoryBytes() { return nodeCount * 14 + spanCount * 10; }
+
   public void recompute(CellGrid grid) {
     for (int i = 0; i < nodeCount; i++) {
       int at = attachment[i];

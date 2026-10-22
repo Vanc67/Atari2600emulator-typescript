@@ -17,8 +17,8 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
     "Играть", "Карта", "Настройки", "Как играть", "Об игре", "Полный экран"
   };
   private static final String[] SETTINGS_ITEMS = {
-    "Выключить звук", "Проверить громкость взрывом", "Экстренные службы",
-    "Подсказки на экране", "Кровь", "Замедление в ярких моментах"
+    "Выключить звук", "Проверить громкость взрывом", "Режим физики", "Тяжёлые эффекты",
+    "Экстренные службы", "Подсказки на экране", "Кровь", "Замедление в ярких моментах"
   };
   private static final String[] CONTROL_ITEMS = {
     "Пауза", "Замедление времени", "Гравитация", "День / ночь", "Показать нагрузку",
@@ -33,11 +33,15 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
     "Динамит: # подрывает заряды по очереди.",
     "Грави-пушка: схватите и бросьте рывком.",
     "Ядерная бомба: 7/9 — мощность, # — тип",
-    "взрыва. 6 секунд спада радиации = час.", "",
+    "взрыва. Сначала прилетает бомбардировщик.",
+    "6 секунд спада радиации = час.", "",
     "ЖИТЕЛИ", "11-точечные тела падают и кувыркаются.",
     "Ранят удары, падения, взрывы и огонь.",
+    "При тревоге прячутся; скорая лечит раненых.",
     "Облученные бледнеют, тошнотят, слабеют.",
     "Перекрытия ослабляют радиоактивный след.", "",
+    "ФИЗИКА", "В настройках — 3 режима и тяжёлые эффекты.",
+    "Вода течёт в ямы, гасит огонь и поднимает тела.", "",
     "СТРОЙКА", "1/3 — кисть, здания, люди и нагрузка.",
     "Кисть рисует выбранным материалом.", "",
     "КЛАВИШИ", "Стрелки — курсор; 5 — применить.",
@@ -108,9 +112,9 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
   public void stop() {
     running = false;
     if (thread != null) thread.interrupt();
-    settings.save(game);
+    sound.close(); settings.save(game);
   }
-  public void suspend() { game.paused = true; settings.save(game); }
+  public void suspend() { game.paused = true; sound.close(); settings.save(game); }
 
   public void run() {
     long last = System.currentTimeMillis();
@@ -292,10 +296,12 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
       switch (selection) {
         case 0: toggleSound(); break;
         case 1: sound.sound("boom", 0.8f); break;
-        case 2: game.servicesEnabled = !game.servicesEnabled; settings.save(game); break;
-        case 3: game.showToasts = !game.showToasts; settings.save(game); break;
-        case 4: game.bloodEnabled = !game.bloodEnabled; settings.save(game); break;
-        case 5: game.epicSlow = !game.epicSlow; settings.save(game); break;
+        case 2: game.cyclePhysics(); settings.save(game); break;
+        case 3: game.effectsEnabled = !game.effectsEnabled; settings.save(game); break;
+        case 4: game.servicesEnabled = !game.servicesEnabled; settings.save(game); break;
+        case 5: game.showToasts = !game.showToasts; settings.save(game); break;
+        case 6: game.bloodEnabled = !game.bloodEnabled; settings.save(game); break;
+        case 7: game.epicSlow = !game.epicSlow; settings.save(game); break;
         default: break;
       }
       return;
@@ -332,7 +338,11 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
       default: break;
     }
   }
-  private void toggleSound() { sound.enabled = !sound.enabled; settings.sound = sound.enabled; settings.save(game); }
+  private void toggleSound() {
+    sound.enabled = !sound.enabled; settings.sound = sound.enabled;
+    if (!sound.enabled) sound.close();
+    settings.save(game);
+  }
 
   private String menuTitle() {
     if (menu == MENU_SETTINGS) return "Настройки";
@@ -348,10 +358,12 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
     if (menu == MENU_MAPS) return (index + 1) + ". " + Maps.NAMES[index];
     if (menu == MENU_SETTINGS) {
       if (index == 0) return SETTINGS_ITEMS[index] + ": " + (sound.enabled ? "нет" : "да");
-      if (index == 2) return SETTINGS_ITEMS[index] + ": " + onOff(game.servicesEnabled);
-      if (index == 3) return SETTINGS_ITEMS[index] + ": " + onOff(game.showToasts);
-      if (index == 4) return SETTINGS_ITEMS[index] + ": " + onOff(game.bloodEnabled);
-      if (index == 5) return SETTINGS_ITEMS[index] + ": " + onOff(game.epicSlow);
+      if (index == 2) return SETTINGS_ITEMS[index] + ": " + game.physicsText();
+      if (index == 3) return SETTINGS_ITEMS[index] + ": " + onOff(game.effectsEnabled);
+      if (index == 4) return SETTINGS_ITEMS[index] + ": " + onOff(game.servicesEnabled);
+      if (index == 5) return SETTINGS_ITEMS[index] + ": " + onOff(game.showToasts);
+      if (index == 6) return SETTINGS_ITEMS[index] + ": " + onOff(game.bloodEnabled);
+      if (index == 7) return SETTINGS_ITEMS[index] + ": " + onOff(game.epicSlow);
       return SETTINGS_ITEMS[index];
     }
     if (menu == MENU_CONTROL) {

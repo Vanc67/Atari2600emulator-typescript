@@ -2,6 +2,7 @@ package wreckbox.core;
 
 /** Support connectivity, overload cracking and conversion of detached cells to rigid chunks. */
 public final class StructuralSolver {
+  public static final int ECONOMY = 0, NORMAL = 1, DETAILED = 2;
   private static final int MAX_COMPONENT = 65536;
   private static final int INITIAL_COMPONENT = 4096;
   private static final int CELLS_PER_CHUNK = 36;
@@ -15,6 +16,9 @@ public final class StructuralSolver {
 
   public int solve(CellGrid grid, DebrisSystem debris, float gravity) { return solve(grid, debris, gravity, false); }
   public int solve(CellGrid grid, DebrisSystem debris, float gravity, boolean showStress) {
+    return solve(grid, debris, gravity, showStress, NORMAL);
+  }
+  public int solve(CellGrid grid, DebrisSystem debris, float gravity, boolean showStress, int physicsMode) {
     if (queue.length < INITIAL_COMPONENT * 3) queue = new byte[INITIAL_COMPONENT * 3];
     if (showStress && stress.length != (grid.size + 3) / 4) stress = new byte[(grid.size + 3) / 4];
     if (!showStress) stress = NO_STRESS;
@@ -65,7 +69,8 @@ public final class StructuralSolver {
       }
       if (!supported && !overflow && tail > 0) detach(grid, debris, tail);
     }
-    if (gravity > 0.0f) checkOverload(grid, debris, gravity / 450.0f, showStress);
+    if (gravity > 0.0f && physicsMode > ECONOMY) checkOverload(grid, debris, gravity / 450.0f, showStress);
+    if (gravity > 0.0f && physicsMode >= DETAILED) checkDamagedCantilevers(grid, debris);
     return collapsedCells + overloadedCells;
   }
 
@@ -160,6 +165,29 @@ public final class StructuralSolver {
             }
           }
         }
+      }
+    }
+  }
+
+  /** Detailed mode adds local shear on already damaged, unsupported horizontal spans. */
+  private void checkDamagedCantilevers(CellGrid grid, DebrisSystem debris) {
+    for (int y = 1; y < CellGrid.HEIGHT; y++) for (int x = 0; x < grid.width; x++) {
+      int at = y * grid.width + x, material = grid.material(at);
+      if (material == 0 || Materials.FIXED[material] || material == 12 || grid.healthFraction(at) >= 0.995f) continue;
+      if (y + 1 >= CellGrid.HEIGHT || grid.material(at + grid.width) != 0) continue;
+      int span = 1;
+      for (int n = 1; n <= 6 && x - n >= 0; n++) {
+        int side = at - n;
+        if (grid.material(side) == 0 || grid.material(side + grid.width) != 0) break;
+        span++;
+      }
+      for (int n = 1; n <= 6 && x + n < grid.width; n++) {
+        int side = at + n;
+        if (grid.material(side) == 0 || grid.material(side + grid.width) != 0) break;
+        span++;
+      }
+      if (span >= 5 && grid.damage(at, Materials.HP[material] * (0.025f + 0.008f * span))) {
+        overloadedCells++; debris.spawnDust(x * 6.0f + 3.0f, y * 6.0f + 3.0f, Materials.DUST[material], 2);
       }
     }
   }

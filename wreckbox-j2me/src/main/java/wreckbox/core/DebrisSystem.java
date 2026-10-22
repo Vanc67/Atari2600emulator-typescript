@@ -22,6 +22,8 @@ public final class DebrisSystem {
   private final boolean[] explosionEligible = new boolean[MAX_CHUNKS];
   private float contactX, contactY, penetration;
   private int contactGX, contactGY;
+  public int quality = 1;
+  public int maxDust = MAX_DUST;
 
   public void reset() {
     chunkCount = 0; dustCursor = 0;
@@ -48,8 +50,9 @@ public final class DebrisSystem {
   }
 
   public void spawnDust(float x, float y, int color, int count) {
+    if (maxDust <= 0) return;
     for (int n = 0; n < count; n++) {
-      int i = dustCursor++ % MAX_DUST;
+      int i = dustCursor++ % maxDust;
       dustX[i] = x + random.range(-2.0f, 2.0f); dustY[i] = y + random.range(-2.0f, 2.0f);
       dustVx[i] = random.range(-72.0f, 72.0f); dustVy[i] = random.range(-105.0f, 18.0f);
       dustMax[i] = dustLife[i] = random.range(0.45f, 1.5f); dustColor[i] = color;
@@ -59,23 +62,42 @@ public final class DebrisSystem {
 
   /** Returns true when an impact changed structural HP and the solver should run again. */
   public boolean update(CellGrid grid, PeopleStore people, float dt, float gravity) {
+    return update(grid, null, null, people, dt, gravity);
+  }
+
+  public boolean update(CellGrid grid, FluidSystem fluids, MapMetadata metadata, PeopleStore people, float dt, float gravity) {
     boolean changed = false;
     int limit = chunkCount;
     for (int i = 0; i < limit; i++) {
       if (!active[i]) continue;
+      float submerged = fluids == null ? 0.0f : fluids.submersion(grid, metadata, x[i], y[i] + height[i] * 0.25f);
       if (resting[i]) {
-        if (hasSupport(grid, i)) continue;
+        if (submerged < 0.05f && hasSupport(grid, i)) continue;
         resting[i] = false; restTime[i] = 0.0f;
       }
-      vy[i] += gravity * dt;
-      x[i] += vx[i] * dt; y[i] += vy[i] * dt; angle[i] += spin[i] * dt;
+      if (submerged > 0.0f) {
+        float buoyancy = Math2.clamp(1.1f / Math.max(0.25f, Materials.DENSITY[material[i]]), 0.0f, 1.35f);
+        vy[i] += gravity * dt * (1.0f - submerged * buoyancy);
+        float drag = Math.min(0.85f, dt * (0.4f + submerged * 2.4f));
+        vx[i] *= 1.0f - drag; vy[i] *= 1.0f - drag; spin[i] *= 1.0f - drag;
+        vx[i] += fluids.flow(grid, x[i], y[i]) * 42.0f * dt;
+      } else vy[i] += gravity * dt;
+      float startX = x[i], startY = y[i], startAngle = angle[i], integrationSpin = spin[i];
+      float travel = Math.max(Math.abs(vx[i]), Math.abs(vy[i])) * dt;
+      int steps = Math.max(1, Math.min(quality <= 0 ? 2 : quality >= 2 ? 6 : 4, (int)Math.ceil(travel / 5.0f)));
       spin[i] *= 1.0f - Math.min(0.35f, 0.08f * dt);
-      float worldWidth = grid.width * 6.0f;
-      if (x[i] < 2.0f) { x[i] = 2.0f; vx[i] = Math.abs(vx[i]) * 0.3f; }
-      else if (x[i] > worldWidth - 2.0f) { x[i] = worldWidth - 2.0f; vx[i] = -Math.abs(vx[i]) * 0.3f; }
-
-      float cs = Math2.cos(angle[i]), sn = Math2.sin(angle[i]);
-      if (findFloorContact(grid, i, cs, sn)) {
+      float worldWidth = grid.width * 6.0f, cs = 1.0f, sn = 0.0f;
+      boolean contact = false;
+      for (int step = 1; step <= steps; step++) {
+        float fraction = (float)step / steps;
+        x[i] = startX + vx[i] * dt * fraction; y[i] = startY + vy[i] * dt * fraction;
+        angle[i] = startAngle + integrationSpin * dt * fraction;
+        if (x[i] < 2.0f) { x[i] = 2.0f; vx[i] = Math.abs(vx[i]) * 0.3f; }
+        else if (x[i] > worldWidth - 2.0f) { x[i] = worldWidth - 2.0f; vx[i] = -Math.abs(vx[i]) * 0.3f; }
+        cs = Math2.cos(angle[i]); sn = Math2.sin(angle[i]);
+        if (findFloorContact(grid, i, cs, sn)) { contact = true; break; }
+      }
+      if (contact) {
         y[i] -= penetration + 0.02f;
         float impact = Math.max(0.0f, vy[i]) + Math.abs(spin[i]) * Math.max(width[i], height[i]) * 0.18f;
         if (impact > 85.0f) {
@@ -165,6 +187,8 @@ public final class DebrisSystem {
       }
     }
   }
+
+  public int memoryBytes() { return MAX_CHUNKS * 59 + MAX_DUST * 29; }
 
   public int nearest(float px, float py, float range) {
     int found = -1; float best = range * range;

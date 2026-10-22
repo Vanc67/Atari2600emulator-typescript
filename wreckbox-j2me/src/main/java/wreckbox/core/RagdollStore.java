@@ -16,6 +16,7 @@ public final class RagdollStore {
   public boolean[] active, sleeping;
   public float[] x, y, vx, vy, px, py, oldX, oldY, still;
   private byte[] contact;
+  public int quality = 1;
   private boolean escapeUsed;
   private float hitX, hitY;
 
@@ -27,6 +28,7 @@ public final class RagdollStore {
     contact = new byte[size];
   }
   private int base(int person) { return person * POINTS; }
+  public int memoryBytes() { return capacity * 6 + capacity * POINTS * 33; }
   public float centerX(int person) { return x[base(person) + PELVIS]; }
   public float centerY(int person) { return y[base(person) + PELVIS]; }
   public float headX(int person) { return x[base(person) + HEAD]; }
@@ -85,6 +87,11 @@ public final class RagdollStore {
   }
 
   public void update(PeopleStore owner, CellGrid grid, int person, float dt, float gravity, float time) {
+    update(owner, grid, null, null, person, dt, gravity, time);
+  }
+
+  public void update(PeopleStore owner, CellGrid grid, FluidSystem fluids, MapMetadata metadata,
+      int person, float dt, float gravity, float time) {
     int base = base(person);
     if (owner.held[person]) {
       sleeping[person] = false;
@@ -96,7 +103,8 @@ public final class RagdollStore {
     }
     if (sleeping[person]) {
       int pelvis = base + PELVIS;
-      if (!grid.solidPixel(x[pelvis], y[pelvis] + 3.0f) && !grid.solidPixel(x[base + CHEST], y[base + CHEST] + 3.0f)) sleeping[person] = false;
+      boolean inWater = fluids != null && fluids.submersion(grid, metadata, x[pelvis], y[pelvis]) > 0.1f;
+      if (inWater || !grid.solidPixel(x[pelvis], y[pelvis] + 3.0f) && !grid.solidPixel(x[base + CHEST], y[base + CHEST] + 3.0f)) sleeping[person] = false;
       else { owner.updateDown(grid, person, dt, gravity, time); return; }
     }
     float maxSpeed2 = 0.0f;
@@ -110,11 +118,19 @@ public final class RagdollStore {
     float step = dt / steps, impact = 0.0f;
     for (int s = 0; s < steps; s++) {
       for (int n = 0; n < POINTS; n++) {
-        int at = base + n; vy[at] += gravity * step;
+        int at = base + n;
+        float water = fluids == null ? 0.0f : fluids.submersion(grid, metadata, x[at], y[at]);
+        if (water > 0.0f) {
+          vy[at] += gravity * step * (1.0f - water * 0.96f);
+          float drag = Math.min(0.75f, step * (0.5f + water * 2.5f));
+          vx[at] *= 1.0f - drag; vy[at] *= 1.0f - drag;
+          vx[at] += fluids.flow(grid, x[at], y[at]) * 24.0f * step;
+        } else vy[at] += gravity * step;
         px[at] = x[at] + vx[at] * step; py[at] = y[at] + vy[at] * step; contact[at] = 0;
       }
       escapeUsed = false;
-      for (int iteration = 0; iteration < 4; iteration++) {
+      int iterations = quality <= 0 ? 2 : quality >= 2 ? 6 : 4;
+      for (int iteration = 0; iteration < iterations; iteration++) {
         for (int n = 0; n < JOINT_A.length; n++) constraint(base, JOINT_A[n], JOINT_B[n], JOINT_L[n], false);
         for (int n = 0; n < BRACE_A.length; n++) constraint(base, BRACE_A[n], BRACE_B[n], BRACE_L[n], true);
         collideMidpoint(grid, base, 1, 2); collideMidpoint(grid, base, 2, 3); collideMidpoint(grid, base, 2, 5);
