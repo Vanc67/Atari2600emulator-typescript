@@ -6,12 +6,13 @@ import javax.microedition.lcdui.Graphics;
 import javax.microedition.lcdui.Image;
 import wreckbox.core.Game;
 import wreckbox.core.Maps;
+import wreckbox.core.Materials;
 import wreckbox.core.Tools;
 
 /** K510i keypad interface: original menu pages plus the original simulation toolbar. */
 public final class WreckboxCanvas extends Canvas implements Runnable {
-  private static final int MENU_NONE = 0, MENU_MAIN = 1, MENU_SETTINGS = 2, MENU_HELP = 3,
-      MENU_ABOUT = 4, MENU_CONTROL = 5;
+  static final int MENU_NONE = 0, MENU_MAIN = 1, MENU_SETTINGS = 2, MENU_HELP = 3,
+      MENU_ABOUT = 4, MENU_CONTROL = 5, MENU_MAPS = 6;
   private static final String[] MAIN_ITEMS = {
     "Играть", "Карта", "Настройки", "Как играть", "Об игре", "Полный экран"
   };
@@ -64,6 +65,12 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
     "Сталь гнётся. Стекло — нет.", "Каждый этаж давит на нижний. Проверьте.",
     "Страховка не покрывает ядерные удары.", "Чем выше этаж, тем дольше падать."
   };
+  private static final String[] MAP_DESCRIPTIONS = {
+    "Кварталы и высотные дома", "Дома, дворы и спокойные улицы",
+    "Башни и плотная застройка", "Заводы, трубы и резервуары",
+    "Корабли, краны и река", "АЭС и радиационные укрытия",
+    "Техника, склады и система ПВО", "Лава и вулканические бомбы"
+  };
 
   private final Game game = new Game();
   private final SoundSynth sound = new SoundSynth();
@@ -76,7 +83,7 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
   }
   private Thread thread;
   private boolean running, started;
-  private int menu = MENU_NONE, selection, scroll;
+  private int menu = MENU_MAIN, selection, scroll;
   private int cursorX = 64, cursorY = 78, lastPointerX, lastPointerY;
   private int viewWidth = 128, viewHeight = 160;
   private Image buffer;
@@ -89,6 +96,10 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
     started = game.time > 0.0f;
     cursorX = viewWidth / 2; cursorY = (viewHeight + WreckboxRenderer.TOP - WreckboxRenderer.BOTTOM) / 2;
   }
+
+  final int menuPage() { return menu; }
+  final int selectedMap() { return game.mapIndex; }
+  final boolean simulationStarted() { return started; }
 
   public void start() {
     if (running) return;
@@ -201,7 +212,7 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
   protected void pointerPressed(int x, int y) {
     if (menu != MENU_NONE) {
       if (menu == MENU_HELP || menu == MENU_ABOUT) return;
-      int row = (y - rowTop()) / 13 + scroll;
+      int row = (y - rowTop()) / rowHeight() + scroll;
       if (row >= 0 && row < menuCount()) { selection = row; activate(); }
       return;
     }
@@ -224,9 +235,14 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
   private void openMenu(int which) {
     if (game.held) game.pointerUp();
     menu = which; selection = 0; scroll = 0;
+    if (which == MENU_MAPS) selection = game.mapIndex;
     ensureVisible();
   }
-  private void closeMenu() { menu = MENU_NONE; started = true; }
+  private void closeMenu() {
+    menu = MENU_NONE;
+    if (!started) game.paused = false;
+    started = true;
+  }
   private void changeMap(int delta) {
     int index = game.mapIndex + delta;
     if (index < 0) index = Maps.COUNT - 1;
@@ -235,6 +251,7 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
   }
   private int menuCount() {
     if (menu == MENU_MAIN) return MAIN_ITEMS.length;
+    if (menu == MENU_MAPS) return Maps.COUNT;
     if (menu == MENU_SETTINGS) return SETTINGS_ITEMS.length;
     if (menu == MENU_CONTROL) return CONTROL_ITEMS.length;
     if (menu == MENU_HELP) return HELP_LINES.length;
@@ -242,8 +259,11 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
     return 1;
   }
   private int rowTop() { return menu == MENU_MAIN ? 48 : 29; }
-  private int rowHeight() { return menu == MENU_HELP || menu == MENU_ABOUT ? 11 : 13; }
-  private int visibleRows() { return Math.max(3, (viewHeight - rowTop() - 17) / rowHeight()); }
+  private int rowHeight() { return menu == MENU_HELP || menu == MENU_ABOUT || menu == MENU_MAPS ? 11 : 13; }
+  private int visibleRows() {
+    if (menu == MENU_MAPS) return 6;
+    return Math.max(3, (viewHeight - rowTop() - 17) / rowHeight());
+  }
   private void moveSelection(int delta) {
     selection += delta; int count = menuCount();
     if (menu == MENU_HELP || menu == MENU_ABOUT) {
@@ -253,6 +273,9 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
       if (selection >= count) selection = 0;
     }
     ensureVisible();
+    if (menu == MENU_MAPS && selection != game.mapIndex) {
+      game.loadMap(selection); settings.save(game);
+    }
   }
   private void ensureVisible() {
     int rows = visibleRows();
@@ -264,6 +287,7 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
   private void activate() {
     if (menu == MENU_HELP) { openMenu(MENU_MAIN); return; }
     if (menu == MENU_ABOUT) { openMenu(MENU_MAIN); return; }
+    if (menu == MENU_MAPS) { game.loadMap(selection); closeMenu(); settings.save(game); return; }
     if (menu == MENU_SETTINGS) {
       switch (selection) {
         case 0: toggleSound(); break;
@@ -279,7 +303,7 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
     if (menu == MENU_CONTROL) { activateControl(); return; }
     switch (selection) {
       case 0: closeMenu(); break;
-      case 1: game.loadMap(game.mapIndex); closeMenu(); settings.save(game); break;
+      case 1: openMenu(MENU_MAPS); break;
       case 2: openMenu(MENU_SETTINGS); break;
       case 3: openMenu(MENU_HELP); break;
       case 4: openMenu(MENU_ABOUT); break;
@@ -312,6 +336,7 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
 
   private String menuTitle() {
     if (menu == MENU_SETTINGS) return "Настройки";
+    if (menu == MENU_MAPS) return "Выбор карты";
     if (menu == MENU_CONTROL) return "Управление симуляцией";
     if (menu == MENU_HELP) return "Как пользоваться";
     if (menu == MENU_ABOUT) return "Об игре";
@@ -320,6 +345,7 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
   private String menuItem(int index) {
     if (menu == MENU_HELP) return HELP_LINES[index];
     if (menu == MENU_ABOUT) return ABOUT_LINES[index];
+    if (menu == MENU_MAPS) return (index + 1) + ". " + Maps.NAMES[index];
     if (menu == MENU_SETTINGS) {
       if (index == 0) return SETTINGS_ITEMS[index] + ": " + (sound.enabled ? "нет" : "да");
       if (index == 2) return SETTINGS_ITEMS[index] + ": " + onOff(game.servicesEnabled);
@@ -364,10 +390,29 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
       g.setColor(!textPage && index == selection ? 0xffe595 : textPage && menuItem(index).equals(menuItem(index).toUpperCase()) ? 0xf0ce62 : 0xd4dce2);
       drawFit(g, menuItem(index), textPage ? 4 : 6, y, w - (textPage ? 8 : 12), false);
     }
+    if (menu == MENU_MAPS) {
+      g.setColor(0x182836); g.fillRect(2, 98, w - 4, 43);
+      g.setColor(0xd8e1e6); drawFit(g, MAP_DESCRIPTIONS[game.mapIndex], 6, 103, 76, false);
+      g.setColor(0x8fa1ae); g.drawString(Maps.WIDTHS[game.mapIndex] + " × 260", 6, 117, Graphics.LEFT | Graphics.TOP);
+      g.setColor(0xf0ce62); g.drawString("5 — играть", 6, 129, Graphics.LEFT | Graphics.TOP);
+      drawMapPreview(g, w - 41, 102, 36, 34);
+    }
     g.setColor(0x8fa1ae);
     String footer = menu == MENU_MAIN ? "ItsLamba · v1.8 · 5 — выбрать" : "Левый soft: назад · 5: действие";
     if (menu == MENU_HELP || menu == MENU_ABOUT) footer = "2/8 — листать · 5 — назад";
+    if (menu == MENU_MAPS) footer = "2/8 — выбор · 5 — играть";
     g.drawString(footer, w / 2, h - 12, Graphics.HCENTER | Graphics.TOP);
+  }
+
+  private void drawMapPreview(Graphics g, int x, int y, int w, int h) {
+    g.setColor(game.night ? 0x152238 : 0x739dbc); g.fillRect(x, y, w, h);
+    for (int gy = 70; gy < 240; gy += 4) for (int gx = 0; gx < game.grid.width; gx += 5) {
+      int material = game.grid.materialAt(gx, gy);
+      if (material == 0) continue;
+      g.setColor(game.night ? (Materials.COLORS[material] & 0x7f7f7f) : Materials.COLORS[material]);
+      g.fillRect(x + gx * w / game.grid.width, y + (gy - 70) * h / 170, 1, 1);
+    }
+    g.setColor(0x587083); g.drawRect(x, y, w - 1, h - 1);
   }
 
   private void drawFit(Graphics g, String text, int x, int y, int maxWidth, boolean centered) {

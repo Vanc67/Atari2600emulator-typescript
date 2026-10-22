@@ -12,7 +12,7 @@ public final class PlatformTest {
   private static int checks, failures;
   public static void main(String[] args) {
     Graphics graphics = new Graphics();
-    renderMaps(graphics); exerciseTools(graphics); maximumNuke(graphics);
+    renderMaps(graphics); renderDestruction(graphics); exerciseTools(graphics); maximumNuke(graphics);
     System.out.println("Wreckbox PlatformTest: " + checks + " checks, " + failures + " failures");
     if (failures != 0) throw new RuntimeException("FAILED " + failures);
   }
@@ -30,6 +30,22 @@ public final class PlatformTest {
       } catch (RuntimeException e) { check(false, "render " + Maps.IDS[i] + " " + e); }
     }
   }
+  private static void renderDestruction(Graphics graphics) {
+    Game game = new Game(); game.loadMap(0); game.zoom = 0.65f;
+    for (int i = 0; i < 12; i++) {
+      int slot = game.debris.spawnChunk(game.cameraX + (i - 6) * 9.0f, game.cameraY - 25.0f + (i % 3) * 9.0f,
+          6.0f + (i % 3) * 2.0f, 5.0f + (i % 4), 1 + i % 7, 12, 4.0f, 40.0f);
+      game.debris.angle[slot] = i * 0.37f; game.debris.hp[slot] = 12.0f;
+    }
+    game.debris.spawnDust(game.cameraX, game.cameraY, 0xa09080, 80);
+    try {
+      WreckboxRenderer renderer = new WreckboxRenderer(game);
+      renderer.render(graphics, 128, 160, 64, 80);
+      game.night = true; renderer.render(graphics, 128, 160, 64, 80);
+      check(true, "rotated damaged debris and dust day/night");
+    } catch (RuntimeException e) { check(false, "destruction renderer " + e); }
+  }
+
   private static void exerciseTools(Graphics graphics) {
     for (int tool = 0; tool < Tools.COUNT; tool++) {
       Game game = new Game(); game.loadMap(0); WreckboxRenderer renderer = new WreckboxRenderer(game);

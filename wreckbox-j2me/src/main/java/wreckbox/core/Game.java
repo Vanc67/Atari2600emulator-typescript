@@ -210,7 +210,7 @@ public final class Game {
     people.update(grid, fire, dt, gravity, radiationSystem, time);
     radiationSystem.update(time);
     doseRate = radiationSystem.rate(grid, cameraX, cameraY + 12.0f, time);
-    debris.update(grid, dt, gravity);
+    if (debris.update(grid, people, dt, gravity)) structuralDirty = true;
     updateDisasters(dt);
     specialClock += dt;
     if (specialClock >= 0.25f) { updateSpecial(specialClock); specialClock = 0.0f; }

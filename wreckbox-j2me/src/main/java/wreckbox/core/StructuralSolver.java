@@ -3,7 +3,7 @@ package wreckbox.core;
 /** Support connectivity, overload cracking and conversion of detached cells to rigid chunks. */
 public final class StructuralSolver {
   private static final int MAX_COMPONENT = 65536;
-  private static final int CELLS_PER_CHUNK = 96;
+  private static final int CELLS_PER_CHUNK = 36;
   private final int[] queue = new int[MAX_COMPONENT];
   private final int[] histogram = new int[Materials.COUNT];
   public int collapsedCells;
@@ -88,7 +88,10 @@ public final class StructuralSolver {
       if (actual <= 0) continue;
       int slot = debris.spawnChunk(sx / actual, sy / actual, (maxX - minX + 1) * 6,
           (maxY - minY + 1) * 6, dominant, actual, mass, hp);
-      if (slot >= 0) chunksCreated++;
+      if (slot >= 0) {
+        chunksCreated++;
+        debris.spawnDust(sx / actual, sy / actual, Materials.DUST[dominant], Math.min(7, 1 + actual / 5));
+      }
     }
   }
 

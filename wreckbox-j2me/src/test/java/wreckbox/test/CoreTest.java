@@ -26,7 +26,7 @@ public final class CoreTest {
   private static final int[] HASHES = {0x8e7344c8, 0x2534cc78, 0x90b403ed, 0xf21c1dee, 0x2a5c4f18, 0xca89cf9a, 0x87e85369, 0x4f6b17e0};
 
   public static void main(String[] args) {
-    content(); mathAndCells(); maps(); structure(); strikeOracle(); effects(); radiation(); residents();
+    content(); mathAndCells(); maps(); structure(); debris(); strikeOracle(); effects(); radiation(); residents();
     System.out.println("Wreckbox CoreTest: " + checks + " checks, " + failures + " failures");
     if (failures != 0) throw new RuntimeException("FAILED " + failures);
   }
@@ -108,6 +108,76 @@ public final class CoreTest {
       if (solver.overloadedCells > 0 || solver.collapsedCells > 0) fractured = true;
     }
     check(fractured, "weight overload fractures weak support");
+  }
+
+  private static void debris() {
+    DebrisSystem pool = new DebrisSystem();
+    for (int i = 0; i < DebrisSystem.MAX_CHUNKS + 8; i++) pool.spawnChunk(30.0f, 30.0f, 6.0f, 6.0f, 2, 1, 1.0f, 10.0f);
+    eq(DebrisSystem.MAX_CHUNKS, pool.chunkCount, "chunk pool hard cap");
+    eq(DebrisSystem.MAX_CHUNKS, activeChunks(pool), "chunk pool remains fully active");
+    pool.spawnDust(30.0f, 30.0f, 0xa08070, DebrisSystem.MAX_DUST + 20);
+    int dust = 0; boolean dustData = true;
+    for (int i = 0; i < DebrisSystem.MAX_DUST; i++) {
+      if (pool.dustLife[i] > 0.0f) dust++;
+      if (pool.dustLife[i] != pool.dustMax[i] || pool.dustSize[i] < 1 || pool.dustSize[i] > 3) dustData = false;
+    }
+    eq(DebrisSystem.MAX_DUST, dust, "dust ring hard cap"); check(dustData, "dust lifetime and size initialized");
+    pool.reset(); eq(0, pool.chunkCount, "debris reset chunks"); eq(0, activeDust(pool), "debris reset dust");
+
+    CellGrid empty = new CellGrid(32); DebrisSystem rotating = new DebrisSystem();
+    int body = rotating.spawnChunk(60.0f, 100.0f, 12.0f, 6.0f, 2, 12, 4.0f, 50.0f);
+    rotating.vx[body] = rotating.vy[body] = 0.0f; rotating.spin[body] = 1.5f;
+    rotating.update(empty, null, 0.1f, 450.0f);
+    near(0.15f, rotating.angle[body], 0.0001f, "fragment angular integration");
+    check(rotating.y[body] > 100.0f, "fragment gravity integration");
+    float beforeBlastVy = rotating.vy[body];
+    rotating.applyExplosion(60.0f, rotating.y[body], 50.0f, 100.0f);
+    check(!rotating.resting[body] && rotating.vy[body] < beforeBlastVy, "explosion wakes and launches fragment");
+
+    CellGrid floor = new CellGrid(32);
+    for (int x = 0; x < floor.width; x++) floor.set(floor.index(x, 200), 9, 0, 0);
+    DebrisSystem landing = new DebrisSystem();
+    int landed = landing.spawnChunk(48.0f, 1190.0f, 12.0f, 6.0f, 4, 6, 5.0f, 10000.0f);
+    landing.vx[landed] = landing.vy[landed] = landing.spin[landed] = 0.0f;
+    for (int step = 0; step < 240; step++) landing.update(floor, null, 1.0f / 30.0f, 450.0f);
+    check(landing.active[landed] && landing.resting[landed], "fragment settles on support");
+    float cs = Math2.cos(landing.angle[landed]), sn = Math2.sin(landing.angle[landed]);
+    float bottom = landing.y[landed] + Math.abs(sn) * landing.width[landed] * 0.5f + Math.abs(cs) * landing.height[landed] * 0.5f;
+    check(bottom <= 1200.2f && bottom > 1180.0f, "contact resolves upward without tunneling");
+
+    CellGrid breakable = new CellGrid(32);
+    for (int x = 0; x < breakable.width; x++) breakable.set(breakable.index(x, 200), 2, 0, 0);
+    int floorCell = breakable.index(2, 200); float oldFloorHp = breakable.health(floorCell);
+    PeopleStore people = new PeopleStore(); people.allocate(1);
+    int person = people.add(18.0f, 1200.0f, 100.0f, 22.0f, 85.0f, 1, 0, 0);
+    DebrisSystem impact = new DebrisSystem();
+    int projectile = impact.spawnChunk(18.0f, 1197.0f, 6.0f, 6.0f, 3, 8, 10.0f, 10000.0f);
+    impact.vx[projectile] = 0.0f; impact.vy[projectile] = 300.0f; impact.spin[projectile] = 0.0f;
+    boolean changed = impact.update(breakable, people, 0.01f, 450.0f);
+    check(changed, "partial secondary impact marks structure dirty");
+    check(breakable.health(floorCell) < oldFloorHp && breakable.material(floorCell) == 2, "secondary impact damages floor HP");
+    check(people.hp[person] < 100.0f && people.panic[person] > 0.0f, "falling fragment injures and scares resident");
+
+    DebrisSystem fracture = new DebrisSystem();
+    int parent = fracture.spawnChunk(50.0f, 50.0f, 12.0f, 12.0f, 2, 20, 4.0f, 5.0f);
+    int freeLaterSlot = fracture.spawnChunk(500.0f, 500.0f, 6.0f, 6.0f, 2, 1, 1.0f, 5.0f);
+    fracture.active[freeLaterSlot] = false;
+    fracture.applyExplosion(50.0f, 50.0f, 50.0f, 200.0f);
+    eq(3, activeChunks(fracture), "impact fractures chunk into children");
+    int cells = 0; float mass = 0.0f; boolean smaller = true;
+    for (int i = 0; i < fracture.chunkCount; i++) if (fracture.active[i]) {
+      cells += fracture.cells[i]; mass += fracture.mass[i];
+      if (fracture.width[i] >= 12.0f || fracture.height[i] >= 12.0f) smaller = false;
+    }
+    eq(20, cells, "fracture conserves cells"); near(4.0f, mass, 0.0001f, "fracture conserves mass");
+    check(smaller, "fracture children are smaller");
+  }
+
+  private static int activeChunks(DebrisSystem debris) {
+    int count = 0; for (int i = 0; i < debris.chunkCount; i++) if (debris.active[i]) count++; return count;
+  }
+  private static int activeDust(DebrisSystem debris) {
+    int count = 0; for (int i = 0; i < DebrisSystem.MAX_DUST; i++) if (debris.dustLife[i] > 0.0f) count++; return count;
   }
 
   private static void strikeOracle() {
