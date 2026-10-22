@@ -1,0 +1,8 @@
+MIDlet-1: Retro Destruction Lab, /icon.png, rdl.platform.LabMidlet
+MIDlet-Name: Retro Destruction Lab
+MIDlet-Vendor: True Sandbox Lab
+MIDlet-Version: 0.1.0
+MIDlet-Jar-URL: RetroDestructionLab.jar
+MicroEdition-Profile: MIDP-2.0
+MicroEdition-Configuration: CLDC-1.1
+MIDlet-Jar-Size: 17228

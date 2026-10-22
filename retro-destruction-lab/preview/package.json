@@ -1,0 +1,13 @@
+{
+  "name": "retro-destruction-lab-j2me-preview",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "WebGPU smoke-test shell for the unmodified Retro Destruction Lab MIDlet JAR",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "j2me-web": "0.1.0"
+  }
+}

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Retro Destruction Lab — J2ME K510i</title>
+  <style>
+    :root { color-scheme: dark; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 50% 0%, #1c2940, #070a11 62%); color: #d5e0e8; }
+    main { width: min(100%, 920px); margin: auto; padding: 18px; display: grid; grid-template-columns: minmax(260px, 1fr) 250px; gap: 22px; align-items: start; }
+    header { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px; }
+    h1 { margin: 0; color: #f07b32; font-size: clamp(18px, 4vw, 30px); letter-spacing: .05em; }
+    header p { margin: 4px 0 0; color: #718198; font-size: 12px; }
+    .downloads { display: flex; gap: 8px; }
+    a { color: #52d6d3; text-decoration: none; border: 1px solid #26344a; padding: 7px 10px; border-radius: 5px; font-size: 12px; }
+    a:hover { border-color: #52d6d3; }
+    .screen-shell { justify-self: center; width: min(100%, 440px); padding: 14px; border: 1px solid #31445f; border-radius: 16px; background: #101724; box-shadow: 0 22px 60px #000a, inset 0 1px #ffffff0d; text-align: center; }
+    #game { display: block; margin: auto; width: min(100%, 384px) !important; height: auto !important; aspect-ratio: 4 / 5; background: #0b0e17; border: 2px solid #26344a; image-rendering: pixelated; image-rendering: crisp-edges; }
+    #status { min-height: 28px; margin: 10px 0 0; color: #718198; font-size: 11px; line-height: 1.4; }
+    #status.ready { color: #55d68b; }
+    #status.error { color: #ef4756; }
+    .keypad { padding: 14px; border: 1px solid #26344a; border-radius: 14px; background: #111927; user-select: none; }
+    .keypad h2 { margin: 0 0 6px; color: #f7c948; font-size: 13px; }
+    .keypad p { margin: 0 0 12px; color: #718198; font-size: 10px; line-height: 1.5; }
+    .keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+    button { min-height: 43px; border: 1px solid #3a4e6a; border-bottom-width: 3px; border-radius: 7px; background: #1d2a3e; color: #d5e0e8; font: 700 15px ui-monospace, monospace; touch-action: none; cursor: pointer; }
+    button:active { transform: translateY(2px); border-bottom-width: 1px; background: #2c405d; }
+    button small { display: block; margin-top: 2px; color: #718198; font-size: 7px; font-weight: 400; }
+    button.soft { margin-bottom: 7px; color: #55d68b; font-size: 10px; }
+    button.fire { background: #59303a; border-color: #9a4755; }
+    .help { grid-column: 1 / -1; color: #718198; font-size: 11px; line-height: 1.6; }
+    .help strong { color: #d5e0e8; }
+    @media (max-width: 690px) {
+      main { grid-template-columns: 1fr; padding: 12px; gap: 14px; }
+      .keypad { width: min(100%, 440px); justify-self: center; }
+      .help { display: none; }
+      header { justify-content: center; text-align: center; }
+      .downloads { justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1>RETRO DESTRUCTION LAB</h1><p>Тот же J2ME JAR · MIDP 2.0 · K510i 128×160</p></div>
+    <div class="downloads"><a href="/game.jar" download>JAR</a><a href="/game.jad" download>JAD</a></div>
+  </header>
+  <section class="screen-shell">
+    <canvas id="game" width="128" height="160" aria-label="Экран J2ME-игры"></canvas>
+    <div id="status">Загрузка MIDlet и WebGPU…</div>
+  </section>
+  <section class="keypad" aria-label="Виртуальная клавиатура телефона">
+    <h2>КНОПОЧНЫЙ ТЕЛЕФОН</h2>
+    <p>Нажимайте мышью или удерживайте пальцем.<br>На компьютере работают цифры, Enter, *, #, Q/R.</p>
+    <div class="keys">
+      <button class="soft" data-key="-6">SOFT 1<small>ПАУЗА</small></button>
+      <span></span>
+      <button class="soft" data-key="-7">SOFT 2<small>МЕНЮ</small></button>
+      <button data-key="49">1<small>МАТЕРИАЛ −</small></button>
+      <button data-key="50">2<small>ВВЕРХ</small></button>
+      <button data-key="51">3<small>МАТЕРИАЛ +</small></button>
+      <button data-key="52">4<small>ВЛЕВО</small></button>
+      <button class="fire" data-key="53">5<small>ПРИМЕНИТЬ</small></button>
+      <button data-key="54">6<small>ВПРАВО</small></button>
+      <button data-key="55">7<small>ИНСТРУМЕНТ</small></button>
+      <button data-key="56">8<small>ВНИЗ</small></button>
+      <button data-key="57">9<small>ПАУЗА</small></button>
+      <button data-key="42">*<small>СКОРОСТЬ</small></button>
+      <button data-key="48">0<small>СЦЕНА / ЗВУК</small></button>
+      <button data-key="35">#<small>ЗАНОВО</small></button>
+    </div>
+  </section>
+  <div class="help"><strong>Быстрый старт:</strong> нажмите 5 → 7 три раза для Blast → наведите курсор на красный TNT → 5. Клавиша 9 ставит симуляцию на паузу. Preview — только стенд совместимости; устанавливаемая игра находится в JAR.</div>
+</main>
+<script>
+  // j2me-web 0.1.0 bundles a Browserify fallback that expects this symbol to exist.
+  window.require = function () { throw new Error('External CommonJS modules are unavailable'); };
+</script>
+<script type="module">
+  import { J2MEWeb } from '/runtime.js';
+  const status = document.getElementById('status');
+  const canvas = document.getElementById('game');
+  window.previewStatus = 'loading';
+  try {
+    const response = await fetch('/game.jar');
+    if (!response.ok) throw new Error(`JAR: HTTP ${response.status}`);
+    const j2me = new J2MEWeb({
+      canvas,
+      jar: await response.arrayBuffer(),
+      midletId: 'retro-destruction-lab-k510i',
+      performanceMonitor: { enabled: true, targetFps: 15 },
+    });
+    window.j2me = j2me;
+    await j2me.start();
+    status.textContent = 'MIDlet запущен · 5 — старт / применить инструмент.';
+    status.className = 'ready';
+    window.previewStatus = 'ready';
+
+    const held = new Map();
+    function press(code) {
+      if (!held.get(code)) {
+        held.set(code, true);
+        j2me.input.triggerKeyPressed(code);
+      }
+    }
+    function release(code) {
+      if (held.get(code)) {
+        held.set(code, false);
+        j2me.input.triggerKeyReleased(code);
+      }
+    }
+    document.querySelectorAll('[data-key]').forEach(button => {
+      const code = Number(button.dataset.key);
+      button.addEventListener('pointerdown', event => {
+        event.preventDefault();
+        button.setPointerCapture(event.pointerId);
+        press(code);
+      });
+      for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+        button.addEventListener(type, () => release(code));
+      }
+    });
+    const keyboard = {
+      '0': 48, '1': 49, '2': 50, '3': 51, '4': 52,
+      '5': 53, '6': 54, '7': 55, '8': 56, '9': 57,
+      '*': 42, '#': 35, 'Enter': -5,
+      'ArrowUp': -1, 'ArrowDown': -2, 'ArrowLeft': -3, 'ArrowRight': -4,
+      'q': -6, 'Q': -6, 'r': -7, 'R': -7,
+    };
+    addEventListener('keydown', event => {
+      const code = keyboard[event.key];
+      if (code !== undefined) { event.preventDefault(); press(code); }
+    });
+    addEventListener('keyup', event => {
+      const code = keyboard[event.key];
+      if (code !== undefined) { event.preventDefault(); release(code); }
+    });
+    addEventListener('blur', () => { for (const code of held.keys()) release(code); });
+  } catch (error) {
+    console.error(error);
+    status.textContent = `Не удалось запустить VM: ${error.message}. Нужен браузер с WebGPU.`;
+    status.className = 'error';
+    window.previewStatus = `error: ${error.message}`;
+  }
+</script>
+</body>
+</html>
