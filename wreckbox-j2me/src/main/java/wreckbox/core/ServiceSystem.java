@@ -10,22 +10,24 @@ public final class ServiceSystem {
   public final float[] x = new float[MAX_UNITS], y = new float[MAX_UNITS];
   public final float[] targetX = new float[MAX_UNITS], targetY = new float[MAX_UNITS];
   public final float[] timer = new float[MAX_UNITS], work = new float[MAX_UNITS];
+  public final float[] patientWork = new float[MAX_UNITS];
   public final int[] patient = new int[MAX_UNITS];
   private final boolean[] pending = new boolean[4], sirenPlayed = new boolean[MAX_UNITS];
   private final float[] pendingX = new float[4], pendingY = new float[4];
-  private final float[] cooldown = new float[4];
-  private float scanClock, actionClock;
+  private final float[] cooldown = new float[4], pendingTTL = new float[4];
+  private float scanClock, actionClock, fireX, fireY;
   public int saved, firesHandled;
 
   public void reset() {
-    for (int i = 0; i < MAX_UNITS; i++) { type[i] = NONE; state[i] = 0; patient[i] = -1; sirenPlayed[i] = false; }
-    for (int i = 0; i < 4; i++) { pending[i] = false; cooldown[i] = 0.0f; }
+    for (int i = 0; i < MAX_UNITS; i++) { type[i] = NONE; state[i] = 0; patient[i] = -1; patientWork[i] = 0.0f; sirenPlayed[i] = false; }
+    for (int i = 0; i < 4; i++) { pending[i] = false; cooldown[i] = pendingTTL[i] = 0.0f; }
     scanClock = actionClock = 0.0f; saved = firesHandled = 0;
   }
 
   public void notifyIncident(int kind, float px, float py) {
     if (kind < FIRE || kind > POLICE) return;
     pending[kind] = true; pendingX[kind] = px; pendingY[kind] = py;
+    pendingTTL[kind] = kind == FIRE ? 7.0f : kind == MED ? 6.0f : 38.0f;
   }
 
   public int activeCount(int kind) {
@@ -36,7 +38,13 @@ public final class ServiceSystem {
 
   public void update(Game game, float dt) {
     if (!game.servicesEnabled) return;
-    for (int i = 1; i <= POLICE; i++) cooldown[i] = Math.max(0.0f, cooldown[i] - dt);
+    for (int i = 1; i <= POLICE; i++) {
+      cooldown[i] = Math.max(0.0f, cooldown[i] - dt);
+      if (pending[i]) {
+        pendingTTL[i] -= dt;
+        if (pendingTTL[i] <= 0.0f) pending[i] = false;
+      }
+    }
     scanClock += dt; actionClock += dt;
     boolean scan = scanClock >= 0.8f, action = actionClock >= 0.25f;
     if (scan) { scanClock = 0.0f; scanIncidents(game); }
@@ -55,13 +63,14 @@ public final class ServiceSystem {
         // a civil alarm and not a second sound on every arrival tick.
         if (!sirenPlayed[i] && timer[i] <= 2.4f) {
           sirenPlayed[i] = true;
-          game.sound(kind == MED ? "medSiren" : "serviceSiren", 0.35f);
+          game.sound(sirenId(kind, 32), 0.35f);
         }
         if (timer[i] <= 0.0f || Math.abs(targetX[i] - x[i]) < 12.0f) {
           x[i] = targetX[i]; state[i] = WORK; work[i] = 0.0f; timer[i] = 0.0f;
         }
       } else if (state[i] == WORK) {
         work[i] += dt;
+        if (kind == MED && patient[i] >= 0) patientWork[i] += dt;
         if (action) work(game, i);
         if (work[i] > (kind == POLICE ? 9.0f : 20.0f)) leave(game, i);
       } else if (state[i] == LEAVING) {
@@ -74,11 +83,8 @@ public final class ServiceSystem {
   }
 
   private void scanIncidents(Game game) {
-    for (int i = 0; i < FireSystem.MAX; i++) if (game.fire.active[i]) {
-      int at = game.fire.cell[i];
-      notifyIncident(FIRE, (at % game.grid.width) * 6.0f + 3.0f, (at / game.grid.width) * 6.0f + 3.0f);
-      break;
-    }
+    // Recovered Py() reports burning cells, props and residents as fires.
+    if (findFire(game, game.cameraX, game.cameraY, false)) notifyIncident(FIRE, fireX, fireY);
     int patient = findPatient(game, game.cameraX, 10000.0f);
     if (patient >= 0) notifyIncident(MED, game.people.centerX(patient), game.people.centerY(patient));
     for (int i = 0; i < game.people.count; i++) if (game.people.state[i] < PeopleStore.DEAD && game.people.panic[i] > 4.0f) {
@@ -91,7 +97,7 @@ public final class ServiceSystem {
     for (int i = 0; i < MAX_UNITS; i++) if (type[i] == NONE) { slot = i; break; }
     if (slot < 0) return;
     pending[kind] = false;
-    type[slot] = (byte)kind; state[slot] = (byte)INBOUND; patient[slot] = -1; work[slot] = 0.0f;
+    type[slot] = (byte)kind; state[slot] = (byte)INBOUND; patient[slot] = -1; patientWork[slot] = 0.0f; work[slot] = 0.0f;
     targetX[slot] = pendingX[kind]; targetY[slot] = pendingY[kind];
     int vehicle = findStationVehicle(game, kind);
     if (vehicle >= 0) {
@@ -102,9 +108,9 @@ public final class ServiceSystem {
       y[slot] = game.findGround((int)(targetX[slot] / 6.0f)) * 6.0f - 8.0f;
     }
     timer[slot] = 1.2f + Math.abs(targetX[slot] - x[slot]) / 155.0f + (vehicle < 0 ? 5.0f : 0.0f);
-    sirenPlayed[slot] = vehicle >= 0;
+    sirenPlayed[slot] = false;
     game.announce(kind == FIRE ? "Пожарные выехали" : kind == MED ? "Скорая выехала" : "Полиция выехала");
-    if (vehicle >= 0) game.sound(kind == MED ? "medSiren" : "serviceSiren", 0.55f);
+    if (vehicle >= 0) game.sound(sirenId(kind, 24), 0.55f);
   }
 
   private int findStationVehicle(Game game, int kind) {
@@ -121,26 +127,33 @@ public final class ServiceSystem {
   private void work(Game game, int i) {
     int kind = type[i];
     if (kind == FIRE) {
-      int burning = nearestFire(game, targetX[i]);
-      if (burning >= 0) {
-        targetX[i] = (burning % game.grid.width) * 6.0f + 3.0f;
-        targetY[i] = (burning / game.grid.width) * 6.0f + 3.0f;
+      if (findFire(game, targetX[i], targetY[i], true)) {
+        targetX[i] = fireX; targetY[i] = fireY;
         game.douse(targetX[i], targetY[i], 72.0f);
         game.fluids.add(game.grid, targetX[i], targetY[i] - 8.0f, 24);
       } else if (work[i] > 2.0f) { firesHandled++; leave(game, i); }
     } else if (kind == MED) {
       int found = patient[i];
-      if (found < 0 || found >= game.people.count || game.people.state[found] >= PeopleStore.DEAD
-          || game.people.hp[found] >= 99.9f && game.people.bleed[found] < 0.02f)
+      if (found < 0 || found >= game.people.count || !patientEligible(game, found)
+          || game.people.state[found] != PeopleStore.DEAD && game.people.hp[found] >= 99.9f && game.people.bleed[found] < 0.02f)
         found = findPatient(game, targetX[i], 600.0f);
+      if (found != patient[i]) patientWork[i] = 0.0f;
       patient[i] = found;
       if (found >= 0) {
         targetX[i] = game.people.centerX(found); targetY[i] = game.people.centerY(found);
-        boolean severe = game.people.noGetUp[found] || game.people.hp[found] < 35.0f;
-        game.people.heal(found, 9.0f);
-        if (game.people.hp[found] >= 85.0f && game.people.bleed[found] < 0.03f) {
-          if (severe) game.people.rescue(found);
-          saved++; patient[i] = -1;
+        if (game.people.state[found] == PeopleStore.DEAD) {
+          // vy() also reports a sleeping dead ragdoll.  The original spends
+          // 1.6 s picking it up; dead recovery is not counted as a saved life.
+          if (patientWork[i] >= 1.6f) {
+            game.people.rescue(found); patient[i] = -1; patientWork[i] = 0.0f;
+          }
+        } else {
+          boolean severe = game.people.noGetUp[found] || game.people.hp[found] < 35.0f;
+          game.people.heal(found, 9.0f);
+          if (game.people.hp[found] >= 85.0f && game.people.bleed[found] < 0.03f) {
+            if (severe) game.people.rescue(found);
+            saved++; patient[i] = -1; patientWork[i] = 0.0f;
+          }
         }
       } else if (work[i] > 2.0f) leave(game, i);
     } else {
@@ -149,36 +162,67 @@ public final class ServiceSystem {
     }
   }
 
-  private int nearestFire(Game game, float nearX) {
-    int found = -1; float best = 1000000000.0f;
+  private boolean findFire(Game game, float nearX, float nearY, boolean local) {
+    boolean found = false; float best = 1000000000.0f;
     for (int i = 0; i < FireSystem.MAX; i++) if (game.fire.active[i]) {
       float px = (game.fire.cell[i] % game.grid.width) * 6.0f + 3.0f;
-      float distance = Math.abs(px - nearX);
-      if (distance < best) { best = distance; found = game.fire.cell[i]; }
+      float py = (game.fire.cell[i] / game.grid.width) * 6.0f + 3.0f;
+      float dx = px - nearX, dy = py - nearY + 12.0f;
+      if (local && Math.abs(dx) > 420.0f) continue;
+      float distance = dx * dx + dy * dy * 1.4f;
+      if (distance < best) { best = distance; fireX = px; fireY = py; found = true; }
+    }
+    for (int i = 0; i < game.bodies.count; i++) if (game.bodies.alive(i) && (game.bodies.flags[i] & BodyStore.F_BURNING) != 0) {
+      float dx = game.bodies.x[i] - nearX, dy = game.bodies.y[i] - nearY + 12.0f;
+      if (local && Math.abs(dx) > 420.0f) continue;
+      float distance = dx * dx + dy * dy * 1.4f;
+      if (distance < best) { best = distance; fireX = game.bodies.x[i]; fireY = game.bodies.y[i]; found = true; }
+    }
+    for (int i = 0; i < game.people.count; i++) if (game.people.state[i] != PeopleStore.GONE && !game.people.hidden[i] && game.people.burnTime[i] > 0.0f) {
+      float px = game.people.centerX(i), py = game.people.centerY(i);
+      float dx = px - nearX, dy = py - nearY + 12.0f;
+      if (local && Math.abs(dx) > 420.0f) continue;
+      float distance = dx * dx + dy * dy * 1.4f;
+      if (distance < best) { best = distance; fireX = px; fireY = py; found = true; }
     }
     return found;
+  }
+
+  private boolean patientEligible(Game game, int i) {
+    if (i < 0 || i >= game.people.count || game.people.state[i] == PeopleStore.GONE
+        || game.people.hidden[i] || game.people.charred[i] > 0.7f) return false;
+    if (game.people.state[i] == PeopleStore.DEAD)
+      return game.people.rag.active[i] && game.people.rag.sleeping[i];
+    // Recovered vy(): a walking or merely bruised resident is not a patient.
+    // They must have been ragdolled for two seconds and have a real medical
+    // condition (or noGetUp), rather than simply having HP below 85.
+    if (!game.people.rag.active[i] || game.people.downTime[i] < 2.0f || game.people.burnTime[i] > 0.0f) return false;
+    return game.people.noGetUp[i] || game.people.hp[i] < 50.0f
+        || game.people.bleed[i] > 0.12f || game.people.dose[i] > 3.0f;
   }
 
   private int findPatient(Game game, float nearX, float range) {
     int found = -1; float best = range;
     for (int i = 0; i < game.people.count; i++) {
-      if (game.people.state[i] >= PeopleStore.DEAD || game.people.hidden[i]) continue;
-      boolean needs = game.people.hp[i] < 85.0f || game.people.bleed[i] > 0.08f
-          || game.people.noGetUp[i] || game.people.dose[i] > 3.0f;
-      if (!needs) continue;
+      if (!patientEligible(game, i)) continue;
       float distance = Math.abs(game.people.centerX(i) - nearX);
       if (distance < best) { best = distance; found = i; }
     }
     return found;
   }
 
+  private String sirenId(int kind, int duration) {
+    return (kind == MED ? "medSiren" : kind == POLICE ? "policeSiren" : "fireSiren") + duration;
+  }
+
   private void leave(Game game, int i) {
     if (state[i] == LEAVING || state[i] == 0) return;
-    state[i] = (byte)LEAVING; timer[i] = 7.0f; patient[i] = -1;
+    game.sound(sirenId(type[i], 22), 0.35f);
+    state[i] = (byte)LEAVING; timer[i] = 7.0f; patient[i] = -1; patientWork[i] = 0.0f;
   }
 
   public int memoryBytes() {
-    return type.length * 2 + patient.length * 4 + x.length * 6 * 4
-        + pending.length + sirenPlayed.length + pendingX.length * 2 * 4 + cooldown.length * 4;
+    return type.length * 2 + patient.length * 4 + x.length * 7 * 4
+        + pending.length + sirenPlayed.length + pendingX.length * 2 * 4 + cooldown.length * 2 * 4;
   }
 }

@@ -2,8 +2,9 @@
   "name": "wreckbox-recovery-oracle",
   "private": true,
   "version": "1.8.0",
-  "description": "Development-only DOM/canvas harness for the recovered Wreckbox 1.8 source",
+  "description": "Development-only oracle and recovered-audio tools for Wreckbox 1.8",
   "dependencies": {
+    "benz-amr-recorder": "1.1.5",
     "jsdom": "26.1.0"
   }
 }

@@ -6,6 +6,7 @@ import javax.microedition.media.Manager;
 import javax.microedition.media.MediaException;
 import javax.microedition.media.Player;
 import javax.microedition.media.PlayerListener;
+import javax.microedition.media.control.VolumeControl;
 import wreckbox.core.GameListener;
 
 /**
@@ -47,8 +48,8 @@ public final class SoundSynth implements GameListener, PlayerListener {
     else if (id.equals("hole")) { note = 45; duration = 350; }
     else if (id.equals("hit") || id.equals("debris")) { note = 68; duration = 90; }
     else if (id.equals("click")) { note = 82; duration = 35; }
-    else if (id.equals("serviceSiren")) { note = 76; duration = 180; }
-    else if (id.equals("medSiren") || id.equals("siren2")) { note = 84; duration = 140; }
+    else if (id.equals("serviceSiren") || id.startsWith("fireSiren") || id.startsWith("policeSiren")) { note = 76; duration = 180; }
+    else if (id.equals("medSiren") || id.startsWith("medSiren") || id.equals("siren2")) { note = 84; duration = 140; }
     try { Manager.playTone(note, duration, Math.max(1, Math.min(100, (int)(volume * 55)))); }
     catch (MediaException ignored) { }
     catch (RuntimeException ignored) { }
@@ -60,7 +61,7 @@ public final class SoundSynth implements GameListener, PlayerListener {
     int slot = -1;
     boolean playing = false;
     try {
-      stream = SoundSynth.class.getResourceAsStream("/audio/" + file + ".amr");
+      stream = getClass().getResourceAsStream("/audio/" + file + ".amr");
       if (stream == null) return false;
       for (int i = 0; i < players.length; i++) if (players[i] == null) { slot = i; break; }
       if (slot < 0) {
@@ -80,8 +81,12 @@ public final class SoundSynth implements GameListener, PlayerListener {
       if (player == null) return false;
       player.addPlayerListener(this);
       player.realize();
+      try {
+        VolumeControl control = (VolumeControl)player.getControl("VolumeControl");
+        if (control != null) control.setLevel(Math.max(1, Math.min(100, (int)(volume * 55))));
+      } catch (RuntimeException ignored) { }
       players[slot] = player; started[slot] = System.currentTimeMillis();
-      alarm[slot] = file.startsWith("siren");
+      alarm[slot] = file.startsWith("siren") || file.indexOf("Siren") >= 0;
       player.start();
       playing = true;
       return true;
@@ -114,6 +119,9 @@ public final class SoundSynth implements GameListener, PlayerListener {
     if (id.equals("bomber")) return "bomber_00";
     if (id.equals("siren")) return "sirenS";
     if (id.equals("reactorSiren")) return "sirenC";
+    if (id.equals("serviceSiren")) return "fireSiren24";
+    if (id.equals("medSiren")) return "medSiren24";
+    if (id.startsWith("fireSiren") || id.startsWith("medSiren") || id.startsWith("policeSiren")) return id;
     if (id.equals("chute")) return "chute_00";
     if (id.equals("whistle")) return "bomb_whistle_00";
     if (id.equals("scream")) return (clipCounter++ & 1) == 0 ? "scream_m_00" : "scream_f_00";

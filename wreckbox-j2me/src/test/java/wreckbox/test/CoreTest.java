@@ -396,7 +396,13 @@ public final class CoreTest {
     service.loadMap(0); service.services.notifyIncident(ServiceSystem.FIRE, service.cameraX, service.cameraY);
     service.services.update(service, 0.9f);
     check(serviceProbe.service > 0, "fire dispatch has separate service sound");
+    check("fireSiren24".equals(serviceProbe.lastService), "recovered 2.4 second dispatch siren phase");
     eq(0, serviceProbe.civil, "fire dispatch does not raise civil siren");
+    for (int i = 0; i < 200 && (!serviceProbe.fire32 || !serviceProbe.fire22); i++) service.services.update(service, 0.25f);
+    check(serviceProbe.fire32, "recovered 3.2 second approaching siren phase");
+    check(serviceProbe.fire22, "recovered 2.2 second departure siren phase");
+    for (int i = 0; i < 100; i++) service.services.update(service, 0.25f);
+    eq(0, service.services.activeCount(ServiceSystem.FIRE), "expired fire incident does not recall a unit");
 
     Game nuclear = new Game(); SoundProbe nuclearProbe = new SoundProbe(); nuclear.listener = nuclearProbe;
     nuclear.loadMap(0); nuclear.nuclearExplode(nuclear.cameraX, nuclear.cameraY, 1.0f, 30.0f, 100.0f, 0.0f, false);
@@ -407,11 +413,16 @@ public final class CoreTest {
 
   private static final class SoundProbe implements GameListener {
     int sirens, civil, service, med;
+    String lastService; boolean fire32, fire22;
     public void sound(String id, float volume) {
       if (id.equals("reactorSiren")) sirens++;
       if (id.equals("siren")) civil++;
-      if (id.equals("serviceSiren")) service++;
-      if (id.equals("medSiren")) med++;
+      if (id.equals("serviceSiren") || id.startsWith("fireSiren") || id.startsWith("policeSiren")) {
+        service++; lastService = id;
+        if (id.equals("fireSiren32")) fire32 = true;
+        if (id.equals("fireSiren22")) fire22 = true;
+      }
+      if (id.equals("medSiren") || id.startsWith("medSiren")) med++;
     }
     public void message(String text) { }
   }
@@ -565,6 +576,38 @@ public final class CoreTest {
     serviceGame.services.update(serviceGame, 0.9f);
     check(serviceGame.services.activeCount(ServiceSystem.FIRE) == 1 && serviceGame.services.memoryBytes() < 1024,
         "service pool remains bounded");
+
+    Game minor = new Game(); minor.loadMap(0); minor.people.hp[0] = 40.0f;
+    minor.services.update(minor, 0.9f);
+    eq(0, minor.services.activeCount(ServiceSystem.MED), "walking minor injury is not an ambulance patient");
+    minor.people.startRagdoll(0, 0.0f, 0.0f, 0.0f); minor.people.downTime[0] = 2.1f;
+    minor.services.update(minor, 0.9f);
+    eq(1, minor.services.activeCount(ServiceSystem.MED), "recovered ragdoll medical eligibility");
+
+    Game recovery = new Game(); recovery.loadMap(0);
+    recovery.people.hurt(0, 1000.0f, 0.0f, 0.0f); recovery.people.rag.sleeping[0] = true;
+    recovery.people.downTime[0] = 2.1f;
+    recovery.services.notifyIncident(ServiceSystem.MED, recovery.people.centerX(0), recovery.people.centerY(0));
+    recovery.services.update(recovery, 0.9f); recovery.services.update(recovery, 100.0f);
+    for (int i = 0; i < 12; i++) recovery.services.update(recovery, 0.25f);
+    eq(PeopleStore.GONE, recovery.people.state[0], "sleeping dead ragdoll is recovered by ambulance");
+    eq(1, recovery.people.deaths, "dead recovery does not add a death or saved-life statistic");
+    eq(0, recovery.services.saved, "dead recovery is not counted as a saved life");
+
+    Game bodyFire = new Game(); bodyFire.loadMap(0);
+    int burningBody = -1, firetruck = Props.find("firetruck");
+    for (int i = 0; i < bodyFire.bodies.count; i++) if (bodyFire.bodies.alive(i) && bodyFire.bodies.type[i] != firetruck) {
+      burningBody = i; break;
+    }
+    check(burningBody >= 0, "burning prop service fixture");
+    if (burningBody >= 0) {
+      bodyFire.cameraX = bodyFire.bodies.x[burningBody] + 1000.0f; bodyFire.cameraY = bodyFire.bodies.y[burningBody];
+      bodyFire.bodies.flags[burningBody] |= BodyStore.F_BURNING;
+      bodyFire.services.update(bodyFire, 0.9f);
+      eq(1, bodyFire.services.activeCount(ServiceSystem.FIRE), "burning prop requests fire service");
+      bodyFire.services.update(bodyFire, 100.0f); bodyFire.services.update(bodyFire, 0.25f);
+      eq(0, bodyFire.bodies.flags[burningBody] & BodyStore.F_BURNING, "fire crew targets and douses burning prop");
+    }
 
     Game raid = new Game(); raid.loadMap(0);
     raid.people.airRaid(raid.grid, raid.metadata, raid.cameraX, raid.cameraY, 8.0f);

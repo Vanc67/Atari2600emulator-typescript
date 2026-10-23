@@ -73,7 +73,7 @@ public final class Game {
     if (index >= Maps.COUNT) index = 0;
     mapIndex = index;
     String path = "/maps/" + Maps.IDS[index] + ".wbmp";
-    InputStream stream = Game.class.getResourceAsStream(path);
+    InputStream stream = getClass().getResourceAsStream(path);
     if (stream == null) { loadError = "Нет ресурса " + path; return false; }
     grid = new CellGrid(Maps.WIDTHS[index]);
     MapLoader loader = new MapLoader();

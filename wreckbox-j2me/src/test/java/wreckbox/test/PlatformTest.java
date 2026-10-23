@@ -98,8 +98,18 @@ public final class PlatformTest {
       if (stream != null) { found++; try { stream.close(); } catch (Exception ignored) { } }
     }
     check(found == names.length, "original AMR sound resources " + found + "/" + names.length);
+    String[] sirens = {"fireSiren24", "medSiren24", "policeSiren24", "fireSiren32", "medSiren32", "policeSiren32",
+      "fireSiren22", "medSiren22", "policeSiren22"};
+    found = 0;
+    for (int i = 0; i < sirens.length; i++) {
+      InputStream stream = SoundSynth.class.getResourceAsStream("/audio/" + sirens[i] + ".amr");
+      if (stream != null) { found++; try { stream.close(); } catch (Exception ignored) { } }
+    }
+    check(found == sirens.length, "recovered service-siren phases " + found + "/" + sirens.length);
     SoundSynth synth = new SoundSynth();
-    try { synth.sound("boom", 0.5f); synth.sound("bomber", 0.4f); synth.sound("reactorSiren", 0.6f); synth.close(); check(true, "AMR/tone fallback does not throw"); }
+    try { synth.sound("boom", 0.5f); synth.sound("bomber", 0.4f); synth.sound("reactorSiren", 0.6f);
+      synth.sound("fireSiren24", 0.5f); synth.sound("medSiren32", 0.4f); synth.sound("policeSiren22", 0.4f);
+      synth.close(); check(true, "AMR/tone fallback does not throw"); }
     catch (RuntimeException e) { check(false, "audio fallback " + e); }
   }
 
