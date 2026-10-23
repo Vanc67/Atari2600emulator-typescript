@@ -7,21 +7,21 @@ public final class Iso {
 
     private Iso() { }
 
-    public static int rootDirLba(VirtualCD cd) throws IOException {
+    public static int rootDirLba(CdImage cd) throws IOException {
         byte[] pvd = new byte[2048];
         cd.readSector(16, pvd, 0);
         if (pvd[1] != 'C' || pvd[2] != 'D' || pvd[3] != '0') return -1;
         return le32(pvd, 156 + 2);
     }
 
-    public static int rootDirSize(VirtualCD cd) throws IOException {
+    public static int rootDirSize(CdImage cd) throws IOException {
         byte[] pvd = new byte[2048];
         cd.readSector(16, pvd, 0);
         return le32(pvd, 156 + 10);
     }
 
     /** Reads a file from the root directory; returns null when not found. */
-    public static byte[] readFile(VirtualCD cd, String name) throws IOException {
+    public static byte[] readFile(CdImage cd, String name) throws IOException {
         int[] entry = findEntry(cd, name);
         if (entry == null) return null;
         int lba = entry[0];
@@ -33,7 +33,7 @@ public final class Iso {
     }
 
     /** @return {lba, size} of a root directory entry or null. */
-    public static int[] findEntry(VirtualCD cd, String name) throws IOException {
+    public static int[] findEntry(CdImage cd, String name) throws IOException {
         int rootLba = rootDirLba(cd);
         if (rootLba < 0) return null;
         int size = rootDirSize(cd);
@@ -58,7 +58,7 @@ public final class Iso {
         return null;
     }
 
-    public static int findFile(VirtualCD cd, String name) throws IOException {
+    public static int findFile(CdImage cd, String name) throws IOException {
         int[] e = findEntry(cd, name);
         return e == null ? -1 : e[0];
     }

@@ -17,7 +17,7 @@ import javax.microedition.io.file.FileConnection;
  * Supported layouts: ISO (2048), BIN/RAW 2352 Mode1, Mode2 (2336 and 2352),
  * plus a best effort CUE parser for the first data track.
  */
-public final class VirtualCD {
+public final class VirtualCD implements CdImage {
 
     public static final int LAYOUT_2048 = 0;
     public static final int LAYOUT_2352_MODE1 = 1;

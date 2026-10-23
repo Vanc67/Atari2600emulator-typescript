@@ -48,6 +48,9 @@ public final class Gpu {
 
     private int gpuReadLatch;
     private int status;
+    /** Toggles every vblank, exposed as status bit 31 (even/odd field). */
+    public boolean field;
+    private int fieldAcc;
 
     private int[] frame = new int[320 * 240];
     private int frameW = 320, frameH = 240;
@@ -143,6 +146,7 @@ public final class Gpu {
 
     private int getStatus() {
         int st = 0x14802000;
+        if (field) st |= 0x80000000;
         st = (st & ~0x7FF) | (tpageReg & 0x7FF);
         if (irqRequested) st |= 1 << 24;
         if (!displayEnabled) st |= 1 << 23;
@@ -362,7 +366,7 @@ public final class Gpu {
     private void line(int cmd) {
         boolean gouraud = (cmd & 0x10) != 0;
         boolean semi = (cmd & 0x02) != 0;
-        int c0 = cmd & 0xFFFFFF;
+        int c0 = p[0] & 0xFFFFFF;
         int xy0 = p[1];
         int x0 = vx(xy0) + drawOffsetX;
         int y0 = vy(xy0) + drawOffsetY;
@@ -384,7 +388,7 @@ public final class Gpu {
         polylineWords = 0;
         polyOpcode = cmd;
         polyStarted = false;
-        polyColor = cmd & 0xFFFFFF;
+        polyColor = p[0] & 0xFFFFFF;
     }
 
     private int polyOpcode, polyX, polyY, polyColor;
@@ -448,6 +452,7 @@ public final class Gpu {
     private final int[] triV = new int[4];
 
     private void polygon(int cmd) {
+        int word0 = p[0];
         boolean gouraud = (cmd & 0x10) != 0;
         boolean textured = (cmd & 0x04) != 0;
         boolean semi = (cmd & 0x02) != 0;
@@ -463,7 +468,7 @@ public final class Gpu {
         int[] vv = triV;
         int clutX = 0, clutY = 0;
 
-        int color = cmd & 0xFFFFFF;
+        int color = word0 & 0xFFFFFF;
         cr[0] = color & 0xFF;
         cg[0] = (color >>> 8) & 0xFF;
         cb[0] = (color >>> 16) & 0xFF;
@@ -838,4 +843,17 @@ public final class Gpu {
     }
 
     public int[] getFrame() { return frame; }
+
+    /**
+     * Advances the video timing. Games poll status bit 31 to sync to the
+     * vertical blank, so the field has to flip from inside the frame, not at
+     * the end of it.
+     */
+    public void step(int cycles) {
+        fieldAcc += cycles;
+        while (fieldAcc >= 33868800 / 60) {
+            fieldAcc -= 33868800 / 60;
+            field = !field;
+        }
+    }
 }

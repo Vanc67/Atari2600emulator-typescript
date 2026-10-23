@@ -13,8 +13,11 @@ public class Graphics {
     public int getBlueComponent() { return 0; }
     public void setGrayScale(int v) {}
     public int getGrayScale() { return 0; }
-    public void setFont(Font f) {}
-    public Font getFont() { return null; }
+    public Font currentFont = null;
+    public int drawStringCalls = 0;
+
+    public void setFont(Font f) { currentFont = f; }
+    public Font getFont() { return currentFont; }
     public void setStrokeStyle(int s) {}
     public int getStrokeStyle() { return 0; }
     public void translate(int x, int y) {}
@@ -34,7 +37,7 @@ public class Graphics {
     public void drawArc(int x, int y, int w, int h, int a, int ar) {}
     public void drawLine(int x1, int y1, int x2, int y2) {}
     public void fillTriangle(int x1, int y1, int x2, int y2, int x3, int y3) {}
-    public void drawString(String s, int x, int y, int a) {}
+    public void drawString(String s, int x, int y, int a) { drawStringCalls++; }
     public void drawSubstring(String s, int o, int l, int x, int y, int a) {}
     public void drawChar(char c, int x, int y, int a) {}
     public void drawChars(char[] c, int o, int l, int x, int y, int a) {}

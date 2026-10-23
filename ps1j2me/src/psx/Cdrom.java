@@ -35,7 +35,7 @@ public final class Cdrom {
     private int pendingDelay;
     private int sectorCycles;
     public Irq irq;
-    public VirtualCD cd;
+    public CdImage cd;
     private final byte[] sectorBuf = new byte[2048];
 
     public void reset() {

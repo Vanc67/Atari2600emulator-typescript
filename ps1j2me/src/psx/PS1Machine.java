@@ -36,7 +36,7 @@ public final class PS1Machine {
     public long totalCycles;
     public String bootInfo = "";
 
-    public PS1Machine(VirtualCD cd) {
+    public PS1Machine(CdImage cd) {
         cpu = new Cpu(bus, gte);
 
         bus.cpu = cpu;
@@ -147,7 +147,7 @@ public final class PS1Machine {
     public boolean isBiosLoaded() { return biosLoaded; }
 
     /** HLE boot: start the executable indicated by SYSTEM.CNF on the CD. */
-    public boolean hleBoot(VirtualCD cd) {
+    public boolean hleBoot(CdImage cd) {
         if (cd == null || !cd.isOpen()) return false;
         try {
             byte[] cnf = Iso.readFile(cd, "SYSTEM.CNF;1");
@@ -258,6 +258,7 @@ public final class PS1Machine {
             cdrom.step(used);
             spu.step(used);
             pad.step(used);
+            gpu.step(used);
             if (gpu.irqRequested) irq.raise(Irq.GPU);
         }
         irq.raise(Irq.VBLANK);
@@ -273,6 +274,7 @@ public final class PS1Machine {
         timers.step(used);
         spu.step(used);
         cdrom.step(used);
+        gpu.step(used);
         if (gpu.irqRequested) irq.raise(Irq.GPU);
     }
 
