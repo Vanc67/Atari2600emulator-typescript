@@ -5,10 +5,15 @@
 
 ```
 PS1J2ME.jar
-├── META-INF/MANIFEST.MF      MIDlet-1: PS1J2ME, , psx.PS1Midlet
-├── psx/*.class               26 классов, все major 47.0, без StackMapTable
-└── res/roms/scph1001.bin     образ BIOS, 524 288 байт (читается getResourceAsStream)
+├── META-INF/MANIFEST.MF      MIDlet-1: PS1J2ME, , psx.PS1Midlet (v1.1.0)
+├── psx/*.class               29 классов, все major 47.0, без StackMapTable
+├── res/roms/scph1001.bin     образ BIOS, 524 288 байт (читается getResourceAsStream)
+└── res/demos/*.iso           4 встроенных демо-образа (фигуры, логотип, 3D, звук)
 ```
+
+В этой версии добавлен полноценный интерфейс: главное меню, экран настроек с
+сохранением в RMS, справка с описанием эмулятора и **четыре демо-программы**,
+которые запускаются прямо из JAR — без карты памяти, игр и образов.
 
 ---
 
@@ -29,7 +34,9 @@ PS1J2ME.jar
 | Таймеры, IRQ, пад | `Timers.java`, `Irq.java`, `Pad.java` | 234 | root counters, I_STAT/I_MASK, SIO0 digital pad |
 | MDEC | `Mdec.java` | 43 | заглушка с корректным handshake (FMV не декодируется) |
 | ISO9660 / HLE boot | `Iso.java` | 75 | поиск файлов в корне диска, разбор `SYSTEM.CNF`, загрузка PS-X EXE |
-| Файловый браузер | `MainCanvas.java` | 655 | zero-popup JSR-75 менеджер + экран эмуляции + OSD |
+| Интерфейс | `MainCanvas.java` | 900 | zero-popup JSR-75 браузер, главное меню, настройки, справка, демо, экран эмуляции, масштабирование |
+| Настройки | `Config.java` | 130 | масштаб, пропуск кадров, звук/громкость, FPS, BIOS/HLE, RMS-персистентность |
+| Встроенные образы | `MemoryCD.java`, `CdImage.java` | 175 | общий интерфейс диска + образ демо целиком в RAM |
 | MIDlet | `PS1Midlet.java` | 43 | точка входа, ничего не запрашивает при старте |
 | Звук | `AudioOutput.java` | 184 | MIDP `DataSource` → PCM 44.1 кГц |
 
@@ -40,6 +47,7 @@ build.sh                  сборка (ECJ/javac → ProGuard → jar → verif
 proguard.pro              -microedition -target 1.3
 tools/j2me_pack.py        упаковка jar, downgrade до 47.0, проверка совместимости
 tools/mkbios_stub.py      генератор 512 КиБ заглушки BIOS
+tools/mkdemo.py           мини-ассемблер MIPS + сборщик ISO9660 → res/demos/*.iso
 stubs/                    заголовки CLDC 1.1 / MIDP 2.0 / JSR-75 (только для компиляции)
 tests/                    desktop-тесты ядра и загрузки образа
 ```
@@ -148,6 +156,51 @@ public final class VirtualCD {
   `3` — Triangle, `0` — Circle, `7/9` — L1/R1, `*` — Start, `#` — Select,
   левый софткей — меню (продолжить/сброс/звук/выход), правый — звук.
 
+### 2.7 Меню, настройки и справка
+
+Стартовый экран — браузер карты памяти; левый софткей открывает главное меню:
+
+```
+МЕНЮ
+  Продолжить игру / Сброс консоли
+  Настройки
+  Демо-программы
+  Справка
+  Выход в браузер
+```
+
+Экран **Настройки** (`Config`): масштаб экрана (на весь экран / 4:3 с полями /
+1:1 пиксель), пропуск кадров (0–2), включение звука, громкость 0–100 %,
+счётчик FPS, режим запуска (BIOS из JAR или принудительный HLE) и сброс.
+Всё пишется в RMS-хранилище `ps1j2me-cfg` одной CSV-записью и читается при
+старте; если RMS недоступен, MIDlet молча работает на значениях по умолчанию.
+
+Экран **Справка** содержит описание эмулятора, раскладку клавиш для браузера и
+игры, требования к устройству и честный список ограничений — он же служит
+«описанием» проекта внутри самого приложения.
+
+Масштабирование сделано без `Image`/`Image.createRGBImage` (их нет в CLDC):
+кадр 320×240 разворачивается целочисленной картой колонок/строк и отдаётся
+`Graphics.drawRGB()`, карта пересобирается только при смене размера экрана.
+
+### 2.8 Встроенные демо-программы
+
+`tools/mkdemo.py` — это мини-ассемблер MIPS R3000 и сборщик ISO9660 на чистом
+Python. Он собирает четыре настоящих PS-X EXE внутри bootable-образа
+(`SYSTEM.CNF` + `PSX.EXE`), которые эмулятор загружает тем же HLE-путём, что и
+обычные игры:
+
+| Демо | Что проверяет | Кадр |
+|---|---|---|
+| `demo_shapes.iso` | заливка, плоские и gouraud-треугольники, спрайты, полупрозрачность, анимация | ![](docs/screenshots/gpu_shapes.png) |
+| `demo_logo.iso` | блочный шрифт из спрайтов, градиентные полосы, мигающий курсор | ![](docs/screenshots/font_logo.png) |
+| `demo_3d.iso` | GTE `RTPT` + `CTC2/MFC2`, проекция, сортировка граней, полигоны и линии | ![](docs/screenshots/gte_cube.png) |
+| `demo_sound.iso` | загрузка ADPCM в SPU RAM через transfer FIFO, key-on, визуализация | ![](docs/screenshots/spu_bars.png) |
+
+Демо запускаются из меню «Демо» (`MemoryCD` читает ISO прямо из JAR) и
+работают на любом телефоне: карта памяти и JSR-75 для них не нужны.
+Образы занимают 6 КиБ в архиве (сжатие) и 245 КиБ в распакованном виде.
+
 ---
 
 ## 3. Сборка
@@ -166,14 +219,15 @@ cd ps1j2me
 1. компилирует заголовки J2ME (`stubs/`) — bootclasspath, в JAR не попадают;
 2. компилирует `src/psx/*.java` с **`-source 1.3 -target 1.3`** — сразу
    получается major 47 без StackMapTable;
-3. проверяет/генерирует BIOS 512 КиБ;
+3. проверяет/генерирует BIOS 512 КиБ и пересобирает `res/demos/*.iso`
+   (`tools/mkdemo.py`, нужен только Python 3);
 4. запускает **ProGuard** с `-microedition -target 1.3` (ищет `$PROGUARD_JAR`,
    `lib/proguard.jar`, иначе скачивает `proguard-base` с Maven Central),
    который выполняет shrinking + оптимизацию (`-optimizationpasses 2`),
    обфускацию и переписывает версию классов на 47.0, сохраняя `psx.PS1Midlet`;
 5. если ProGuard недоступен — `tools/j2me_pack.py downgrade` срезает
    `StackMapTable` и принудительно ставит major 47.0 (classic verifier KVM);
-6. собирает `PS1J2ME.jar` (классы + `/res/roms/scph1001.bin`) и проверяет
+6. собирает `PS1J2ME.jar` (классы + `/res/roms/scph1001.bin` + `/res/demos/*.iso`) и проверяет
    каждый класс: версия, отсутствие `StackMapTable`, отсутствие ссылок на
    `java.nio`.
 
@@ -184,8 +238,9 @@ cd ps1j2me
 ```
 [build] compiling emulator (source/target 1.3)
 [build] BIOS: res/roms/scph1001.bin (524288 bytes)
-[pack] wrote PS1J2ME.jar (28 entries, 72 KiB)
-[verify] 26 classes checked
+[demo] 4 image(s) written to res/demos
+[pack] wrote PS1J2ME.jar (35 entries, 85 KiB)
+[verify] 29 classes checked
 [verify] OK - CLDC 1.1 / MIDP 2.0 compatible
 ```
 
@@ -206,6 +261,13 @@ PS-X EXE, открывает его через `VirtualCD`, загружает H
 и проверяет, что игра реально нарисовала пиксели в VRAM, а также что
 произвольный доступ (назад-вперёд) к «диску» работает.
 
+`tests/DemoRender.java` прогоняет все четыре демо-образа (в том числе один —
+через `MemoryCD`, как из JAR), считает непустые пиксели кадра и складывает
+BMP-снимки в `build/shots/`. `tests/UiTest.java` прогоняет интерфейс на
+заглушках MIDP: рисует все экраны, прокручивает справку, переключает каждую
+настройку, проверяет RMS-персистентность, наличие `/res/demos/*.iso` в
+classpath и запуск демо с переходом в игровой режим.
+
 ```
 PASS cpu loop sum 1..100 == 5050
 PASS load delay slot sees old value
@@ -214,7 +276,13 @@ PASS gpu triangle rasterises
 PASS self modifying code patched
 PASS hle boot
 PASS game painted VRAM
-ALL TESTS PASSED / ALL HLE TESTS PASSED
+PASS demo_shapes drawnPixels=76800
+PASS demo_3d drawnPixels=76800
+ALL DEMOS RENDERED
+PASS paint MODE_SETTINGS
+PASS settings rows apply
+PASS demo machine booted
+ALL UI TESTS PASSED
 ```
 
 ### Требования к устройству
@@ -238,6 +306,7 @@ ALL TESTS PASSED / ALL HLE TESTS PASSED
    все атрибуты в манифесте).
 3. Положить образы игр на карту (`*.bin/*.iso/*.img`).
 4. В браузере выбрать игру и нажать `5`.
+5. Чтобы проверить работу без игр: левый софткей → «Демо-программы» → `5`.
 
 ## 6. Ограничения текущей версии
 
@@ -247,6 +316,11 @@ ALL TESTS PASSED / ALL HLE TESTS PASSED
 * Растеризатор: без dithering, без интерлейса (480i показывается как 240 строк
   с удвоением), без 24-битного режима вывода.
 * Точность тайминга приближённая: 2 такта на инструкцию, кадр 565 000 тактов.
+  Поле VBlank (бит 31 статуса GPUSTAT) переключается внутри кадра, поэтому
+  игры, ждущие кадровый синхроимпульс опросом, не зависают.
+* Текстурированные полигоны работают, но порядок UV-слов в некоторых
+  вариантах команд (E1/E2/E6) может отличаться от железа — демо и большинство
+  2D-игр это не затрагивает.
 * Скорость на реальном железе зависит от JVM: на телефоне с CLDC HotSpot
   ожидайте единицы кадров в секунду в 3D-сценах; 2D-игры идут заметно быстрее.
   Для ускорения включайте ProGuard-сборку и уменьшайте viewport.

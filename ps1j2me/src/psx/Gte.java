@@ -170,9 +170,9 @@ public final class Gte {
 
         long vx, vy, vz;
         switch (vecSel) {
-            case 0: vx = sx(data[VXY0]); vy = sy(data[VXY0]); vz = data[VZ0] & 0xFFFF; break;
-            case 1: vx = sx(data[VXY1]); vy = sy(data[VXY1]); vz = data[VZ1] & 0xFFFF; break;
-            case 2: vx = sx(data[VXY2]); vy = sy(data[VXY2]); vz = data[VZ2] & 0xFFFF; break;
+            case 0: vx = sx(data[VXY0]); vy = sy(data[VXY0]); vz = (short) (data[VZ0] & 0xFFFF); break;
+            case 1: vx = sx(data[VXY1]); vy = sy(data[VXY1]); vz = (short) (data[VZ1] & 0xFFFF); break;
+            case 2: vx = sx(data[VXY2]); vy = sy(data[VXY2]); vz = (short) (data[VZ2] & 0xFFFF); break;
             default: vx = (short) data[IR1]; vy = (short) data[IR2]; vz = (short) data[IR3]; break;
         }
 
@@ -253,7 +253,7 @@ public final class Gte {
             case 1: vxy = data[VXY1]; vz = data[VZ1] & 0xFFFF; break;
             default: vxy = data[VXY2]; vz = data[VZ2] & 0xFFFF; break;
         }
-        int vX = sx(vxy), vY = sy(vxy), vZ = vz;
+        int vX = sx(vxy), vY = sy(vxy), vZ = (short) (vz & 0xFFFF);
 
         long m0 = mtx(RT, 0), m1 = mtx(RT, 1), m2 = mtx(RT, 2);
         long m3 = mtx(RT, 3), m4 = mtx(RT, 4), m5 = mtx(RT, 5);

@@ -52,6 +52,11 @@ public final class AudioOutput {
         running = false;
     }
 
+    /** Applies the user volume setting to the SPU master volume. */
+    public void setVolume(int percent) {
+        spu.setMasterVolume(percent);
+    }
+
     public void setMuted(boolean muted) {
         spu.enabled = !muted;
         if (muted) spu.flush();

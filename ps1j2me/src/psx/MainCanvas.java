@@ -14,24 +14,29 @@ import javax.microedition.lcdui.Font;
 import javax.microedition.lcdui.Graphics;
 
 /**
- * Zero-popup JSR-75 file browser + emulator screen.
+ * Zero-popup JSR-75 browser, built-in demo launcher, settings screen,
+ * help screen and the emulator display - all in one Canvas.
  *
- * <p>On startup nothing is asked to the user: the memory card root is found
- * lazily through {@code System.getProperty("fileconn.dir.memorycard")} on a
- * background thread, the folder is listed with a plain FileConnection and
- * game images (*.bin, *.iso, *.img, *.cue) are filtered and sorted to the top.
- * Selecting one starts emulation immediately.</p>
+ * Startup performs no file system access at all: the memory card root is
+ * discovered lazily on a worker thread through
+ * {@code System.getProperty("fileconn.dir.memorycard")} (with a registry
+ * fallback), so no firmware permission dialog is ever raised.
  */
 public final class MainCanvas extends Canvas implements Runnable, CommandListener {
 
+    /* ---- screens -------------------------------------------------------- */
     private static final int MODE_BOOT = 0;
     private static final int MODE_BROWSER = 1;
     private static final int MODE_GAME = 2;
-    private static final int MODE_MENU = 3;
-    private static final int MODE_MESSAGE = 4;
+    private static final int MODE_PAUSE = 3;
+    private static final int MODE_SETTINGS = 4;
+    private static final int MODE_HELP = 5;
+    private static final int MODE_DEMOS = 6;
+    private static final int MODE_MESSAGE = 7;
 
     private static final String[] GAME_EXT = { ".bin", ".iso", ".img", ".cue", ".chd", ".mdf" };
 
+    /* ---- palette -------------------------------------------------------- */
     private static final int COLOR_BG = 0x0B1020;
     private static final int COLOR_BAR = 0x1B2540;
     private static final int COLOR_ACCENT = 0x38BDF8;
@@ -40,6 +45,77 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     private static final int COLOR_SEL = 0x2563EB;
     private static final int COLOR_GAME = 0x22C55E;
     private static final int COLOR_DIR = 0xFBBF24;
+
+    /* ---- built-in demos (embedded in the JAR) --------------------------- */
+    private static final String[] DEMO_RES = {
+        "/res/demos/demo_shapes.iso",
+        "/res/demos/demo_logo.iso",
+        "/res/demos/demo_3d.iso",
+        "/res/demos/demo_sound.iso",
+    };
+    private static final String[] DEMO_NAME = {
+        "Фигуры (GPU)",
+        "Логотип (шрифт)",
+        "3D куб (GTE)",
+        "Звук (SPU)",
+    };
+    private static final String[] DEMO_DESC = {
+        "треугольники, спрайты, полупрозрачность",
+        "блочный шрифт, градиент, курсор",
+        "вращение куба через GTE и полигоны",
+        "ADPCM-тон в SPU + эквалайзер",
+    };
+
+    private static final String[] HELP_TEXT = {
+        "PS1J2ME - эмулятор Sony PlayStation 1 для Java ME (CLDC 1.1 / MIDP 2.0).",
+        "",
+        "ВОЗМОЖНОСТИ",
+        "- MIPS R3000A: ленивый кэш декодированных блоков CodeBlock[]",
+        "- GTE (COP2): RTPS/RTPT/NCLIP/AVSZ/MVMVA и световые команды",
+        "- GPU: программный растеризатор без float, VRAM 1 МиБ,",
+        "  текстуры 4/8/15 бит, полупрозрачность, спрайты, линии",
+        "- SPU: 24 ADPCM-голоса, ADSR, стерео 44.1 кГц",
+        "- CD-ROM: чтение образов 300-700 МБ через Rolling InputStream",
+        "  и LRU-кэш секторов, без OutOfMemoryError",
+        "- BIOS читается из /res/roms/scph1001.bin через",
+        "  getResourceAsStream; если образа нет - HLE-загрузка игры",
+        "  (SYSTEM.CNF -> PS-X EXE)",
+        "",
+        "УПРАВЛЕНИЕ В ИГРЕ",
+        "2/4/6/8 или джойстик - крестовина",
+        "5 - Cross, 1 - Square, 3 - Triangle, 0 - Circle",
+        "7/9 - L1/R1, * - Start, # - Select",
+        "левый софткей - меню, правый - звук вкл/выкл",
+        "",
+        "БРАУЗЕР",
+        "5 - открыть папку или запустить игру",
+        "0 - на уровень выше, * - обновить список",
+        "левый софткей - главное меню, правый - эта справка",
+        "",
+        "НАСТРОЙКИ",
+        "Масштаб: на весь экран, 4:3 с полями или 1:1 пиксель.",
+        "Пропуск кадров ускоряет 3D-сцены на слабых телефонах.",
+        "Настройки сохраняются в RMS и переживают перезапуск.",
+        "",
+        "ДЕМО",
+        "В JAR встроены четыре демо-образа: фигуры, логотип, 3D-куб",
+        "и звук. Они запускаются из меню 'Демо' и не требуют",
+        "файлов на карте памяти.",
+        "",
+        "ТРЕБОВАНИЯ",
+        "Куча MIDlet: около 5 МиБ. JSR-75 нужен для игр с карты.",
+        "Звук работает, если устройство умеет PCM через MMAPI.",
+        "",
+        "ОГРАНИЧЕНИЯ",
+        "MDEC (видеоролики) не декодируется, реверберация SPU и",
+        "CD-DA отсутствуют, карты памяти не эмулируются.",
+        "",
+        "БИОС",
+        "Настоящий SCPH1001.BIN защищён авторским правом и в",
+        "репозиторий не входит. Положите свой дамп в",
+        "res/roms/scph1001.bin и пересоберите: эмулятор сам",
+        "определит настоящий BIOS и запустит его.",
+    };
 
     private final PS1Midlet midlet;
     private int mode = MODE_BOOT;
@@ -53,19 +129,32 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     private int scroll;
     private int viewW, viewH;
 
+    /* ---- emulation ------------------------------------------------------ */
     private PS1Machine machine;
-    private VirtualCD cd;
+    private CdImage cd;
     private AudioOutput audio;
     private Thread gameThread;
     private volatile boolean running;
     private volatile boolean paused;
-    private volatile boolean soundOn = true;
     private volatile int padButtons = 0xFFFF;
     private int fps;
     private int framesThisSecond;
     private long lastFpsTime;
-    private boolean showFps = true;
     private String overlayMessage;
+    private long overlayUntil;
+
+    /* ---- settings / help / demos ---------------------------------------- */
+    private final Config config = Config.get();
+    private int settingsSelection;
+    private int helpScroll;
+    private int demoSelection;
+    private int pauseSelection;
+
+    /* ---- scaling -------------------------------------------------------- */
+    private int[] columnMap;
+    private int[] rowMap;
+    private int mapSrcW, mapSrcH, mapDstW, mapDstH;
+    private int[] scaledFrame = new int[0];
 
     private final Command exitCommand = new Command("Выход", Command.EXIT, 1);
 
@@ -83,11 +172,10 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     }
 
     /* ==================================================================== */
-    /*  background root discovery                                           */
+    /*  memory card discovery (background, never prompts)                   */
     /* ==================================================================== */
 
     public void run() {
-        /* browser mode thread: find the card, never pop up a permission box */
         try {
             String root = System.getProperty("fileconn.dir.memorycard");
             if (root == null) root = System.getProperty("fileconn.dir.memorycard.private");
@@ -96,7 +184,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                 if (e != null && e.hasMoreElements()) root = (String) e.nextElement();
             }
             if (root == null) {
-                status = "Карта памяти не найдена. Нажмите * для повтора.";
+                status = "Карта памяти не найдена. Нажмите * для повтора, 5 - встроенные демо.";
                 mode = MODE_MESSAGE;
                 repaint();
                 return;
@@ -105,7 +193,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             rootUrl = root;
             listDirectory(root, "/");
         } catch (Throwable t) {
-            status = "Ошибка доступа: " + t.getClass().getName();
+            status = "Ошибка доступа к файловой системе: " + t.toString();
             mode = MODE_MESSAGE;
             repaint();
         }
@@ -165,7 +253,6 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     }
 
     private void addSorted(Vector v) {
-        /* insertion sort by name, the lists are small */
         for (int i = 1; i < v.size(); i++) {
             Entry key = (Entry) v.elementAt(i);
             int j = i - 1;
@@ -208,43 +295,77 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             action = getGameAction(keyCode);
         } catch (Throwable t) { }
 
-        if (mode == MODE_BROWSER) {
-            browserKey(keyCode, action);
-        } else if (mode == MODE_GAME) {
-            gameKey(keyCode, action, true);
-        } else if (mode == MODE_MENU) {
-            menuKey(keyCode, action);
-        } else if (mode == MODE_MESSAGE) {
-            if (keyCode == KEY_STAR) {
-                mode = MODE_BOOT;
-                repaint();
-                new Thread(this).start();
-            } else if (keyCode == KEY_NUM0) {
-                midlet.quit();
-            }
+        switch (mode) {
+            case MODE_BROWSER: browserKey(keyCode, action); break;
+            case MODE_GAME: gameKey(keyCode, action, true); break;
+            case MODE_PAUSE: pauseKey(keyCode, action); break;
+            case MODE_SETTINGS: settingsKey(keyCode, action); break;
+            case MODE_HELP: helpKey(keyCode, action); break;
+            case MODE_DEMOS: demoKey(keyCode, action); break;
+            default:
+                if (keyCode == KEY_STAR) {
+                    mode = MODE_BOOT;
+                    repaint();
+                    new Thread(this).start();
+                } else if (keyCode == KEY_NUM5 || keyCode == KEY_NUM0 || keyCode == KEY_SOFTKEY1) {
+                    openDemos();
+                }
+                break;
         }
     }
 
     protected void keyReleased(int keyCode) {
-        if (mode == MODE_GAME) gameKey(keyCode, 0, false);
+        if (mode != MODE_GAME) return;
+        int action = 0;
+        try {
+            action = getGameAction(keyCode);
+        } catch (Throwable t) { }
+        if (action == 0) {
+            /* directional / fire keys arrive here as KEY_xxx on many phones */
+            if (keyCode == KEY_UP) action = UP;
+            else if (keyCode == KEY_DOWN) action = DOWN;
+            else if (keyCode == KEY_LEFT) action = LEFT;
+            else if (keyCode == KEY_RIGHT) action = RIGHT;
+            else if (keyCode == KEY_FIRE) action = FIRE;
+        }
+        gameKey(keyCode, action, false);
+    }
+
+    private static boolean upKey(int keyCode, int action) {
+        return action == UP || keyCode == KEY_NUM2;
+    }
+
+    private static boolean downKey(int keyCode, int action) {
+        return action == DOWN || keyCode == KEY_NUM8;
+    }
+
+    private static boolean fireKey(int keyCode, int action) {
+        return action == FIRE || keyCode == KEY_NUM5;
     }
 
     private void browserKey(int keyCode, int action) {
         int size = entries.size();
-        if (action == UP || keyCode == KEY_NUM2) {
+        if (upKey(keyCode, action)) {
             if (size > 0) selected = (selected + size - 1) % size;
             repaint();
-        } else if (action == DOWN || keyCode == KEY_NUM8) {
+        } else if (downKey(keyCode, action)) {
             if (size > 0) selected = (selected + 1) % size;
             repaint();
-        } else if (action == FIRE || keyCode == KEY_NUM5) {
+        } else if (fireKey(keyCode, action)) {
             activate();
-        } else if (keyCode == KEY_NUM0 || keyCode == KEY_SOFTKEY2) {
+        } else if (keyCode == KEY_NUM0) {
             goUp();
         } else if (keyCode == KEY_STAR) {
             listDirectory(currentUrl == null ? rootUrl : currentUrl, currentTitle);
         } else if (keyCode == KEY_POUND) {
-            showFps = !showFps;
+            config.showFps = !config.showFps;
+            config.save();
+            repaint();
+        } else if (keyCode == KEY_SOFTKEY1) {
+            openPauseMenu();
+        } else if (keyCode == KEY_SOFTKEY2) {
+            helpScroll = 0;
+            mode = MODE_HELP;
             repaint();
         }
     }
@@ -255,13 +376,19 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         if (e.isDir) {
             listDirectory(e.url, e.name);
         } else if (e.game) {
-            startGame(e);
+            startFileGame(e);
         }
     }
 
     private void goUp() {
-        if (currentUrl == null) return;
-        if (rootUrl != null && currentUrl.equals(rootUrl)) return;
+        if (currentUrl == null) {
+            openPauseMenu();
+            return;
+        }
+        if (rootUrl != null && currentUrl.equals(rootUrl)) {
+            openPauseMenu();
+            return;
+        }
         String url = currentUrl;
         if (url.endsWith("/")) url = url.substring(0, url.length() - 1);
         int slash = url.lastIndexOf('/');
@@ -275,79 +402,246 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         }
     }
 
-    private void menuKey(int keyCode, int action) {
-        if (action == UP || keyCode == KEY_NUM2) {
-            menuSelection = (menuSelection + 3) % 4;
-            repaint();
-        } else if (action == DOWN || keyCode == KEY_NUM8) {
-            menuSelection = (menuSelection + 1) % 4;
-            repaint();
-        } else if (action == FIRE || keyCode == KEY_NUM5) {
-            doMenu();
-        } else if (keyCode == KEY_SOFTKEY2 || keyCode == KEY_NUM0) {
-            mode = MODE_GAME;
-            paused = false;
-            repaint();
-        }
-    }
+    /* ---- pause menu ------------------------------------------------------ */
 
-    private int menuSelection;
+    private static final String[] PAUSE_ITEMS = {
+        "Продолжить игру",
+        "Сброс консоли",
+        "Настройки",
+        "Демо-программы",
+        "Справка",
+        "Выход в браузер",
+    };
 
-    private void doMenu() {
-        switch (menuSelection) {
-            case 0:
-                mode = MODE_GAME;
-                paused = false;
-                break;
-            case 1:
-                if (machine != null) {
-                    machine.reset();
-                    if (machine.isHleMode()) machine.hleBoot(cd);
-                }
-                mode = MODE_GAME;
-                paused = false;
-                break;
-            case 2:
-                soundOn = !soundOn;
-                if (audio != null) audio.setMuted(!soundOn);
-                mode = MODE_GAME;
-                paused = false;
-                break;
-            default:
-                stopGame();
-                break;
-        }
+    private void openPauseMenu() {
+        pauseSelection = 0;
+        if (mode == MODE_GAME) paused = true;
+        mode = MODE_PAUSE;
         repaint();
     }
 
-    private void gameKey(int keyCode, int action, boolean pressed) {
-        int bit = -1;
-        if (action == UP || keyCode == KEY_NUM2) bit = 4;
-        else if (action == DOWN || keyCode == KEY_NUM8) bit = 6;
-        else if (action == LEFT || keyCode == KEY_NUM4) bit = 7;
-        else if (action == RIGHT || keyCode == KEY_NUM6) bit = 5;
-        else if (action == FIRE || keyCode == KEY_NUM5) bit = 14;   /* Cross  */
-        else if (keyCode == KEY_NUM1) bit = 15;                     /* Square */
-        else if (keyCode == KEY_NUM3) bit = 12;                     /* Triangle */
-        else if (keyCode == KEY_NUM0) bit = 13;                     /* Circle */
-        else if (keyCode == KEY_NUM7) bit = 10;                     /* L1 */
-        else if (keyCode == KEY_NUM9) bit = 11;                     /* R1 */
-        else if (keyCode == KEY_STAR) bit = 3;                      /* Start */
-        else if (keyCode == KEY_POUND) bit = 0;                     /* Select */
+    private void pauseKey(int keyCode, int action) {
+        if (upKey(keyCode, action)) {
+            pauseSelection = (pauseSelection + PAUSE_ITEMS.length - 1) % PAUSE_ITEMS.length;
+            repaint();
+        } else if (downKey(keyCode, action)) {
+            pauseSelection = (pauseSelection + 1) % PAUSE_ITEMS.length;
+            repaint();
+        } else if (fireKey(keyCode, action)) {
+            switch (pauseSelection) {
+                case 0:
+                    if (machine != null) {
+                        paused = false;
+                        mode = MODE_GAME;
+                    } else {
+                        mode = MODE_BROWSER;
+                    }
+                    break;
+                case 1:
+                    if (machine != null) {
+                        machine.reset();
+                        if (machine.isHleMode() && cd != null) machine.hleBoot(cd);
+                        paused = false;
+                        mode = MODE_GAME;
+                        overlay("Сброс выполнен");
+                    }
+                    break;
+                case 2:
+                    settingsSelection = 0;
+                    mode = MODE_SETTINGS;
+                    break;
+                case 3:
+                    openDemos();
+                    break;
+                case 4:
+                    helpScroll = 0;
+                    mode = MODE_HELP;
+                    break;
+                default:
+                    stopGame();
+                    break;
+            }
+            repaint();
+        } else if (keyCode == KEY_NUM0 || keyCode == KEY_SOFTKEY2) {
+            if (machine != null) {
+                paused = false;
+                mode = MODE_GAME;
+            } else {
+                mode = MODE_BROWSER;
+            }
+            repaint();
+        }
+    }
 
-        if (pressed && bit < 0) {
-            if (keyCode == KEY_SOFTKEY1) {
-                paused = true;
-                menuSelection = 0;
-                mode = MODE_MENU;
+    /* ---- settings -------------------------------------------------------- */
+
+    private static final String[] SETTINGS_ITEMS = {
+        "Масштаб экрана",
+        "Пропуск кадров",
+        "Звук",
+        "Громкость",
+        "Счётчик FPS",
+        "BIOS / HLE",
+        "Сбросить настройки",
+        "Назад",
+    };
+
+    private void settingsKey(int keyCode, int action) {
+        if (upKey(keyCode, action)) {
+            settingsSelection = (settingsSelection + SETTINGS_ITEMS.length - 1) % SETTINGS_ITEMS.length;
+            repaint();
+        } else if (downKey(keyCode, action)) {
+            settingsSelection = (settingsSelection + 1) % SETTINGS_ITEMS.length;
+            repaint();
+        } else if (fireKey(keyCode, action) || keyCode == KEY_STAR) {
+            applySetting();
+        } else if (keyCode == KEY_NUM0 || keyCode == KEY_SOFTKEY2) {
+            mode = MODE_PAUSE;
+            repaint();
+        }
+    }
+
+    private void applySetting() {
+        switch (settingsSelection) {
+            case 0:
+                config.scaleMode = (config.scaleMode + 1) % 3;
+                columnMap = null;
+                break;
+            case 1:
+                config.frameSkip = (config.frameSkip + 1) % 3;
+                break;
+            case 2:
+                config.sound = !config.sound;
+                if (audio != null) {
+                    if (config.sound) audio.start(); else audio.stop();
+                }
+                break;
+            case 3:
+                config.volume = (config.volume + 25) % 125;
+                if (audio != null) audio.setVolume(config.volume);
+                break;
+            case 4:
+                config.showFps = !config.showFps;
+                break;
+            case 5:
+                config.useHle = !config.useHle;
+                break;
+            case 6:
+                config.reset();
+                break;
+            default:
+                mode = MODE_PAUSE;
+                break;
+        }
+        config.save();
+        repaint();
+    }
+
+    private String settingValue(int index) {
+        switch (index) {
+            case 0: return config.scaleName();
+            case 1: return config.frameSkip == 0 ? "выкл" : ("-" + config.frameSkip);
+            case 2: return config.sound ? "вкл" : "выкл";
+            case 3: return config.volume + "%";
+            case 4: return config.showFps ? "вкл" : "выкл";
+            case 5: return config.useHle ? "всегда HLE" : "BIOS из JAR";
+            default: return "";
+        }
+    }
+
+    /* ---- help ------------------------------------------------------------ */
+
+    private void helpKey(int keyCode, int action) {
+        int max = HELP_TEXT.length - 1;
+        if (upKey(keyCode, action) || keyCode == KEY_NUM4) {
+            helpScroll = Math.max(0, helpScroll - 1);
+            repaint();
+        } else if (downKey(keyCode, action) || keyCode == KEY_NUM6) {
+            helpScroll = Math.min(max, helpScroll + 1);
+            repaint();
+        } else if (fireKey(keyCode, action) || keyCode == KEY_NUM0 || keyCode == KEY_SOFTKEY2) {
+            mode = MODE_PAUSE;
+            repaint();
+        }
+    }
+
+    /* ---- demos ----------------------------------------------------------- */
+
+    private void openDemos() {
+        demoSelection = 0;
+        mode = MODE_DEMOS;
+        repaint();
+    }
+
+    private void demoKey(int keyCode, int action) {
+        int count = DEMO_RES.length + 1;
+        if (upKey(keyCode, action)) {
+            demoSelection = (demoSelection + count - 1) % count;
+            repaint();
+        } else if (downKey(keyCode, action)) {
+            demoSelection = (demoSelection + 1) % count;
+            repaint();
+        } else if (fireKey(keyCode, action)) {
+            if (demoSelection < DEMO_RES.length) startDemo(demoSelection);
+        } else if (keyCode == KEY_NUM0 || keyCode == KEY_SOFTKEY2) {
+            mode = MODE_PAUSE;
+            repaint();
+        }
+    }
+
+    private void startDemo(int index) {
+        stopGame();
+        mode = MODE_MESSAGE;
+        status = "Загрузка демо: " + DEMO_NAME[index] + "...";
+        repaint();
+        try {
+            MemoryCD mem = MemoryCD.fromResource(getClass(), DEMO_RES[index], DEMO_NAME[index]);
+            if (mem == null) {
+                status = "Демо не найдено в JAR: " + DEMO_RES[index];
+                mode = MODE_DEMOS;
                 repaint();
                 return;
             }
+            boot(mem);
+        } catch (Throwable t) {
+            status = "Ошибка запуска демо: " + t.toString();
+            mode = MODE_DEMOS;
+            repaint();
+        }
+    }
+
+    /* ---- input in game ---------------------------------------------------- */
+
+    private void gameKey(int keyCode, int action, boolean pressed) {
+        int bit = -1;
+        if (action == UP || keyCode == KEY_NUM2) bit = 4;          /* up     */
+        else if (action == DOWN || keyCode == KEY_NUM8) bit = 6;   /* down   */
+        else if (action == LEFT || keyCode == KEY_NUM4) bit = 7;   /* left   */
+        else if (action == RIGHT || keyCode == KEY_NUM6) bit = 5;  /* right  */
+        else if (action == FIRE || keyCode == KEY_NUM5) bit = 14;  /* cross  */
+        else if (keyCode == KEY_NUM1) bit = 15;                    /* square */
+        else if (keyCode == KEY_NUM3) bit = 12;                    /* triangle */
+        else if (keyCode == KEY_NUM0) bit = 13;                    /* circle */
+        else if (keyCode == KEY_NUM7) bit = 10;                    /* L1 */
+        else if (keyCode == KEY_NUM9) bit = 11;                    /* R1 */
+        else if (keyCode == KEY_STAR) bit = 3;                     /* start */
+        else if (keyCode == KEY_POUND) bit = 0;                    /* select */
+
+        if (config.padLayout == 1 && bit == 14) bit = 13;
+        else if (config.padLayout == 1 && bit == 13) bit = 14;
+
+        if (pressed && bit < 0) {
+            if (keyCode == KEY_SOFTKEY1) {
+                openPauseMenu();
+                return;
+            }
             if (keyCode == KEY_SOFTKEY2) {
-                soundOn = !soundOn;
-                if (audio != null) audio.setMuted(!soundOn);
-                overlayMessage = soundOn ? "Звук вкл" : "Звук выкл";
-                repaint();
+                config.sound = !config.sound;
+                if (audio != null) {
+                    if (config.sound) audio.start(); else audio.stop();
+                }
+                config.save();
+                overlay(config.sound ? "Звук включён" : "Звук выключен");
                 return;
             }
         }
@@ -358,47 +652,72 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         if (machine != null) machine.setButtons(padButtons);
     }
 
+    private void overlay(String message) {
+        overlayMessage = message;
+        overlayUntil = System.currentTimeMillis() + 1500;
+        repaint();
+    }
+
     /* ==================================================================== */
-    /*  emulation                                                           */
+    /*  starting games                                                      */
     /* ==================================================================== */
 
-    private void startGame(Entry e) {
+    private void startFileGame(Entry e) {
         stopGame();
         status = "Открытие " + e.name + "...";
         mode = MODE_MESSAGE;
         repaint();
         try {
-            cd = new VirtualCD();
-            cd.open(resolveImageUrl(e.url));
-            machine = new PS1Machine(cd);
-            machine.setViewport(viewW, viewH);
-            InputStream bios = null;
-            try {
-                bios = getClass().getResourceAsStream("/res/roms/scph1001.bin");
-            } catch (Throwable t) { }
-            boolean real = false;
-            if (bios != null) real = machine.loadBios(bios);
-            if (!real) {
-                if (!machine.hleBoot(cd)) {
-                    status = "Не удалось загрузить BIOS/игру";
-                    mode = MODE_MESSAGE;
-                    repaint();
-                    return;
-                }
-            }
-            audio = new AudioOutput(machine.spu);
-            if (soundOn) audio.start();
-            padButtons = 0xFFFF;
-            machine.setButtons(padButtons);
-            paused = false;
-            mode = MODE_GAME;
-            running = true;
-            gameThread = new Thread(new GameLoop());
-            gameThread.start();
+            VirtualCD vcd = new VirtualCD();
+            vcd.open(resolveImageUrl(e.url));
+            boot(vcd);
         } catch (Throwable t) {
             status = "Ошибка запуска: " + t.toString();
             mode = MODE_MESSAGE;
         }
+        repaint();
+    }
+
+    private void boot(CdImage image) {
+        cd = image;
+        machine = new PS1Machine(image);
+        machine.setViewport(320, 240);
+        machine.spu.setMasterVolume(config.volume);
+
+        boolean real = false;
+        if (!config.useHle) {
+            InputStream bios = null;
+            try {
+                bios = getClass().getResourceAsStream("/res/roms/scph1001.bin");
+            } catch (Throwable t) { }
+            if (bios != null) {
+                try {
+                    real = machine.loadBios(bios);
+                } catch (Throwable t) {
+                    real = false;
+                }
+            }
+        }
+        if (!real) {
+            if (!machine.hleBoot(image)) {
+                status = machine.isBiosLoaded()
+                        ? "BIOS загружен, но на диске нет SYSTEM.CNF/PSX.EXE"
+                        : "Не найден BIOS и не удалось загрузить игру";
+                mode = MODE_MESSAGE;
+                repaint();
+                return;
+            }
+        }
+        audio = new AudioOutput(machine.spu);
+        audio.setVolume(config.volume);
+        if (config.sound) audio.start();
+        padButtons = 0xFFFF;
+        machine.setButtons(padButtons);
+        paused = false;
+        mode = MODE_GAME;
+        running = true;
+        gameThread = new Thread(new GameLoop());
+        gameThread.start();
         repaint();
     }
 
@@ -433,9 +752,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             cd = null;
         }
         machine = null;
-        if (mode == MODE_GAME || mode == MODE_MENU) {
-            mode = MODE_BROWSER;
-        }
+        if (mode == MODE_GAME || mode == MODE_PAUSE) mode = MODE_BROWSER;
         repaint();
     }
 
@@ -443,6 +760,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         public void run() {
             long last = System.currentTimeMillis();
             lastFpsTime = last;
+            int skipCounter = 0;
             while (running) {
                 if (paused || !isShown()) {
                     try { Thread.sleep(40); } catch (InterruptedException e) { }
@@ -454,6 +772,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                     framesThisSecond++;
                 } catch (Throwable t) {
                     overlayMessage = "Сбой: " + t.toString();
+                    overlayUntil = System.currentTimeMillis() + 5000;
                     paused = true;
                 }
                 long now = System.currentTimeMillis();
@@ -462,8 +781,13 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                     framesThisSecond = 0;
                     lastFpsTime = now;
                 }
-                repaint();
-                long elapsed = now - last;
+                if (config.frameSkip > 0 && skipCounter < config.frameSkip) {
+                    skipCounter++;
+                } else {
+                    skipCounter = 0;
+                    repaint();
+                }
+                long elapsed = System.currentTimeMillis() - last;
                 long wait = 16 - elapsed;
                 if (wait > 0) {
                     try { Thread.sleep(wait); } catch (InterruptedException e) { }
@@ -498,33 +822,145 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         g.drawString("PS1 J2ME", 6, 5, Graphics.LEFT | Graphics.TOP);
         g.setColor(COLOR_DIM);
         g.setFont(plain);
-        String right = (mode == MODE_MENU) ? "МЕНЮ" : "Sony PlayStation";
-        g.drawString(right, viewW - 6, 8, Graphics.RIGHT | Graphics.TOP);
+        g.drawString(screenTitle(), viewW - 6, 8, Graphics.RIGHT | Graphics.TOP);
 
-        if (mode == MODE_BOOT) {
-            int cy = viewH / 2;
-            g.setColor(COLOR_ACCENT);
-            g.setFont(bold);
-            g.drawString("Поиск карты памяти", viewW / 2, cy - 20, Graphics.HCENTER | Graphics.BOTTOM);
-            g.setColor(COLOR_DIM);
+        switch (mode) {
+            case MODE_BOOT: paintBoot(g, bold, plain); break;
+            case MODE_MESSAGE: paintMessage(g, plain, barH); break;
+            case MODE_PAUSE: paintList(g, bold, plain, barH, PAUSE_ITEMS, pauseSelection, null, "5 - выбрать  0 - назад"); break;
+            case MODE_SETTINGS: paintSettings(g, bold, plain, barH); break;
+            case MODE_HELP: paintHelp(g, bold, plain, barH); break;
+            case MODE_DEMOS: paintDemos(g, bold, plain, barH); break;
+            default: paintBrowser(g, bold, plain, barH); break;
+        }
+    }
+
+    private String screenTitle() {
+        switch (mode) {
+            case MODE_PAUSE: return "МЕНЮ";
+            case MODE_SETTINGS: return "НАСТРОЙКИ";
+            case MODE_HELP: return "СПРАВКА";
+            case MODE_DEMOS: return "ДЕМО";
+            case MODE_GAME: return "ИГРА";
+            default: return "Sony PlayStation";
+        }
+    }
+
+    private void paintBoot(Graphics g, Font bold, Font plain) {
+        int cy = viewH / 2;
+        g.setColor(COLOR_ACCENT);
+        g.setFont(bold);
+        g.drawString("Поиск карты памяти", viewW / 2, cy - 20, Graphics.HCENTER | Graphics.BOTTOM);
+        g.setColor(COLOR_DIM);
+        g.setFont(plain);
+        g.drawString("без запросов безопасности", viewW / 2, cy, Graphics.HCENTER | Graphics.TOP);
+    }
+
+    private void paintMessage(Graphics g, Font plain, int barH) {
+        drawWrapped(g, status, 10, barH + 20, viewW - 20, plain, COLOR_TEXT);
+        g.setColor(COLOR_DIM);
+        g.setFont(plain);
+        g.drawString("* - повторить   5 - демо   0 - выход", viewW / 2, viewH - 20,
+                Graphics.HCENTER | Graphics.TOP);
+    }
+
+    private void paintHelp(Graphics g, Font bold, Font plain, int barH) {
+        int top = barH + 6;
+        int lineH = plain.getHeight() + 1;
+        int lines = (viewH - top - 20) / lineH;
+        if (lines < 1) lines = 1;
+        int maxScroll = HELP_TEXT.length - lines;
+        if (helpScroll > maxScroll) helpScroll = maxScroll;
+        if (helpScroll < 0) helpScroll = 0;
+        g.setFont(plain);
+        for (int i = 0; i < lines; i++) {
+            int idx = helpScroll + i;
+            if (idx >= HELP_TEXT.length) break;
+            String line = HELP_TEXT[idx];
+            boolean head = line.length() > 0 && line.charAt(0) != '-' && line.charAt(0) != ' ' && line.length() < 24;
+            g.setColor(head ? COLOR_ACCENT : COLOR_TEXT);
+            if (head) g.setFont(bold); else g.setFont(plain);
+            g.drawString(line, 6, top + i * lineH, Graphics.LEFT | Graphics.TOP);
+        }
+        g.setColor(COLOR_BAR);
+        g.fillRect(0, viewH - 16, viewW, 16);
+        g.setColor(COLOR_DIM);
+        g.setFont(plain);
+        int percent = (int) ((helpScroll * 100L) / Math.max(1, maxScroll));
+        g.drawString("2/8 - прокрутка  " + percent + "%   0 - назад", 6, viewH - 15,
+                Graphics.LEFT | Graphics.TOP);
+    }
+
+    private void paintSettings(Graphics g, Font bold, Font plain, int barH) {
+        int top = barH + 10;
+        int rowH = plain.getHeight() + 10;
+        for (int i = 0; i < SETTINGS_ITEMS.length; i++) {
+            int y = top + i * rowH;
+            if (i == settingsSelection) {
+                g.setColor(COLOR_SEL);
+                g.fillRect(2, y - 2, viewW - 4, rowH);
+            }
+            g.setColor(i == settingsSelection ? 0xFFFFFF : COLOR_TEXT);
             g.setFont(plain);
-            g.drawString("Без запросов безопасности", viewW / 2, cy, Graphics.HCENTER | Graphics.TOP);
-            return;
+            g.drawString(SETTINGS_ITEMS[i], 10, y + 2, Graphics.LEFT | Graphics.TOP);
+            String v = settingValue(i);
+            if (v.length() > 0) {
+                g.setColor(i == settingsSelection ? 0xDBEAFE : COLOR_ACCENT);
+                g.drawString(v, viewW - 10, y + 2, Graphics.RIGHT | Graphics.TOP);
+            }
         }
+        g.setColor(COLOR_DIM);
+        g.setFont(plain);
+        g.drawString("5/* - изменить   0 - назад", 6, viewH - 16, Graphics.LEFT | Graphics.TOP);
+    }
 
-        if (mode == MODE_MESSAGE) {
-            drawWrapped(g, status, 10, barH + 20, viewW - 20, plain, COLOR_TEXT);
-            g.setColor(COLOR_DIM);
-            g.drawString("* - повторить, 0 - выход", viewW / 2, viewH - 20, Graphics.HCENTER | Graphics.TOP);
-            return;
+    private void paintDemos(Graphics g, Font bold, Font plain, int barH) {
+        int top = barH + 16;
+        int rowH = plain.getHeight() + 14;
+        for (int i = 0; i <= DEMO_RES.length; i++) {
+            int y = top + i * rowH;
+            boolean sel = i == demoSelection;
+            if (sel) {
+                g.setColor(COLOR_SEL);
+                g.fillRect(4, y - 4, viewW - 8, rowH);
+            }
+            g.setFont(bold);
+            g.setColor(sel ? 0xFFFFFF : COLOR_GAME);
+            String title = i < DEMO_RES.length ? DEMO_NAME[i] : "Назад";
+            g.drawString(title, 12, y, Graphics.LEFT | Graphics.TOP);
+            if (i < DEMO_RES.length) {
+                g.setFont(plain);
+                g.setColor(sel ? 0xDBEAFE : COLOR_DIM);
+                g.drawString(DEMO_DESC[i], 20, y + bold.getHeight(), Graphics.LEFT | Graphics.TOP);
+            }
         }
+        g.setColor(COLOR_DIM);
+        g.setFont(plain);
+        g.drawString("5 - запустить   0 - назад", 6, viewH - 16, Graphics.LEFT | Graphics.TOP);
+    }
 
-        if (mode == MODE_MENU) {
-            paintMenu(g, bold, plain, barH);
-            return;
+    private void paintList(Graphics g, Font bold, Font plain, int barH,
+                           String[] items, int selection, String[] values, String hint) {
+        int top = barH + 20;
+        int rowH = bold.getHeight() + 14;
+        for (int i = 0; i < items.length; i++) {
+            int y = top + i * rowH;
+            if (i == selection) {
+                g.setColor(COLOR_SEL);
+                g.fillRect(8, y - 4, viewW - 16, rowH);
+            }
+            g.setColor(i == selection ? 0xFFFFFF : COLOR_TEXT);
+            g.setFont(bold);
+            g.drawString(items[i], 18, y, Graphics.LEFT | Graphics.TOP);
+            if (values != null && values[i] != null) {
+                g.setColor(COLOR_ACCENT);
+                g.setFont(plain);
+                g.drawString(values[i], viewW - 14, y + 2, Graphics.RIGHT | Graphics.TOP);
+            }
         }
-
-        paintBrowser(g, bold, plain, barH);
+        g.setColor(COLOR_DIM);
+        g.setFont(plain);
+        g.drawString(hint, 6, viewH - 16, Graphics.LEFT | Graphics.TOP);
     }
 
     private void paintBrowser(Graphics g, Font bold, Font plain, int barH) {
@@ -540,6 +976,14 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         if (visible < 1) visible = 1;
         if (selected < scroll) scroll = selected;
         if (selected >= scroll + visible) scroll = selected - visible + 1;
+
+        if (entries.size() == 0) {
+            g.setColor(COLOR_TEXT);
+            g.drawString("Здесь нет файлов игр.", 10, listTop, Graphics.LEFT | Graphics.TOP);
+            g.setColor(COLOR_DIM);
+            g.drawString("Меню - встроенные демо и настройки.", 10, listTop + rowH,
+                    Graphics.LEFT | Graphics.TOP);
+        }
 
         for (int i = 0; i < visible; i++) {
             int idx = scroll + i;
@@ -572,59 +1016,114 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         g.fillRect(0, viewH - 18, viewW, 18);
         g.setColor(COLOR_DIM);
         g.setFont(plain);
-        g.drawString("5 - открыть  0 - вверх  * - обновить", 4, viewH - 16, Graphics.LEFT | Graphics.TOP);
+        g.drawString("5 - открыть  0 - вверх  меню: демо/настройки", 4, viewH - 16,
+                Graphics.LEFT | Graphics.TOP);
     }
 
-    private void paintMenu(Graphics g, Font bold, Font plain, int barH) {
-        String[] items = { "Продолжить", "Сброс консоли", soundOn ? "Звук: вкл" : "Звук: выкл", "Выход в браузер" };
-        int top = barH + 30;
-        int rowH = bold.getHeight() + 16;
-        for (int i = 0; i < items.length; i++) {
-            int y = top + i * rowH;
-            if (i == menuSelection) {
-                g.setColor(COLOR_SEL);
-                g.fillRect(10, y - 4, viewW - 20, rowH);
-            }
-            g.setColor(i == menuSelection ? 0xFFFFFF : COLOR_TEXT);
-            g.setFont(bold);
-            g.drawString(items[i], 20, y, Graphics.LEFT | Graphics.TOP);
-        }
-        g.setColor(COLOR_DIM);
-        g.setFont(plain);
-        g.drawString("5 - выбрать", 6, viewH - 20, Graphics.LEFT | Graphics.TOP);
-    }
+    /* ---- game screen ------------------------------------------------------ */
 
     private void paintGame(Graphics g) {
-        if (machine == null) {
-            g.setColor(COLOR_BG);
-            g.fillRect(0, 0, viewW, viewH);
-            return;
-        }
+        g.setColor(0x000000);
+        g.fillRect(0, 0, viewW, viewH);
+        if (machine == null) return;
+
         int[] frame = machine.getFrame();
-        int w = machine.getFrameWidth();
-        int h = machine.getFrameHeight();
-        if (w != viewW || h != viewH) {
-            machine.setViewport(viewW, viewH);
-            w = viewW;
-            h = viewH;
+        int srcW = machine.getFrameWidth();
+        int srcH = machine.getFrameHeight();
+        if (frame == null || srcW <= 0 || srcH <= 0) return;
+
+        int[] rect = destRect();
+        int dstX = rect[0], dstY = rect[1], dstW = rect[2], dstH = rect[3];
+        if (dstW <= 0 || dstH <= 0) return;
+
+        if (dstW == srcW && dstH == srcH) {
+            g.drawRGB(frame, 0, srcW, dstX, dstY, srcW, srcH, false);
+        } else {
+            if (columnMap == null || mapSrcW != srcW || mapSrcH != srcH
+                    || mapDstW != dstW || mapDstH != dstH) {
+                buildMaps(srcW, srcH, dstW, dstH);
+            }
+            int[] dst = scaledFrame;
+            for (int y = 0; y < dstH; y++) {
+                int srcRow = rowMap[y] * srcW;
+                int dstRow = y * dstW;
+                for (int x = 0; x < dstW; x++) {
+                    dst[dstRow + x] = frame[srcRow + columnMap[x]];
+                }
+            }
+            g.drawRGB(dst, 0, dstW, dstX, dstY, dstW, dstH, false);
         }
-        if (frame != null && frame.length >= w * h) {
-            g.drawRGB(frame, 0, w, 0, 0, w, h, false);
-        }
-        if (showFps || overlayMessage != null) {
-            Font f = Font.getFont(Font.FACE_MONOSPACE, Font.STYLE_PLAIN, Font.SIZE_SMALL);
-            g.setFont(f);
+
+        Font f = Font.getFont(Font.FACE_MONOSPACE, Font.STYLE_PLAIN, Font.SIZE_SMALL);
+        g.setFont(f);
+        if (config.showFps) {
             g.setColor(0x000000);
-            g.fillRect(0, 0, 90, f.getHeight() + 2);
+            g.fillRect(0, 0, 74, f.getHeight() + 2);
             g.setColor(COLOR_ACCENT);
             g.drawString(fps + " fps", 3, 1, Graphics.LEFT | Graphics.TOP);
-            if (overlayMessage != null) {
-                g.setColor(0x000000);
-                g.fillRect(0, viewH - 16, viewW, 16);
-                g.setColor(COLOR_TEXT);
-                g.drawString(overlayMessage, 4, viewH - 15, Graphics.LEFT | Graphics.TOP);
+        }
+        if (paused) {
+            g.setColor(0x000000);
+            g.fillRect(viewW / 2 - 34, viewH / 2 - 8, 68, 16);
+            g.setColor(0xFFFFFF);
+            g.drawString("ПАУЗА", viewW / 2, viewH / 2 - 7, Graphics.HCENTER | Graphics.TOP);
+        }
+        if (overlayMessage != null && System.currentTimeMillis() < overlayUntil) {
+            g.setColor(0x000000);
+            g.fillRect(0, viewH - 16, viewW, 16);
+            g.setColor(COLOR_TEXT);
+            g.drawString(overlayMessage, 4, viewH - 15, Graphics.LEFT | Graphics.TOP);
+        } else if (overlayMessage != null && System.currentTimeMillis() >= overlayUntil) {
+            overlayMessage = null;
+        }
+    }
+
+    /** Destination rectangle for the emulator image, honouring the scale mode. */
+    private int[] destRect() {
+        int srcW = 320, srcH = 240;
+        int w, h, x, y;
+        switch (config.scaleMode) {
+            case Config.SCALE_STRETCH:
+                w = viewW;
+                h = viewH;
+                x = 0;
+                y = 0;
+                break;
+            case Config.SCALE_1_1:
+                w = Math.min(srcW, viewW);
+                h = Math.min(srcH, viewH);
+                x = (viewW - w) / 2;
+                y = (viewH - h) / 2;
+                break;
+            default: {
+                /* 4:3 letterbox */
+                int availW = viewW;
+                int availH = viewH;
+                if (availW * 3 <= availH * 4) {
+                    w = availW;
+                    h = (availW * 3) / 4;
+                } else {
+                    h = availH;
+                    w = (availH * 4) / 3;
+                }
+                x = (viewW - w) / 2;
+                y = (viewH - h) / 2;
+                break;
             }
         }
+        return new int[] { x, y, w, h };
+    }
+
+    private void buildMaps(int srcW, int srcH, int dstW, int dstH) {
+        columnMap = new int[dstW];
+        rowMap = new int[dstH];
+        for (int x = 0; x < dstW; x++) columnMap[x] = (x * srcW) / dstW;
+        for (int y = 0; y < dstH; y++) rowMap[y] = (y * srcH) / dstH;
+        scaledFrame = new int[dstW * dstH];
+        mapSrcW = srcW;
+        mapSrcH = srcH;
+        mapDstW = dstW;
+        mapDstH = dstH;
     }
 
     private void drawWrapped(Graphics g, String text, int x, int y, int maxW, Font f, int color) {
@@ -659,7 +1158,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     /* ==================================================================== */
 
     protected void hideNotify() {
-        paused = (mode == MODE_GAME);
+        if (mode == MODE_GAME) paused = true;
     }
 
     protected void showNotify() {
@@ -668,7 +1167,13 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
 
     public void shutdown() {
         running = false;
-        if (audio != null) audio.stop();
-        if (cd != null) cd.close();
+        if (audio != null) {
+            audio.stop();
+            audio = null;
+        }
+        if (cd != null) {
+            cd.close();
+            cd = null;
+        }
     }
 }

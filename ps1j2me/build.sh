@@ -12,7 +12,8 @@
 #     3. optionally run ProGuard (-microedition -target 1.3) to shrink and
 #        obfuscate; ProGuard also rewrites the stack maps for KVM
 #     4. fall back to tools/j2me_pack.py (strips StackMapTable, forces 47.0)
-#     5. pack classes + /res/roms/scph1001.bin into PS1J2ME.jar and verify it
+#     5. pack classes + /res/roms/scph1001.bin + /res/demos/*.iso into
+#        PS1J2ME.jar and verify it
 #
 #  Usage:
 #     ./build.sh                     build PS1J2ME.jar
@@ -139,6 +140,12 @@ else
     echo "[build] BIOS: $BIOS_SRC ($(wc -c < "$BIOS_SRC") bytes)"
 fi
 mkdir -p res/roms
+
+# ---------------------------------------------------------------------------
+#  3b. demo discs (embedded in the JAR, built from tools/mkdemo.py)
+# ---------------------------------------------------------------------------
+echo "[build] generating demo discs"
+"$PY" tools/mkdemo.py --out res/demos | tail -1
 
 # ---------------------------------------------------------------------------
 #  4. ProGuard

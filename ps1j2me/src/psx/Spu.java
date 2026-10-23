@@ -268,8 +268,8 @@ public final class Spu {
                 noiseLevel = (noiseLevel * 1103515245 + 12345) >>> 16;
             }
         }
-        int l = (mixL * (short) mainVolL) >> 15;
-        int r = (mixR * (short) mainVolR) >> 15;
+        int l = (int) (((long) mixL * (short) mainVolL >> 15) * masterVolume >> 15);
+        int r = (int) (((long) mixR * (short) mainVolR >> 15) * masterVolume >> 15);
         if (l > 32767) l = 32767; else if (l < -32768) l = -32768;
         if (r > 32767) r = 32767; else if (r < -32768) r = -32768;
         lastSampleL = l;
@@ -344,8 +344,10 @@ public final class Spu {
         int header = ram[addr] & 0xFF;
         int shift = header & 0x0F;
         int filter = (header >>> 4) & 0x07;
-        boolean loop = (header & 0x04) != 0;      /* flags in the high nibble */
-        boolean end = (header & 0x01) != 0;
+        /* block flags: bit0 = loop end, bit1 = repeat, bit2 = loop start */
+        boolean loopEnd = (header & 0x01) != 0;
+        boolean loopRepeat = (header & 0x02) != 0;
+        boolean loopStart = (header & 0x04) != 0;
 
         int f0 = 0, f1 = 0;
         switch (filter) {
@@ -372,12 +374,14 @@ public final class Spu {
         }
         prev1[v] = s1;
         prev2[v] = s2;
+        if (loopStart) repeatAddr[v] = (addr & (RAM_SIZE - 1)) / 8;
         curAddr[v] = (addr + 16) & (RAM_SIZE - 1);
-        if (end || loop) {
-            if (end) endx[v] = true;
-            curAddr[v] = repeatAddr[v] * 8;
-            prev1[v] = prev2[v] = 0;
-            if (!loop) {
+        if (loopEnd) {
+            endx[v] = true;
+            if (loopRepeat) {
+                curAddr[v] = (repeatAddr[v] * 8) & (RAM_SIZE - 1);
+                prev1[v] = prev2[v] = 0;
+            } else {
                 active[v] = false;
                 envPhase[v] = 0;
             }
@@ -418,6 +422,19 @@ public final class Spu {
 
     public void flush() {
         outRead = outWrite;
+    }
+
+    /** Master volume in percent (0..100); applied on top of the SPU volume. */
+    public void setMasterVolume(int percent) {
+        if (percent < 0) percent = 0;
+        if (percent > 100) percent = 100;
+        masterVolume = (percent * 0x7FFF) / 100;
+    }
+
+    private int masterVolume = 0x7FFF;
+
+    public int getMasterVolume() {
+        return (masterVolume * 100) / 0x7FFF;
     }
 
     public int getVoiceEnvelope(int v) { return envLevel[v]; }
