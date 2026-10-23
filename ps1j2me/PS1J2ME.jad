@@ -1,0 +1,8 @@
+MIDlet-Name: PS1J2ME
+MIDlet-Version: 1.0.0
+MIDlet-Vendor: PS1J2ME Project
+MIDlet-1: PS1J2ME, , psx.PS1Midlet
+MicroEdition-Configuration: CLDC-1.1
+MicroEdition-Profile: MIDP-2.0
+MIDlet-Jar-URL: PS1J2ME.jar
+MIDlet-Jar-Size: 70092
