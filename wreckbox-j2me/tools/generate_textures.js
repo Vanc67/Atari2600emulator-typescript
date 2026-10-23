@@ -1,6 +1,11 @@
 /*
- * Rebuild the small MIDP material atlases from the recovered Wreckbox 1.8
- * tn()/en() rasterizer. No third-party packages are needed: node tools/generate_textures.js
+ * Rebuild the MIDP material atlases from the recovered Wreckbox 1.8
+ * tn()/en() rasterizer. No third-party packages are needed.
+ *
+ * Intact cells use several world-coordinate phases instead of repeating one
+ * 6x6 tile everywhere. Glass/rebar keep the original alpha, and night atlases
+ * use Re()'s exact 0.38/0.40/0.50 channel multipliers.
+ * node tools/generate_textures.js [--check]
  */
 'use strict';
 const fs = require('fs');
@@ -9,6 +14,7 @@ const vm = require('vm');
 const zlib = require('zlib');
 
 const root = path.resolve(__dirname, '..');
+const CHECK = process.argv.includes('--check');
 const source = fs.readFileSync(path.join(root, 'original/recovered/game.pretty.js'), 'utf8');
 function extract(name) {
   const start = source.indexOf('function ' + name + '(');
@@ -30,9 +36,8 @@ function extract(name) {
   throw new Error('unterminated recovered function ' + name);
 }
 
-// Only the fields consulted for an intact, unflagged cell are needed here.
-// Values are the recovered nt[].base/hp table (the Java Materials table is
-// generated from the same oracle).
+// Only fields consulted for an intact, unflagged cell are needed here. Values
+// are the recovered nt[].base/hp table; Java Materials comes from the same oracle.
 const bases = [
   null, [158,112,66], [170,80,56], [158,158,152], [98,110,126],
   [172,216,236], [228,224,214], [132,76,48], [118,86,56], [62,60,64],
@@ -61,19 +66,26 @@ vm.createContext(context);
 for (const name of ['q', 'U', 'tn', 'en']) vm.runInContext(extract(name), context);
 
 function clamp(v) { return v <= 0 ? 0 : v >= 255 ? 255 : v | 0; }
-function tile(material, tint) {
-  const pixels = new Uint8Array(36 * 3);
-  context.tn(material, tint, hp[material], 0, 0, 0, 0, material, material, material, material);
+const tileCache = new Map();
+function tile(material, tint, vx, vy, flags) {
+  const key = material + '/' + tint + '/' + vx + '/' + vy + '/' + flags;
+  if (tileCache.has(key)) return tileCache.get(key);
+  // Keep unclamped floats: original night multiplication happens before the
+  // final 8-bit clamp, which matters for bright reflections and metal edges.
+  const pixels = new Float32Array(36 * 4);
+  context.tn(material, tint, hp[material], flags, 0, vx, vy,
+    material, material, material, material);
   for (let y = 0; y < 6; y++) for (let x = 0; x < 6; x++) {
-    context.en(x, y, x, y);
-    const at = (y * 6 + x) * 3;
-    pixels[at] = clamp(context.je); pixels[at + 1] = clamp(context.Xe); pixels[at + 2] = clamp(context.Ze);
+    context.en(x, y, 6 * vx + x, 6 * vy + y);
+    const at = (y * 6 + x) * 4;
+    pixels[at] = context.je; pixels[at + 1] = context.Xe;
+    pixels[at + 2] = context.Ze; pixels[at + 3] = context.Je;
   }
+  tileCache.set(key, pixels);
   return pixels;
 }
 
-// PNG encoder kept local so the generated assets are reproducible in the
-// offline build environment as well as on a developer machine.
+// PNG encoder kept local so generated assets are reproducible offline.
 const crcTable = new Uint32Array(256);
 for (let n = 0; n < 256; n++) {
   let c = n;
@@ -92,34 +104,69 @@ function chunk(type, data) {
   out.writeUInt32BE(crc32(Buffer.concat([name, data])), 8 + data.length);
   return out;
 }
-function png(width, height, rgb) {
-  const scan = Buffer.alloc((width * 3 + 1) * height);
+function png(width, height, channels, pixels) {
+  const stride = width * channels;
+  const scan = Buffer.alloc((stride + 1) * height);
   for (let y = 0; y < height; y++) {
-    scan[y * (width * 3 + 1)] = 0;
-    Buffer.from(rgb.buffer, rgb.byteOffset + y * width * 3, width * 3).copy(scan, y * (width * 3 + 1) + 1);
+    scan[y * (stride + 1)] = 0;
+    Buffer.from(pixels.buffer, pixels.byteOffset + y * stride, stride).copy(scan, y * (stride + 1) + 1);
   }
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8; ihdr[9] = 2; // 8-bit RGB, no alpha: old MIDP PNG decoders are happiest this way.
+  ihdr[8] = 8; ihdr[9] = channels === 4 ? 6 : 2;
   return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]), chunk('IHDR', ihdr),
     chunk('IDAT', zlib.deflateSync(scan, {level: 9})), chunk('IEND', Buffer.alloc(0))]);
 }
 
 const output = path.join(root, 'src/main/resources/textures');
 fs.mkdirSync(output, {recursive: true});
-const tiles = [];
-for (let m = 1; m <= 20; m++) for (let tint = 0; tint <= 26; tint++) tiles.push({m, tint, rgb: tile(m, tint)});
-for (const size of [2, 3, 6]) {
-  const width = 27 * size, height = 20 * size, rgb = new Uint8Array(width * height * 3);
-  for (const entry of tiles) {
-    const ox = entry.tint * size, oy = (entry.m - 1) * size;
-    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-      const sx = Math.min(5, (x * 6 / size) | 0), sy = Math.min(5, (y * 6 / size) | 0);
-      const from = (sy * 6 + sx) * 3, to = ((oy + y) * width + ox + x) * 3;
-      rgb[to] = entry.rgb[from]; rgb[to + 1] = entry.rgb[from + 1]; rgb[to + 2] = entry.rgb[from + 2];
+let failed = false;
+function emit(name, bytes) {
+  const file = path.join(output, name);
+  if (CHECK) {
+    const actual = fs.readFileSync(file);
+    if (!actual.equals(bytes)) { console.error('MISMATCH ' + name); failed = true; }
+    else console.log('OK ' + name + ' ' + bytes.length + ' bytes');
+  } else {
+    fs.writeFileSync(file, bytes);
+    console.log(name + ' ' + bytes.length + ' bytes');
+  }
+}
+
+function variantsX(size) { return size === 3 ? 4 : 2; }
+function makeAtlas(size, night, alpha) {
+  // Base rows 20/21 are jointed steel/panels; alpha row 3 is vertical rebar.
+  const vxCount = variantsX(size), rows = alpha ? 4 : 22, channels = alpha ? 4 : 3;
+  const width = 27 * size * vxCount, height = rows * size * 2;
+  const rgb = new Uint8Array(width * height * channels);
+  for (let vy = 0; vy < 2; vy++) for (let vx = 0; vx < vxCount; vx++) {
+    for (let row = 0; row < rows; row++) {
+      const material = alpha ? (row === 0 ? 5 : row === 2 ? 17 : 7) : row < 20 ? row + 1 : row === 20 ? 4 : 14;
+      const flags = alpha ? (row === 3 ? 16 : 0) : row >= 20 ? 32 : 0;
+      for (let tint = 0; tint <= 26; tint++) {
+        const pixels = tile(material, tint, vx, vy, flags);
+        const ox = (vx * 27 + tint) * size;
+        const oy = (vy * rows + row) * size;
+        for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+          const sx = Math.min(5, (x * 6 / size) | 0), sy = Math.min(5, (y * 6 / size) | 0);
+          const from = (sy * 6 + sx) * 4;
+          const to = ((oy + y) * width + ox + x) * channels;
+          rgb[to] = clamp(pixels[from] * (night ? 0.38 : 1));
+          rgb[to + 1] = clamp(pixels[from + 1] * (night ? 0.40 : 1));
+          rgb[to + 2] = clamp(pixels[from + 2] * (night ? 0.50 : 1));
+          if (alpha) rgb[to + 3] = clamp(pixels[from + 3]);
+        }
+      }
     }
   }
-  const file = path.join(output, 'materials' + size + '.png');
-  fs.writeFileSync(file, png(width, height, rgb));
-  console.log(path.relative(root, file) + ' ' + width + 'x' + height + ' ' + fs.statSync(file).size + ' bytes');
+  return png(width, height, channels, rgb);
 }
+
+for (const size of [2, 3, 6]) {
+  for (const night of [false, true]) {
+    const suffix = night ? 'Night' : '';
+    emit('materials' + size + suffix + '.png', makeAtlas(size, night, false));
+    emit('materialsAlpha' + size + suffix + '.png', makeAtlas(size, night, true));
+  }
+}
+if (failed) process.exitCode = 1;

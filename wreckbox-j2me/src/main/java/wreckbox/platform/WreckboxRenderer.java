@@ -33,8 +33,11 @@ public final class WreckboxRenderer {
   private String cachedDestructionText = "0%";
   private float cachedDoseRate = -1.0f;
   private String cachedDoseText = "";
-  private Image atlas2, atlas3, atlas6;
-  private boolean atlas2Tried, atlas3Tried, atlas6Tried;
+  private final Image[] atlases = new Image[3], alphaAtlases = new Image[3];
+  private final boolean[] atlasTried = new boolean[3], alphaAtlasTried = new boolean[3];
+  private final int[] damagePixels = new int[36];
+  private int atlasSize = -1;
+  private boolean atlasNight;
   private static final int[] FABRIC_COLORS = {0x8e3b46, 0x3f5f8a, 0x5d7a4a, 0x7a5a3c, 0x6b6f78};
 
   public WreckboxRenderer(Game game) { this.game = game; }
@@ -132,21 +135,49 @@ public final class WreckboxRenderer {
     catch (Exception e) { return null; }
   }
 
-  /** Lazily decoded recovered 6 px material patterns; no per-frame images or arrays. */
+  /** Only one zoom/night set stays decoded; changing either releases the old images. */
+  private void prepareAtlases(int size) {
+    if (atlasSize == size && atlasNight == game.night) return;
+    for (int i = 0; i < 3; i++) {
+      atlases[i] = alphaAtlases[i] = null;
+      atlasTried[i] = alphaAtlasTried[i] = false;
+    }
+    atlasSize = size; atlasNight = game.night;
+  }
+
+  private int atlasIndex(int size) { return size == 2 ? 0 : size == 3 ? 1 : size == 6 ? 2 : -1; }
+
   private Image materialAtlas(int size) {
-    if (size == 2) {
-      if (!atlas2Tried) { atlas2Tried = true; atlas2 = loadAtlas("/textures/materials2.png"); }
-      return atlas2;
+    int index = atlasIndex(size);
+    if (index < 0) return null;
+    if (!atlasTried[index]) {
+      atlasTried[index] = true;
+      atlases[index] = loadAtlas("/textures/materials" + size + (atlasNight ? "Night" : "") + ".png");
     }
-    if (size == 3) {
-      if (!atlas3Tried) { atlas3Tried = true; atlas3 = loadAtlas("/textures/materials3.png"); }
-      return atlas3;
+    return atlases[index];
+  }
+
+  private Image materialAlphaAtlas(int size) {
+    int index = atlasIndex(size);
+    if (index < 0) return null;
+    if (!alphaAtlasTried[index]) {
+      alphaAtlasTried[index] = true;
+      alphaAtlases[index] = loadAtlas("/textures/materialsAlpha" + size + (atlasNight ? "Night" : "") + ".png");
     }
-    if (size == 6) {
-      if (!atlas6Tried) { atlas6Tried = true; atlas6 = loadAtlas("/textures/materials6.png"); }
-      return atlas6;
-    }
-    return null;
+    return alphaAtlases[index];
+  }
+
+  private int variantsX(int size) { return size == 3 ? 4 : 2; }
+  private int atlasX(int tint, int gx, int size) { return ((gx & (variantsX(size) - 1)) * 27 + tint) * size; }
+  private int atlasY(int material, int gy, int size, int flags) {
+    int row = (flags & CellGrid.FLAG_JOINT) != 0 && material == 4 ? 20
+        : (flags & CellGrid.FLAG_JOINT) != 0 && material == 14 ? 21 : material - 1;
+    return ((gy & 1) * 22 + row) * size;
+  }
+  private int alphaRow(int material) { return material == 5 ? 0 : material == 7 ? 1 : 2; }
+  private int alphaY(int material, int gy, int size, int flags) {
+    int row = material == 7 && (flags & CellGrid.FLAG_VERTICAL) != 0 ? 3 : alphaRow(material);
+    return ((gy & 1) * 4 + row) * size;
   }
 
   private void drawCells(Graphics g) {
@@ -157,35 +188,50 @@ public final class WreckboxRenderer {
     int minY = Math.max(0, (int)((game.cameraY - halfH) / 6.0f) - 1);
     int maxY = Math.min(CellGrid.HEIGHT - 1, (int)((game.cameraY + halfH) / 6.0f) + 1);
     int cellSize = Math.max(1, (int)Math.ceil(6.0f * game.zoom));
-    Image atlas = game.night ? null : materialAtlas(cellSize);
+    prepareAtlases(cellSize);
+    Image atlas = materialAtlas(cellSize), alphaAtlas = null;
+    boolean alphaResolved = false;
     for (int y = minY; y <= maxY; y++) for (int x = minX; x <= maxX; x++) {
       int at = grid.index(x, y), cell = grid.packedAt(x, y), m = cell & 31;
       if (m == 0) continue;
       int color = Materials.COLORS[m];
-      int tint = (cell >>> 26) & 31;
+      int tint = (cell >>> 26) & 31, flags = (cell >>> 18) & 255;
       if (tint != 0) color = tintColor(color, tint, x, y);
       float health = ((cell >>> 5) & 8191) / (16.0f * Materials.HP[m]);
       if (health < 0.75f) color = scaleColor(color, 0.55f + 0.45f * health);
       boolean litWindow = game.night && (m == 5 || m == 17) && ((x * 11 + y * 7 + tint) & 7) < 3;
       if (litWindow) color = 0xd2b56a;
-      else if (game.night && m != 12) color = scaleColor(color, 0.55f);
+      else if (game.night && m != 12) color = nightColor(color);
       int px = sx(x * 6.0f), py = sy(y * 6.0f);
-      // Intact daylight cells use the recovered raster patterns. Damaged and
-      // night cells retain the dynamic tint/health path below. Lava stays on
-      // the animated path instead of freezing its recovered noise into a tile.
-      if (atlas != null && m != 12 && health >= 0.75f && tint <= 26) {
-        g.drawRegion(atlas, tint * cellSize, (m - 1) * cellSize, cellSize, cellSize,
-            0, px, py, Graphics.TOP | Graphics.LEFT);
-      } else {
+      boolean alphaMaterial = m == 5 || m == 7 || m == 17;
+      if (alphaMaterial && !alphaResolved) { alphaAtlas = materialAlphaAtlas(cellSize); alphaResolved = true; }
+      Image tileAtlas = alphaMaterial ? alphaAtlas : atlas;
+      boolean textured = tileAtlas != null && m != 12 && tint <= 26 && !litWindow;
+      boolean textureDrawn = false, originalDamage = false;
+      if (textured) {
+        int sourceX = atlasX(tint, x, cellSize);
+        int sourceY = alphaMaterial ? alphaY(m, y, cellSize, flags) : atlasY(m, y, cellSize, flags);
+        if (health >= 0.75f) {
+          g.drawRegion(tileAtlas, sourceX, sourceY, cellSize, cellSize,
+              0, px, py, Graphics.TOP | Graphics.LEFT);
+          textureDrawn = true;
+        } else {
+          originalDamage = drawDamagedAtlas(g, tileAtlas, sourceX, sourceY, m, x, y, cellSize, health, px, py);
+          textureDrawn = originalDamage;
+        }
+      }
+      if (!textureDrawn) {
         g.setColor(color); g.fillRect(px, py, cellSize, cellSize);
         if (cellSize >= 3 && !game.showStress) drawMaterialDetail(g, m, px, py, cellSize, color, x, y);
       }
-      if (health < 0.72f && cellSize >= 2) {
+      if (!originalDamage && health < 0.72f && cellSize >= 2) {
         g.setColor(scaleColor(color, 0.38f));
         if ((x + y & 1) == 0) g.drawLine(px, py, px + cellSize - 1, py + cellSize - 1);
         else g.drawLine(px + cellSize - 1, py, px, py + cellSize - 1);
         if (health < 0.35f) g.drawLine(px, py + cellSize / 2, px + cellSize - 1, py + cellSize / 2 - 1);
       }
+      if (textureDrawn && !originalDamage && (m == 4 || m == 5))
+        drawRecoveredEdges(g, m, x, y, px, py, cellSize, color);
       if (game.showStress && game.structure.stressAt(at) > 0.0f) {
         float stress = game.structure.stressAt(at);
         g.setColor(stress > 1.0f ? 0xe84c3d : stress > 0.7f ? 0xe5b83f : 0x58b96b);
@@ -195,6 +241,52 @@ public final class WreckboxRenderer {
         g.setColor(0x775540); g.drawRect(px, py, cellSize - 1, cellSize - 1);
       }
     }
+  }
+
+  private boolean drawDamagedAtlas(Graphics g, Image atlas, int sourceX, int sourceY,
+      int material, int gx, int gy, int size, float health, int px, int py) {
+    if (material == 12 || Materials.FIXED[material]) return false;
+    int level = health < 0.25f ? 3 : health < 0.5f ? 2 : 1;
+    int pattern = DamagePatterns.pattern(gx, gy);
+    try {
+      atlas.getRGB(damagePixels, 0, size, sourceX, sourceY, size, size);
+      for (int y = 0; y < size; y++) for (int x = 0; x < size; x++) {
+        int at = y * size + x;
+        int mask = DamagePatterns.mask(level, pattern,
+            Math.min(5, x * 6 / size), Math.min(5, y * 6 / size));
+        if (mask == 2) { damagePixels[at] = 0; continue; }
+        if (mask != 1) continue;
+        int pixel = damagePixels[at], alpha = pixel >>> 24;
+        int r = ((pixel >>> 16) & 255) * 42 / 100;
+        int gg = ((pixel >>> 8) & 255) * 42 / 100;
+        int b = (pixel & 255) * 42 / 100;
+        if (alpha > 0 && alpha < 255) alpha = 230;
+        damagePixels[at] = (alpha << 24) | (r << 16) | (gg << 8) | b;
+      }
+      g.drawRGB(damagePixels, 0, size, px, py, size, size, true);
+      return true;
+    } catch (RuntimeException unsupported) {
+      return false;
+    }
+  }
+
+  private void drawRecoveredEdges(Graphics g, int material, int gx, int gy,
+      int px, int py, int size, int color) {
+    CellGrid grid = game.grid;
+    int up = grid.materialAt(gx, gy - 1), down = grid.materialAt(gx, gy + 1);
+    int left = grid.materialAt(gx - 1, gy), right = grid.materialAt(gx + 1, gy);
+    if (material == 5) {
+      g.setColor(game.night ? nightColor(0x464e5a) : 0x464e5a);
+      if (up != 5) g.drawLine(px, py, px + size - 1, py);
+      if (down != 5) g.drawLine(px, py + size - 1, px + size - 1, py + size - 1);
+      if (left != 5) g.drawLine(px, py, px, py + size - 1);
+      if (right != 5) g.drawLine(px + size - 1, py, px + size - 1, py + size - 1);
+      return;
+    }
+    if (up != 4) { g.setColor(scaleColor(color, 1.32f)); g.drawLine(px, py, px + size - 1, py); }
+    if (down != 4) { g.setColor(scaleColor(color, 0.60f)); g.drawLine(px, py + size - 1, px + size - 1, py + size - 1); }
+    if (left != 4) { g.setColor(scaleColor(color, 1.15f)); g.drawLine(px, py, px, py + size - 1); }
+    if (right != 4) { g.setColor(scaleColor(color, 0.68f)); g.drawLine(px + size - 1, py, px + size - 1, py + size - 1); }
   }
 
   private void drawMaterialDetail(Graphics g, int material, int x, int y, int size, int color, int gx, int gy) {
@@ -275,6 +367,12 @@ public final class WreckboxRenderer {
     int r = Math.min(255, (int)(((color >> 16) & 255) * scale));
     int g = Math.min(255, (int)(((color >> 8) & 255) * scale));
     int b = Math.min(255, (int)((color & 255) * scale));
+    return (r << 16) | (g << 8) | b;
+  }
+  private int nightColor(int color) {
+    int r = (int)(((color >> 16) & 255) * 0.38f);
+    int g = (int)(((color >> 8) & 255) * 0.40f);
+    int b = (int)((color & 255) * 0.50f);
     return (r << 16) | (g << 8) | b;
   }
 

@@ -8,13 +8,14 @@ import wreckbox.core.Maps;
 import wreckbox.core.Tools;
 import wreckbox.platform.WreckboxRenderer;
 import wreckbox.platform.SoundSynth;
+import wreckbox.platform.DamagePatterns;
 
 /** Headless MIDP stub smoke suite: executes rendering and every tool on the packaged JAR. */
 public final class PlatformTest {
   private static int checks, failures;
   public static void main(String[] args) {
     Graphics graphics = new Graphics();
-    renderMaps(graphics); renderReactorAlarm(graphics); renderDestruction(graphics); exerciseTools(graphics); textureResources(); audioResources(); maximumNuke(graphics);
+    renderMaps(graphics); renderReactorAlarm(graphics); renderDestruction(graphics); exerciseTools(graphics); textureResources(); damagePatterns(); audioResources(); maximumNuke(graphics);
     System.out.println("Wreckbox PlatformTest: " + checks + " checks, " + failures + " failures");
     if (failures != 0) throw new RuntimeException("FAILED " + failures);
   }
@@ -81,12 +82,52 @@ public final class PlatformTest {
     }
   }
   private static void textureResources() {
-    String[] names = {"materials2", "materials3", "materials6"};
+    String[] names = {"materials2", "materials3", "materials6", "materials2Night", "materials3Night", "materials6Night",
+      "materialsAlpha2", "materialsAlpha3", "materialsAlpha6", "materialsAlpha2Night", "materialsAlpha3Night", "materialsAlpha6Night"};
+    int found = 0; boolean headers = true; int[] decoded = new int[3];
     for (int i = 0; i < names.length; i++) {
       InputStream stream = WreckboxRenderer.class.getResourceAsStream("/textures/" + names[i] + ".png");
-      check(stream != null, "recovered material atlas " + names[i]);
-      if (stream != null) try { stream.close(); } catch (Exception ignored) { }
+      if (stream != null) {
+        found++;
+        try {
+          byte[] header = new byte[26]; int read = 0, part;
+          while (read < header.length && (part = stream.read(header, read, header.length - read)) > 0) read += part;
+          int size = names[i].indexOf("2") >= 0 ? 2 : names[i].indexOf("3") >= 0 ? 3 : 6;
+          boolean alpha = names[i].indexOf("Alpha") >= 0;
+          int width = ((header[16] & 255) << 24) | ((header[17] & 255) << 16) | ((header[18] & 255) << 8) | (header[19] & 255);
+          int height = ((header[20] & 255) << 24) | ((header[21] & 255) << 16) | ((header[22] & 255) << 8) | (header[23] & 255);
+          headers &= read == 26 && width == 27 * size * (size == 3 ? 4 : 2)
+              && height == (alpha ? 4 : 22) * size * 2 && (header[24] & 255) == 8
+              && (header[25] & 255) == (alpha ? 6 : 2);
+          if (names[i].indexOf("Night") < 0) decoded[size == 2 ? 0 : size == 3 ? 1 : 2] += width * height * 4;
+          stream.close();
+        } catch (Exception ignored) { headers = false; }
+      } else headers = false;
     }
+    check(found == names.length, "recovered day/night/RGBA atlases " + found + "/" + names.length);
+    check(headers, "atlas phase, joint/rebar and RGBA headers");
+    int maxDecoded = 0;
+    for (int i = 0; i < decoded.length; i++) maxDecoded = Math.max(maxDecoded, decoded[i]);
+    check(maxDecoded > 0 && maxDecoded <= 404352, "one decoded atlas set stays below 404352 B estimate");
+  }
+
+  private static void damagePatterns() {
+    int[] cracks = {27, 73, 99}, holes = {0, 0, 18};
+    for (int level = 1; level <= 3; level++) {
+      int dark = 0, transparent = 0;
+      for (int pattern = 0; pattern < 6; pattern++) for (int y = 0; y < 6; y++) for (int x = 0; x < 6; x++) {
+        int mask = DamagePatterns.mask(level, pattern, x, y);
+        if (mask == 1) dark++; else if (mask == 2) transparent++;
+      }
+      check(dark == cracks[level - 1] && transparent == holes[level - 1], "recovered damage masks level " + level);
+    }
+    check(DamagePatterns.pattern(0, 0) == 5 && DamagePatterns.pattern(7, 9) == 1
+        && DamagePatterns.pattern(31, 17) == 3 && DamagePatterns.pattern(45, 213) == 4
+        && DamagePatterns.pattern(975, 1380) == 1, "recovered damage pattern selection");
+    check(DamagePatterns.mask(1, 0, 1, 0) == 1 && DamagePatterns.mask(1, 0, 0, 1) == 1
+        && DamagePatterns.mask(1, 0, 0, 0) == 0 && DamagePatterns.mask(3, 5, 5, 4) == 2
+        && DamagePatterns.mask(3, 5, 4, 5) == 2 && DamagePatterns.mask(3, 5, 5, 5) == 2,
+        "recovered crack walk and severe holes");
   }
 
   private static void audioResources() {
