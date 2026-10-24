@@ -68,6 +68,10 @@ public final class Cpu {
     /** Simple execution statistics, shown in the on screen OSD. */
     public int lastBlockCount;
     public int lastInstrCount;
+    /** Exceptions taken so far. A healthy program takes none after boot. */
+    public int exceptions;
+    /** ExcCode of the last exception, for diagnostics. */
+    public int lastExcCode;
     boolean codeDirty;
     private int currentBlockStart;
 
@@ -524,6 +528,8 @@ public final class Cpu {
     /* ---- exceptions ----------------------------------------------------- */
 
     public void exception(int code) {
+        exceptions++;
+        lastExcCode = code;
         int sr = cop0[12];
         int cause = cop0[13] & ~0x7C;
         cause |= (code & 0x1F) << 2;

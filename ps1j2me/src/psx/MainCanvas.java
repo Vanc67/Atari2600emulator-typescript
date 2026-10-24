@@ -768,6 +768,8 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                     if (machine != null) {
                         paused = false;
                         mode = MODE_GAME;
+                        /* the phone call / task switch may have stopped it */
+                        if (config.sound && audio == null) startAudioAsync(machine);
                     } else {
                         mode = MODE_BROWSER;
                     }
@@ -1977,6 +1979,33 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     /*  lifecycle                                                           */
     /* ==================================================================== */
 
+    /**
+     * Called when the MIDlet is paused by the system (incoming call, task
+     * switch, screen lock). The emulation thread is stopped instead of being
+     * left to burn the battery in the background, and the pause menu is shown
+     * so that returning to the game is a deliberate action.
+     */
+    public void onAppPause() {
+        releasePad();
+        if (machine != null && mode == MODE_GAME) {
+            paused = true;
+            pauseSelection = 0;
+            mode = MODE_PAUSE;
+        }
+        if (audio != null) {
+            try { audio.stop(); } catch (Throwable t) { }
+            audio = null;
+        }
+        repaint();
+    }
+
+    /** Called when the MIDlet comes back to the foreground. */
+    public void onAppResume() {
+        /* nothing is resumed automatically: whichever screen was open stays,
+           the player decides whether to continue. */
+        repaint();
+    }
+
     protected void hideNotify() {
         /* Deliberately does not pause: several devices deliver hideNotify()
            during start-up, which used to leave the game frozen forever. The
@@ -1990,13 +2019,19 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
 
     public void shutdown() {
         running = false;
+        gameThread = null;
         if (audio != null) {
-            audio.stop();
+            try { audio.stop(); } catch (Throwable t) { }
             audio = null;
         }
         if (cd != null) {
-            cd.close();
+            try { cd.close(); } catch (Throwable t) { }
             cd = null;
         }
+        machine = null;
+        columnMap = null;
+        rowMap = null;
+        scaledFrame = new int[0];
+        System.gc();
     }
 }

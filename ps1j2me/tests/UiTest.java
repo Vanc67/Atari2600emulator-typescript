@@ -426,6 +426,34 @@ public class UiTest {
             paintGame.invoke(canvas, new Object[] { g });
             check(true, "paint game screen");
 
+            /* a phone call pauses the MIDlet: the emulation must stop, the pad
+               must be released and the pause menu must be shown */
+            try {
+                Method onPause = MainCanvas.class.getDeclaredMethod("onAppPause", new Class[0]);
+                onPause.setAccessible(true);
+                Method onResume = MainCanvas.class.getDeclaredMethod("onAppResume", new Class[0]);
+                onResume.setAccessible(true);
+                int before = intField(canvas, "mode");
+                check(before == 2, "game screen before the phone call (" + before + ")");
+                onPause.invoke(canvas, new Object[0]);
+                check(intField(canvas, "mode") == 3, "phone call shows the pause menu");
+                check(boolField(canvas, "paused"), "phone call pauses the emulation");
+                check(intField(canvas, "padButtons") == 0xFFFF, "phone call releases the pad");
+                onResume.invoke(canvas, new Object[0]);
+                check(intField(canvas, "mode") == 3, "returning keeps the pause menu");
+                check(boolField(canvas, "paused"), "returning does not silently resume");
+                /* "Продолжить игру" gets back into the game */
+                setInt(canvas, "pauseSelection", 0);
+                Method pauseKey = MainCanvas.class.getDeclaredMethod("pauseKey",
+                        new Class[] { int.class, int.class });
+                pauseKey.setAccessible(true);
+                pauseKey.invoke(canvas, new Object[] { new Integer(53), new Integer(0) });
+                check(intField(canvas, "mode") == 2, "resume from the pause menu works");
+                check(!boolField(canvas, "paused"), "resume clears the pause flag");
+            } catch (Throwable t) {
+                check(false, "app pause/resume -> " + (t.getCause() != null ? t.getCause() : t));
+            }
+
             /* the demo must actually produce visible pixels (catches a black screen) */
             Object mach = field(canvas, "machine");
             check(mach != null, "demo machine available for the frame check");

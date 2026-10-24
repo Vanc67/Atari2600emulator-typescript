@@ -5,4 +5,4 @@ MIDlet-1: PS1J2ME, , psx.PS1Midlet
 MicroEdition-Configuration: CLDC-1.1
 MicroEdition-Profile: MIDP-2.0
 MIDlet-Jar-URL: PS1J2ME.jar
-MIDlet-Jar-Size: 132316
+MIDlet-Jar-Size: 133168

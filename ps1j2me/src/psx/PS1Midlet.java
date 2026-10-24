@@ -24,10 +24,18 @@ public final class PS1Midlet extends MIDlet {
             display.setCurrent(canvas);
         } else {
             display.setCurrent(canvas);
+            canvas.onAppResume();
         }
     }
 
-    protected void pauseApp() { }
+    /**
+     * A phone call, a task switch or a screen lock pauses the MIDlet. The game
+     * must not keep running (and keep the CPU busy) in the background, so the
+     * emulation is suspended and the pause menu is shown.
+     */
+    protected void pauseApp() {
+        if (canvas != null) canvas.onAppPause();
+    }
 
     protected void destroyApp(boolean unconditional) throws MIDletStateChangeException {
         if (canvas != null) canvas.shutdown();
