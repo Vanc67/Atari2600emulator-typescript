@@ -35,7 +35,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     private static final int MODE_MESSAGE = 7;
     private static final int MODE_INFO = 8;
 
-    public static final String VERSION = "1.7.1";
+    public static final String VERSION = "1.7.2";
 
     /* CHD/MDF/NRG need a decompressor or a proprietary header: they are not
        listed as games so a tap on them cannot fail with an empty screen. */
@@ -270,6 +270,13 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     private volatile int padButtons = 0xFFFF;
     /** Storage roots found on this handset (see FileRoots). */
     private Vector roots = new Vector();
+    /**
+     * True once the background memory card scan has finished one way or the
+     * other. The UI renders before the scan returns otherwise, which used to
+     * make screenshots (and the first frame on a slow phone) flip between the
+     * browser and the "no card" message.
+     */
+    private boolean discovered;
     /** True while the browser shows the list of storage devices. */
     private boolean showingRoots;
     /** Set while the settings screen re-reads the folder: keeps MODE_SETTINGS. */
@@ -328,6 +335,17 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     /* ==================================================================== */
 
     public void run() {
+        try {
+            discover();
+        } finally {
+            discovered = true;
+        }
+    }
+
+    /** Used by the desktop tests to wait for the background scan. */
+    public boolean isDiscovered() { return discovered; }
+
+    private void discover() {
         try {
             roots = FileRoots.discoverRoots();
             if (roots.size() == 0) {

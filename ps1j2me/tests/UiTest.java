@@ -89,6 +89,14 @@ public class UiTest {
         MainCanvas canvas = new MainCanvas(null);
         Graphics g = new Graphics();
 
+        /* The memory card scan finishes on a worker thread and must report
+           that it is done, otherwise a phone can be left on a blank screen. */
+        long deadline = System.currentTimeMillis() + 10000;
+        while (!canvas.isDiscovered() && System.currentTimeMillis() < deadline) {
+            try { Thread.sleep(5); } catch (InterruptedException ie) { }
+        }
+        check(canvas.isDiscovered(), "background memory card scan finishes");
+
         String[] modes = { "MODE_BOOT", "MODE_BROWSER", "MODE_PAUSE", "MODE_SETTINGS",
                 "MODE_HELP", "MODE_DEMOS", "MODE_MESSAGE", "MODE_INFO" };
         int[] expected = { 0, 1, 3, 4, 5, 6, 7, 8 };
