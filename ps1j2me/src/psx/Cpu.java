@@ -326,7 +326,7 @@ public final class Cpu {
             }
             case K_ADDIU: gpr[rt] = gpr[rs] + (short) raw; return 0;
             case K_SLTI:  gpr[rt] = (gpr[rs] < (short) raw) ? 1 : 0; return 0;
-            case K_SLTIU: gpr[rt] = ((gpr[rs] ^ 0x80000000) < (((short) raw) ^ 0x80000000)) ? 1 : 0; return 0;
+            case K_SLTIU: gpr[rt] = ((gpr[rs] ^ 0x80000000) < ((raw & 0xFFFF) ^ 0x80000000)) ? 1 : 0; return 0;
             case K_ANDI:  gpr[rt] = gpr[rs] & (raw & 0xFFFF); return 0;
             case K_ORI:   gpr[rt] = gpr[rs] | (raw & 0xFFFF); return 0;
             case K_XORI:  gpr[rt] = gpr[rs] ^ (raw & 0xFFFF); return 0;

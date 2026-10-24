@@ -69,7 +69,8 @@ public class DemoRender {
         String dir = args.length > 0 ? args[0] : "res/demos";
         String outDir = args.length > 1 ? args[1] : "build/shots";
         new File(outDir).mkdirs();
-        String[] names = { "demo_shapes", "demo_logo", "demo_3d", "demo_sound" };
+        String[] names = { "demo_pong", "demo_pad", "demo_shapes", "demo_tex",
+                           "demo_logo", "demo_3d", "demo_sound" };
         int failures = 0;
         for (int i = 0; i < names.length; i++) {
             String name = names[i];
@@ -80,7 +81,7 @@ public class DemoRender {
             }
             CdImage cd = new VirtualCD();
             ((VirtualCD) cd).open("file://" + iso.getAbsolutePath());
-            if (name.equals("demo_shapes")) {
+            if (name.equals("demo_pong")) {
                 /* also cover the in-memory image used for JAR resources */
                 byte[] raw = readAll(iso);
                 cd = new MemoryCD(raw, name);

@@ -48,19 +48,28 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
 
     /* ---- built-in demos (embedded in the JAR) --------------------------- */
     private static final String[] DEMO_RES = {
+        "/res/demos/demo_pong.iso",
+        "/res/demos/demo_pad.iso",
         "/res/demos/demo_shapes.iso",
+        "/res/demos/demo_tex.iso",
         "/res/demos/demo_logo.iso",
         "/res/demos/demo_3d.iso",
         "/res/demos/demo_sound.iso",
     };
     private static final String[] DEMO_NAME = {
+        "Pong (игра)",
+        "Тест геймпада",
         "Фигуры (GPU)",
+        "Текстуры (GPU)",
         "Логотип (шрифт)",
         "3D куб (GTE)",
         "Звук (SPU)",
     };
     private static final String[] DEMO_DESC = {
+        "2/8 - ракетка, играбельными кнопками",
+        "нажмите кнопки - подсветятся",
         "треугольники, спрайты, полупрозрачность",
+        "4-битная текстура, CLUT, UV",
         "блочный шрифт, градиент, курсор",
         "вращение куба через GTE и полигоны",
         "ADPCM-тон в SPU + эквалайзер",
@@ -98,9 +107,17 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         "Настройки сохраняются в RMS и переживают перезапуск.",
         "",
         "ДЕМО",
-        "В JAR встроены четыре демо-образа: фигуры, логотип, 3D-куб",
-        "и звук. Они запускаются из меню 'Демо' и не требуют",
-        "файлов на карте памяти.",
+        "В JAR встроены семь демо: Pong, тест геймпада, фигуры,",
+        "текстуры, логотип, 3D-куб и звук. Запускаются из меню",
+        "'Демо' и не требуют файлов на карте памяти.",
+        "Pong и тест пада проверяют ввод: если кнопки не",
+        "работают, смените раскладку в настройках.",
+        "",
+        "ЗАПУСК",
+        "Загрузка игры и звука идёт в фоне, поэтому меню не",
+        "подвисает. Если кадр считается дольше 800 мс, эмулятор",
+        "сам включает пропуск кадров. Если звук недоступен,",
+        "появляется сообщение, а игра продолжается.",
         "",
         "ТРЕБОВАНИЯ",
         "Куча MIDlet: около 5 МиБ. JSR-75 нужен для игр с карты.",
@@ -142,6 +159,9 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     private long lastFpsTime;
     private String overlayMessage;
     private long overlayUntil;
+    private volatile boolean booting;
+    private long audioStartedAt;
+    private int errorCount;
 
     /* ---- settings / help / demos ---------------------------------------- */
     private final Config config = Config.get();
@@ -589,46 +609,27 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         }
     }
 
-    private void startDemo(int index) {
-        stopGame();
-        mode = MODE_MESSAGE;
-        status = "Загрузка демо: " + DEMO_NAME[index] + "...";
-        repaint();
-        try {
-            MemoryCD mem = MemoryCD.fromResource(getClass(), DEMO_RES[index], DEMO_NAME[index]);
-            if (mem == null) {
-                status = "Демо не найдено в JAR: " + DEMO_RES[index];
-                mode = MODE_DEMOS;
-                repaint();
-                return;
-            }
-            boot(mem);
-        } catch (Throwable t) {
-            status = "Ошибка запуска демо: " + t.toString();
-            mode = MODE_DEMOS;
-            repaint();
-        }
-    }
-
     /* ---- input in game ---------------------------------------------------- */
 
     private void gameKey(int keyCode, int action, boolean pressed) {
         int bit = -1;
-        if (action == UP || keyCode == KEY_NUM2) bit = 4;          /* up     */
-        else if (action == DOWN || keyCode == KEY_NUM8) bit = 6;   /* down   */
-        else if (action == LEFT || keyCode == KEY_NUM4) bit = 7;   /* left   */
-        else if (action == RIGHT || keyCode == KEY_NUM6) bit = 5;  /* right  */
-        else if (action == FIRE || keyCode == KEY_NUM5) bit = 14;  /* cross  */
-        else if (keyCode == KEY_NUM1) bit = 15;                    /* square */
-        else if (keyCode == KEY_NUM3) bit = 12;                    /* triangle */
-        else if (keyCode == KEY_NUM0) bit = 13;                    /* circle */
-        else if (keyCode == KEY_NUM7) bit = 10;                    /* L1 */
-        else if (keyCode == KEY_NUM9) bit = 11;                    /* R1 */
-        else if (keyCode == KEY_STAR) bit = 3;                     /* start */
-        else if (keyCode == KEY_POUND) bit = 0;                    /* select */
+        if (action == UP || keyCode == KEY_NUM2) bit = 4;           /* up       */
+        else if (action == DOWN || keyCode == KEY_NUM8) bit = 6;    /* down     */
+        else if (action == LEFT || keyCode == KEY_NUM4) bit = 7;    /* left     */
+        else if (action == RIGHT || keyCode == KEY_NUM6) bit = 5;   /* right    */
+        else if (action == FIRE || keyCode == KEY_NUM5) bit = 14;   /* cross    */
+        else if (keyCode == KEY_NUM1) bit = 15;                     /* square   */
+        else if (keyCode == KEY_NUM3) bit = 12;                     /* triangle */
+        else if (keyCode == KEY_NUM0) bit = 13;                     /* circle   */
+        else if (keyCode == KEY_NUM7) bit = 10;                     /* L1       */
+        else if (keyCode == KEY_NUM9) bit = 11;                     /* R1       */
+        else if (keyCode == KEY_STAR) bit = 3;                      /* start    */
+        else if (keyCode == KEY_POUND) bit = 0;                     /* select   */
 
-        if (config.padLayout == 1 && bit == 14) bit = 13;
-        else if (config.padLayout == 1 && bit == 13) bit = 14;
+        if (config.padLayout == 1) {
+            if (bit == 14) bit = 13;
+            else if (bit == 13) bit = 14;
+        }
 
         if (pressed && bit < 0) {
             if (keyCode == KEY_SOFTKEY1) {
@@ -637,10 +638,15 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             }
             if (keyCode == KEY_SOFTKEY2) {
                 config.sound = !config.sound;
-                if (audio != null) {
-                    if (config.sound) audio.start(); else audio.stop();
-                }
                 config.save();
+                if (config.sound) {
+                    if (machine != null && audio == null) startAudioAsync(machine);
+                } else {
+                    if (audio != null) {
+                        audio.stop();
+                        audio = null;
+                    }
+                }
                 overlay(config.sound ? "Звук включён" : "Звук выключен");
                 return;
             }
@@ -649,40 +655,105 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             if (pressed) padButtons &= ~(1 << bit);
             else padButtons |= (1 << bit);
         }
-        if (machine != null) machine.setButtons(padButtons);
+        PS1Machine m = machine;
+        if (m != null) m.setButtons(padButtons);
     }
 
+    /** Shows a short message in the corner of the game screen. */
     private void overlay(String message) {
         overlayMessage = message;
-        overlayUntil = System.currentTimeMillis() + 1500;
+        overlayUntil = System.currentTimeMillis() + 2000;
         repaint();
     }
 
-    /* ==================================================================== */
-    /*  starting games                                                      */
-    /* ==================================================================== */
+    /* ---- asynchronous boot ------------------------------------------------
+     * Everything that touches storage, the JAR, the heap or the audio system
+     * runs on a worker thread. The MIDlet event thread only paints, so a slow
+     * memory card or a device that blocks inside Manager.createPlayer() can
+     * never freeze the UI (this was the "demo freezes the phone" bug).
+     * -------------------------------------------------------------------- */
 
-    private void startFileGame(Entry e) {
+    private interface ImageFactory {
+        CdImage create() throws Exception;
+    }
+
+    private void startDemo(final int index) {
+        if (booting) {
+            overlay("Загрузка уже идёт");
+            return;
+        }
+        beginBoot("Загрузка демо: " + DEMO_NAME[index], new ImageFactory() {
+            public CdImage create() {
+                MemoryCD mem = MemoryCD.fromResource(getClass(), DEMO_RES[index], DEMO_NAME[index]);
+                return mem;
+            }
+        });
+    }
+
+    private void startFileGame(final Entry e) {
+        if (booting) {
+            overlay("Загрузка уже идёт");
+            return;
+        }
+        final String url = resolveImageUrl(e.url);
+        final String name = e.name;
+        mode = MODE_MESSAGE;
+        status = "Открытие " + name + "...";
+        repaint();
+        beginBoot("Открытие " + name + "...", new ImageFactory() {
+            public CdImage create() throws Exception {
+                VirtualCD vcd = new VirtualCD();
+                vcd.open(url);
+                return vcd;
+            }
+        });
+    }
+
+    /** Starts a background boot; the UI keeps repainting meanwhile. */
+    private void beginBoot(final String label, final ImageFactory factory) {
         stopGame();
-        status = "Открытие " + e.name + "...";
+        booting = true;
+        errorCount = 0;
+        mode = MODE_MESSAGE;
+        status = label;
+        repaint();
+        Thread t = new Thread(new Runnable() {
+            public void run() {
+                CdImage image = null;
+                try {
+                    image = factory.create();
+                    if (image == null) {
+                        failBoot("Образ не найден в JAR. Пересоберите PS1J2ME.jar (./build.sh).");
+                        return;
+                    }
+                    bootNow(image);
+                } catch (OutOfMemoryError oom) {
+                    freeMemoryHint();
+                    failBoot("Не хватает памяти MIDlet. 2 МиБ RAM + 1 МиБ VRAM + 512 КиБ BIOS"
+                            + " требуют ~5 МиБ кучи. Закройте другие приложения или уменьшите"
+                            + " масштаб экрана в настройках.");
+                } catch (Throwable t2) {
+                    failBoot("Ошибка запуска: " + t2.toString());
+                } finally {
+                    booting = false;
+                }
+            }
+        }, "ps1-boot");
+        t.start();
+    }
+
+    private void failBoot(String message) {
+        machine = null;
+        status = message;
         mode = MODE_MESSAGE;
         repaint();
-        try {
-            VirtualCD vcd = new VirtualCD();
-            vcd.open(resolveImageUrl(e.url));
-            boot(vcd);
-        } catch (Throwable t) {
-            status = "Ошибка запуска: " + t.toString();
-            mode = MODE_MESSAGE;
-        }
-        repaint();
     }
 
-    private void boot(CdImage image) {
+    private void bootNow(CdImage image) {
         cd = image;
-        machine = new PS1Machine(image);
-        machine.setViewport(320, 240);
-        machine.spu.setMasterVolume(config.volume);
+        PS1Machine m = new PS1Machine(image);
+        m.setViewport(320, 240);
+        m.spu.setMasterVolume(config.volume);
 
         boolean real = false;
         if (!config.useHle) {
@@ -692,33 +763,61 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             } catch (Throwable t) { }
             if (bios != null) {
                 try {
-                    real = machine.loadBios(bios);
+                    real = m.loadBios(bios);
                 } catch (Throwable t) {
                     real = false;
                 }
             }
         }
-        if (!real) {
-            if (!machine.hleBoot(image)) {
-                status = machine.isBiosLoaded()
-                        ? "BIOS загружен, но на диске нет SYSTEM.CNF/PSX.EXE"
-                        : "Не найден BIOS и не удалось загрузить игру";
-                mode = MODE_MESSAGE;
-                repaint();
-                return;
-            }
+        if (!real && !m.hleBoot(image)) {
+            failBoot(m.isBiosLoaded()
+                    ? "BIOS загружен, но на диске нет SYSTEM.CNF/PSX.EXE"
+                    : "Не найден BIOS и не удалось загрузить игру");
+            return;
         }
-        audio = new AudioOutput(machine.spu);
-        audio.setVolume(config.volume);
-        if (config.sound) audio.start();
+
+        machine = m;
         padButtons = 0xFFFF;
-        machine.setButtons(padButtons);
+        m.setButtons(padButtons);
         paused = false;
-        mode = MODE_GAME;
         running = true;
-        gameThread = new Thread(new GameLoop());
+        mode = MODE_GAME;
+        gameThread = new Thread(new GameLoop(), "ps1-game");
         gameThread.start();
+        startAudioAsync(m);
         repaint();
+    }
+
+    /**
+     * Audio is started on its own thread: some devices block for seconds (or
+     * forever) inside Manager.createPlayer(), and that must never stall the
+     * emulator or the UI.
+     */
+    private void startAudioAsync(final PS1Machine m) {
+        if (!config.sound) {
+            audio = null;
+            return;
+        }
+        final AudioOutput a = new AudioOutput(m.spu);
+        a.setVolume(config.volume);
+        audio = a;
+        audioStartedAt = System.currentTimeMillis();
+        Thread t = new Thread(new Runnable() {
+            public void run() {
+                a.start();
+                if (!a.available) overlay("Звук недоступен на этом устройстве");
+            }
+        }, "ps1-audio");
+        t.start();
+    }
+
+    private void freeMemoryHint() {
+        machine = null;
+        cd = null;
+        columnMap = null;
+        rowMap = null;
+        scaledFrame = new int[0];
+        System.gc();
     }
 
     /** A .cue sheet is a text index; the payload lives in the sibling .bin. */
@@ -744,11 +843,11 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         running = false;
         gameThread = null;
         if (audio != null) {
-            audio.stop();
+            try { audio.stop(); } catch (Throwable t) { }
             audio = null;
         }
         if (cd != null) {
-            cd.close();
+            try { cd.close(); } catch (Throwable t) { }
             cd = null;
         }
         machine = null;
@@ -761,20 +860,43 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             long last = System.currentTimeMillis();
             lastFpsTime = last;
             int skipCounter = 0;
+            int slowFrames = 0;
             while (running) {
-                if (paused || !isShown()) {
+                PS1Machine m = machine;
+                if (m == null) break;
+                if (paused || hidden) {
                     try { Thread.sleep(40); } catch (InterruptedException e) { }
                     last = System.currentTimeMillis();
                     continue;
                 }
+                long frameStart = System.currentTimeMillis();
                 try {
-                    machine.runFrame();
+                    m.runFrame();
                     framesThisSecond++;
+                } catch (OutOfMemoryError oom) {
+                    running = false;
+                    break;
                 } catch (Throwable t) {
-                    overlayMessage = "Сбой: " + t.toString();
-                    overlayUntil = System.currentTimeMillis() + 5000;
-                    paused = true;
+                    errorCount++;
+                    if (errorCount <= 3) {
+                        overlayMessage = "Сбой: " + t.toString();
+                        overlayUntil = System.currentTimeMillis() + 4000;
+                    } else {
+                        running = false;
+                        break;
+                    }
                 }
+                long frameTime = System.currentTimeMillis() - frameStart;
+                if (frameTime > 800) {
+                    slowFrames++;
+                    if (slowFrames == 3 && config.frameSkip == 0) {
+                        /* the device cannot keep up: skip frames automatically */
+                        config.frameSkip = 1;
+                        config.save();
+                        overlay("Медленное устройство: включён пропуск кадров");
+                    }
+                }
+
                 long now = System.currentTimeMillis();
                 if (now - lastFpsTime >= 1000) {
                     fps = framesThisSecond;
@@ -787,13 +909,28 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                     skipCounter = 0;
                     repaint();
                 }
+                checkAudio();
                 long elapsed = System.currentTimeMillis() - last;
                 long wait = 16 - elapsed;
-                if (wait > 0) {
+                if (wait > 0 && config.frameSkip == 0) {
                     try { Thread.sleep(wait); } catch (InterruptedException e) { }
                 }
                 last = System.currentTimeMillis();
             }
+        }
+    }
+
+    /** Detects an audio system that never came up, without ever blocking. */
+    private void checkAudio() {
+        AudioOutput a = audio;
+        if (a == null || a.isRunning()) return;
+        long age = System.currentTimeMillis() - audioStartedAt;
+        if (!a.isStarting() && age > 4000) {
+            audio = null;
+            overlay("Звук недоступен на этом устройстве");
+        } else if (a.isStarting() && age > 15000) {
+            /* the device is stuck inside Manager: abandon the player */
+            audio = null;
         }
     }
 
@@ -1157,11 +1294,17 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     /*  lifecycle                                                           */
     /* ==================================================================== */
 
+    /** Set from hideNotify(): some devices report isShown() wrongly, so the
+        emulator only pauses when the MIDlet really went to the background. */
+    private volatile boolean hidden;
+
     protected void hideNotify() {
+        hidden = true;
         if (mode == MODE_GAME) paused = true;
     }
 
     protected void showNotify() {
+        hidden = false;
         repaint();
     }
 

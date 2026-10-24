@@ -113,7 +113,7 @@ public class UiTest {
         String[] res = (String[]) field(canvas, "DEMO_RES");
         String[] names = (String[]) field(canvas, "DEMO_NAME");
         String[] desc = (String[]) field(canvas, "DEMO_DESC");
-        check(res.length == 4 && names.length == res.length && desc.length == res.length,
+        check(res.length == 7 && names.length == res.length && desc.length == res.length,
                 "demo tables " + res.length);
         boolean resourcesOk = true;
         for (int i = 0; i < res.length; i++) {
@@ -131,8 +131,16 @@ public class UiTest {
         Method startDemo = MainCanvas.class.getDeclaredMethod("startDemo", new Class[] { int.class });
         startDemo.setAccessible(true);
         try {
+            long t0 = System.currentTimeMillis();
             startDemo.invoke(canvas, new Object[] { new Integer(0) });
-            Object machine = field(canvas, "machine");
+            long callTime = System.currentTimeMillis() - t0;
+            /* the event thread must return immediately: boot happens on a worker */
+            check(callTime < 1000, "demo launch does not block the UI (" + callTime + " ms)");
+            Object machine = null;
+            for (int wait = 0; wait < 200 && machine == null; wait++) {
+                Thread.sleep(50);
+                machine = field(canvas, "machine");
+            }
             check(machine != null, "demo machine booted");
             int mode = intField(canvas, "mode");
             check(mode == 2, "demo switched to game mode (" + mode + ")");

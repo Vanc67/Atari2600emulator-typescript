@@ -40,6 +40,7 @@ public final class Gpu {
     private final int[] p = new int[16];
     private int pn, need, opcode;
     private int vramIndex, vramRemaining;
+    private int vramX, vramY, vramW;
     private int readX, readY, readW, readH, readIndex, readRemaining;
     private int polylineWords;      /* -1 when not in a polyline */
 
@@ -331,8 +332,8 @@ public final class Gpu {
             int uv = p[idx++];
             u = uv & 0xFF;
             v = (uv >>> 8) & 0xFF;
-            clutX = (uv & 0x3F) * 16;
-            clutY = (uv >>> 6) & 0x1FF;
+            clutX = ((uv >>> 16) & 0x3F) * 16;
+            clutY = (uv >>> 22) & 0x1FF;
         }
         int w, h;
         if (siz == 0) {
@@ -495,8 +496,9 @@ public final class Gpu {
                 uu[i] = uv & 0xFF;
                 vv[i] = (uv >>> 8) & 0xFF;
                 if (i == 0) {
-                    clutX = (uv & 0x3F) * 16;
-                    clutY = (uv >>> 6) & 0x1FF;
+                    /* texcoord word 0: bits 16-21 = CLUT X/16, 22-30 = CLUT Y */
+                    clutX = ((uv >>> 16) & 0x3F) * 16;
+                    clutY = (uv >>> 22) & 0x1FF;
                 }
                 if (i == 1) {
                     /* second UV word may carry a texture page for this polygon */
@@ -521,7 +523,8 @@ public final class Gpu {
                 vxx[1], vyy[1], cr[1], cg[1], cb[1], uu[1], vv[1],
                 vxx[2], vyy[2], cr[2], cg[2], cb[2], uu[2], vv[2],
                 textured, semi, clutX, clutY);
-            tri(vxx[1], vyy[1], cr[1], cg[1], cb[1], uu[1], vv[1],
+            /* the quad is split along the 0-2 diagonal: (0,1,2) + (0,2,3) */
+            tri(vxx[0], vyy[0], cr[0], cg[0], cb[0], uu[0], vv[0],
                 vxx[2], vyy[2], cr[2], cg[2], cb[2], uu[2], vv[2],
                 vxx[3], vyy[3], cr[3], cg[3], cb[3], uu[3], vv[3],
                 textured, semi, clutX, clutY);
@@ -705,14 +708,14 @@ public final class Gpu {
 
     /* ---- VRAM transfers --------------------------------------------------- */
 
+    /** Width of a transfer rectangle: the field holds (width - 1). */
     private static int xferW(int wh) {
-        int w = wh & 0x3FF;
-        return ((w - 1) & 0x3FF) + 1;
+        return (wh & 0x3FF) + 1;
     }
 
+    /** Height of a transfer rectangle: the field holds (height - 1). */
     private static int xferH(int wh) {
-        int h = (wh >>> 16) & 0x1FF;
-        return ((h - 1) & 0x1FF) + 1;
+        return ((wh >>> 16) & 0x1FF) + 1;
     }
 
     private void vramWrite() {
@@ -724,6 +727,9 @@ public final class Gpu {
         int h = xferH(wh);
         int count = w * h;
         vramIndex = y * VRAM_W + x;
+        vramX = x;
+        vramY = y;
+        vramW = w;
         vramRemaining = count;
         mode = M_VRAM_WRITE;
         if (count <= 0) mode = M_IDLE;
@@ -738,12 +744,15 @@ public final class Gpu {
             if (maskForceBit15) out |= 0x8000;
             vram[vramIndex] = (short) out;
         }
+        /* the transfer wraps at the rectangle width, not at the VRAM row */
+        vramX++;
         vramIndex++;
-        vramRemaining--;
-        if (vramIndex % VRAM_W == 0) {
-            /* simply continue on the next row; wrapping is automatic since the
-               index is absolute and the transfer is row-major */
+        if (vramX >= vramW) {
+            vramX = 0;
+            vramY = (vramY + 1) & 0x1FF;
+            vramIndex = (vramY << 10);
         }
+        vramRemaining--;
         if (vramRemaining <= 0) mode = M_IDLE;
     }
 
@@ -762,6 +771,12 @@ public final class Gpu {
     private int readVramPixel() {
         int v = vram[readIndex] & 0xFFFF;
         readIndex++;
+        readX++;
+        if (readX >= readW) {
+            readX = 0;
+            readY = (readY + 1) & 0x1FF;
+            readIndex = readY << 10;
+        }
         readRemaining--;
         if (readRemaining <= 0) mode = M_IDLE;
         return v;
