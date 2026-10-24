@@ -107,6 +107,7 @@ class Asm(object):
     def xori(self, rt, rs, imm): self._i(0x0E, rs, rt, imm)
     def lui(self, rt, imm): self._i(0x0F, 0, rt, imm)
     def slti(self, rt, rs, imm): self._i(0x0A, rs, rt, imm)
+    def sltiu(self, rt, rs, imm): self._i(0x0B, rs, rt, imm)
     def lw(self, rt, off, base): self._i(0x23, base, rt, off)
 
     def lw_safe(self, rt, off, base):
@@ -414,18 +415,27 @@ def delay(a, outer=8, inner=400):
 
 
 def wait_vblank(a):
-    """Blocks until the GPU field bit (status bit 31) has flipped twice."""
-    lab1 = a.uniq("vbf")
-    lab2 = a.uniq("vbd")
+    """Waits for one toggle of the GPU field bit (GPUSTAT bit 31).
+
+    Bounded on purpose: if a device (or emulator build) never toggles the bit,
+    the demo continues instead of spinning forever, which used to look like a
+    frozen emulator.
+    """
+    l_poll = a.uniq("vb")
+    l_done = a.uniq("vbx")
     a.li(11, GP1)
-    a.label(lab1)
     a.lw_safe(12, 0, 11)
-    a.bgez(12, lab1)
+    a.srl(12, 12, 31)           # field bit of the current field
+    a.li(6, 0)                  # poll counter
+    a.label(l_poll)
+    a.lw_safe(13, 0, 11)
+    a.srl(13, 13, 31)
+    a.beq(13, 12, l_poll)       # wait until the field flips over
+    a.addiu(6, 6, 1)
+    a.sltiu(7, 6, 40000)        # give up after 40k polls
+    a.bne(7, 0, l_poll)
     a.nop()
-    a.label(lab2)
-    a.lw_safe(12, 0, 11)
-    a.bltz(12, lab2)
-    a.nop()
+    a.label(l_done)
 
 
 def triangle(a, x0, y0, x1, y1, x2, y2, color, semi=False):
@@ -889,11 +899,436 @@ def demo_sound():
     return a
 
 
+
+# --------------------------------------------------------------------------
+#  texture helpers
+# --------------------------------------------------------------------------
+
+TEX_X, TEX_Y = 0, 256          # 4 bit texture page (texpage X=0, Y=256)
+CLUT_X, CLUT_Y = 0, 480
+SCRATCH2 = 0x1F800200
+
+
+def palette16():
+    """16 bright BGR555 colours (index 0 stays transparent)."""
+    cols = []
+    for i in range(16):
+        r = (i * 2) & 31
+        g = (i * 7) & 31
+        b = ((15 - i) * 2) & 31
+        if i >= 8:
+            r = 31
+        cols.append(r | (g << 5) | (b << 10))
+    cols[0] = 0x0000
+    cols[1] = 0x7FFF
+    return cols
+
+
+def texture_words(size=64, checker=8):
+    """Packs a 64x64 4 bit texture the way GP0 sees it.
+
+    One GP0 word carries eight 4 bit texels (two 16 bit VRAM halfwords), so a
+    64 texel row needs eight words and the transfer header says 16 halfwords
+    wide by 64 lines.
+    """
+    texels = []
+    for y in range(size):
+        for x in range(size):
+            if ((x // checker) + (y // checker)) & 1:
+                idx = 2 + ((x >> 4) + (y >> 4)) % 13
+            else:
+                idx = 1 + ((x + y) >> 5)
+            texels.append(idx & 0xF)
+    words = []
+    for i in range(0, len(texels), 8):
+        w = 0
+        for k in range(8):
+            w |= (texels[i + k] & 0xF) << (k * 4)
+        words.append(w & 0xFFFFFFFF)
+    return words
+
+
+def upload_texture(a, words, x=TEX_X, y=TEX_Y, halfwords=16, lines=64):
+    """GP0 0xA0: CPU -> VRAM transfer of a 4 bit texture.
+
+    The header counts 16 bit cells: a 64 texel row is 16 of them, so the
+    payload is one GP0 word per two cells.
+    """
+    gp0(a, 0xA0000000)
+    gp0(a, (x & 0xFFFF) | ((y & 0xFFFF) << 16))
+    gp0(a, ((halfwords - 1) & 0xFFFF) | (((lines - 1) & 0xFFFF) << 16))
+    for w in words:
+        gp0(a, w & 0xFFFFFFFF)
+
+
+def upload_clut(a, cols, x=CLUT_X, y=CLUT_Y):
+    gp0(a, 0xA0000000)
+    gp0(a, (x & 0xFFFF) | ((y & 0xFFFF) << 16))
+    gp0(a, 15)                       # 16 x 1 pixel: (w-1) | ((h-1) << 16) = 15
+    for i in range(0, 16, 2):
+        gp0(a, (cols[i] & 0xFFFF) | ((cols[i + 1] & 0xFFFF) << 16))
+
+
+def clut_word():
+    return ((CLUT_X // 16) & 0x3F) << 16 | ((CLUT_Y & 0x1FF) << 22)
+
+
+def textured_quad(a, p0, p1, p2, p3, u0, v0, u1, v1, u2, v2, u3, v3, color=0xFFFFFF):
+    gp0(a, 0x2C000000 | (color & 0xFFFFFF))
+    gp0(a, (p0[0] & 0xFFFF) | ((p0[1] & 0xFFFF) << 16))
+    gp0(a, (u0 & 0xFF) | ((v0 & 0xFF) << 8) | clut_word())
+    gp0(a, (p1[0] & 0xFFFF) | ((p1[1] & 0xFFFF) << 16))
+    gp0(a, (u1 & 0xFF) | ((v1 & 0xFF) << 8) | (((TEX_Y // 256) << 4) << 16))
+    gp0(a, (p2[0] & 0xFFFF) | ((p2[1] & 0xFFFF) << 16))
+    gp0(a, (u2 & 0xFF) | ((v2 & 0xFF) << 8))
+    gp0(a, (p3[0] & 0xFFFF) | ((p3[1] & 0xFFFF) << 16))
+    gp0(a, (u3 & 0xFF) | ((v3 & 0xFF) << 8))
+
+
+def read_pad(a, out_lo=6, out_hi=7):
+    """Reads a digital pad through SIO0 into two registers."""
+    a.li(11, 0x1F801040)
+    a.li(10, 0x0001)
+    a.sw(10, 0, 11)
+    a.li(10, 0x0042)
+    a.sw(10, 0, 11)
+    a.lw_safe(12, 0, 11)            # 0x41  (id)
+    a.li(10, 0)
+    a.sw(10, 0, 11)
+    a.lw_safe(12, 0, 11)            # 0x5A  (ready)
+    a.li(10, 0)
+    a.sw(10, 0, 11)
+    a.lw_safe(out_lo, 0, 11)        # buttons low  (active low)
+    a.li(10, 0)
+    a.sw(10, 0, 11)
+    a.lw_safe(out_hi, 0, 11)        # buttons high
+    a.li(10, 4)
+    a.sh(10, 0x0A, 11)              # JOY_CTRL: deselect (16 bit register)
+
+
+# --------------------------------------------------------------------------
+#  demo 5: textured shapes
+# --------------------------------------------------------------------------
+
+def demo_tex():
+    """4 bit textured quad + a skewed, tinted copy, uploaded by the CPU."""
+    a = Asm()
+    init_gpu(a, 0x00100818)
+    gp0(a, 0xE1000000 | ((TEX_Y // 256) << 4) | 0)
+    upload_clut(a, palette16())
+    upload_texture(a, texture_words())
+
+    a.label("main")
+    wait_vblank(a)
+    fill_screen(a, 0x00100818)
+    draw_text(a, "4 BIT TEX", 40, 8, 3, 0x00FFFFFF)
+    textured_quad(a, (40, 34), (280, 34), (280, 150), (40, 150),
+                  0, 0, 64, 0, 64, 64, 0, 64)
+    textured_quad(a, (60, 165), (260, 185), (250, 235), (70, 225),
+                  0, 0, 32, 0, 32, 32, 0, 32, 0xC0C0FF)
+    a.j("main")
+    a.nop()
+    return a
+
+
+# --------------------------------------------------------------------------
+#  generic primitives (register safe: they only clobber t0/t1/t2)
+# --------------------------------------------------------------------------
+
+def rect(a, x, y, w, h, color):
+    sprite(a, x, y, w, h, color)
+
+
+def rect_var(a, x, yreg, w, h, color):
+    """Rectangle at a run time Y (in yreg); X may be a constant or a register."""
+    a.li(9, GP0)
+    a.li(10, 0x60000000 | (color & 0xFFFFFF))
+    a.sw(10, 0, 9)
+    a.sll(12, yreg, 16)
+    if isinstance(x, int):
+        a.li(13, x & 0xFFFF)
+        a.or_(12, 12, 13)
+    else:
+        a.or_(12, 12, x[0])
+    a.sw(12, 0, 9)
+    a.li(12, ((w - 1) & 0xFFFF) | (((h - 1) & 0xFFFF) << 16))
+    a.sw(12, 0, 9)
+
+
+# --------------------------------------------------------------------------
+#  demo 6: pad tester
+# --------------------------------------------------------------------------
+
+PAD_BUTTONS = [
+    ("U",   4,  76,  34), ("D",   6,  76,  76), ("L",   7,  44,  55), ("R",   5, 108,  55),
+    ("TRI", 12, 206,  34), ("CIR", 13, 246,  62), ("X",  14, 206,  92), ("SQR", 15, 166,  62),
+    ("SEL", 0,  72, 124), ("STA", 3, 140, 124),
+]
+
+
+def demo_pad():
+    """Interactive controller test: every pressed button lights up."""
+    a = Asm()
+    init_gpu(a, 0x00081424)
+
+    a.label("main")
+    wait_vblank(a)
+    fill_screen(a, 0x00081424)
+    read_pad(a, 6, 7)                    # a2 = buttons low, a3 = buttons high
+
+    draw_text(a, "PAD TEST", 44, 12, 4, 0x00FFFFFF)
+
+    for (label, bit, x, y) in PAD_BUTTONS:
+        on = "on_" + label
+        off = "off_" + label
+        done = "done_" + label
+        if bit < 8:
+            a.li(8, 1 << bit)
+            a.and_(8, 6, 8)
+        else:
+            a.li(8, 1 << (bit - 8))
+            a.and_(8, 7, 8)
+        a.beq(8, 0, on)               # active low: bit clear == pressed
+        a.nop()
+        rect(a, x, y, 28, 16, 0x00406060)     # released: grey
+        a.j(done)
+        a.nop()
+        a.label(on)
+        rect(a, x, y, 28, 16, 0x0000FF40)     # pressed: green
+        a.label(done)
+        draw_text(a, label, x + (14 - len(label) * 3), y + 20, 2, 0x00B0C0D0)
+
+    draw_text(a, "PRESS ANY", 60, 170, 3, 0x00FFD000)
+    draw_text(a, "BUTTON", 78, 194, 3, 0x00FFD000)
+    a.j("main")
+    a.nop()
+    return a
+
+
+# --------------------------------------------------------------------------
+#  demo 7: pong
+# --------------------------------------------------------------------------
+
+def demo_pong():
+    """Playable pong: 2/8 move the paddle, first to five points."""
+    a = Asm()
+    init_gpu(a, 0x00000000)
+    a.li(16, 100)                 # s0: player paddle y
+    a.li(17, 100)                 # s1: cpu paddle y
+    a.li(18, 160)                 # s2: ball x
+    a.li(19, 120)                 # s3: ball y
+    a.li(20, 3)                   # s4: ball dx
+    a.li(21, 2)                   # s5: ball dy
+    a.li(22, 0)                   # s6: player score
+    a.li(23, 0)                   # s7: cpu score
+
+    a.label("frame")
+    wait_vblank(a)
+    fill_screen(a, 0x00000000)
+    read_pad(a, 6, 7)
+
+    # ---- player paddle --------------------------------------------------
+    a.andi(8, 6, 0x10)            # UP
+    a.beq(8, 0, "no_up")
+    a.nop()
+    a.addiu(16, 16, -10)
+    a.label("no_up")
+    a.andi(8, 6, 0x40)            # DOWN
+    a.beq(8, 0, "no_down")
+    a.nop()
+    a.addiu(16, 16, 10)
+    a.label("no_down")
+    a.li(8, 8)
+    a.slt(8, 16, 8)
+    a.beq(8, 0, "clamp_t")
+    a.nop()
+    a.li(16, 8)
+    a.label("clamp_t")
+    a.li(8, 184)
+    a.slt(8, 8, 16)
+    a.beq(8, 0, "clamp_b")
+    a.nop()
+    a.li(16, 184)
+    a.label("clamp_b")
+
+    # ---- ball motion + walls -------------------------------------------
+    a.addu(18, 18, 20)
+    a.addu(19, 19, 21)
+    a.slti(8, 19, 8)
+    a.beq(8, 0, "wall_b")
+    a.nop()
+    a.subu(21, 0, 21)
+    a.li(19, 8)
+    a.label("wall_b")
+    a.li(8, 230)
+    a.slt(8, 8, 19)
+    a.beq(8, 0, "wall_t")
+    a.nop()
+    a.subu(21, 0, 21)
+    a.li(19, 230)
+    a.label("wall_t")
+
+    # ---- player paddle hit (ball left, paddle at x=24..32) -------------
+    a.li(8, 34)
+    a.slt(8, 18, 8)
+    a.beq(8, 0, "no_hit_p")
+    a.nop()
+    a.li(8, 4)
+    a.slt(8, 20, 8)
+    a.beq(8, 0, "no_hit_p")
+    a.nop()
+    # paddle range [py, py+40]
+    a.addiu(8, 16, 40)
+    a.slt(8, 19, 8)
+    a.beq(8, 0, "no_hit_p")
+    a.nop()
+    a.slt(8, 19, 16)
+    a.bne(8, 0, "no_hit_p")
+    a.nop()
+    a.li(20, 4)
+    a.li(18, 36)
+    a.label("no_hit_p")
+
+    # ---- cpu paddle follows the ball -----------------------------------
+    a.addiu(8, 17, 20)
+    a.slt(8, 8, 19)
+    a.beq(8, 0, "cpu_up")
+    a.nop()
+    a.addiu(17, 17, 3)
+    a.j("cpu_done")
+    a.nop()
+    a.label("cpu_up")
+    a.addiu(17, 17, -3)
+    a.label("cpu_done")
+    a.li(8, 8)
+    a.slt(8, 17, 8)
+    a.beq(8, 0, "cpu_ct")
+    a.nop()
+    a.li(17, 8)
+    a.label("cpu_ct")
+    a.li(8, 184)
+    a.slt(8, 8, 17)
+    a.beq(8, 0, "cpu_cb")
+    a.nop()
+    a.li(17, 184)
+    a.label("cpu_cb")
+
+    # ---- cpu paddle hit ------------------------------------------------
+    a.li(8, 290)
+    a.slt(8, 8, 18)
+    a.beq(8, 0, "no_hit_c")
+    a.nop()
+    a.slti(8, 20, 0)
+    a.beq(8, 0, "no_hit_c")
+    a.nop()
+    a.addiu(8, 17, 40)
+    a.slt(8, 19, 8)
+    a.beq(8, 0, "no_hit_c")
+    a.nop()
+    a.slt(8, 19, 17)
+    a.bne(8, 0, "no_hit_c")
+    a.nop()
+    a.li(20, -4)
+    a.li(18, 286)
+    a.label("no_hit_c")
+
+    # ---- goals ---------------------------------------------------------
+    a.slti(8, 18, 0)
+    a.beq(8, 0, "no_goal_c")
+    a.nop()
+    a.addiu(23, 23, 1)
+    a.li(18, 160)
+    a.li(19, 120)
+    a.li(20, 3)
+    a.label("no_goal_c")
+    a.li(8, 312)
+    a.slt(8, 8, 18)
+    a.beq(8, 0, "no_goal_p")
+    a.nop()
+    a.addiu(22, 22, 1)
+    a.li(18, 160)
+    a.li(19, 120)
+    a.li(20, -3)
+    a.label("no_goal_p")
+
+    # ---- draw ----------------------------------------------------------
+    rect_var(a, 24, 16, 8, 40, 0x00FFFFFF)
+    rect_var(a, 296, 17, 8, 40, 0x00FF8020)
+    rect_var(a, (18,), 19, 8, 8, 0x00A0E0FF)
+    # dashed centre line (counter in t8: s7 holds the CPU score)
+    a.li(24, 0)
+    a.label("net")
+    a.li(9, GP0)
+    a.li(10, 0x60505050)
+    a.sw(10, 0, 9)
+    a.li(13, 12)                # dash height step
+    a.mult(24, 13)
+    a.mflo(13)                  # y = index * 12
+    a.sll(13, 13, 16)           # move y into the high half of the xy word
+    a.li(12, 158)
+    a.or_(12, 12, 13)
+    a.sw(12, 0, 9)
+    a.li(12, 0x0003000A)
+    a.sw(12, 0, 9)
+    a.addiu(24, 24, 1)
+    a.slti(8, 24, 10)
+    a.bne(8, 0, "net")
+    a.nop()
+
+    # ---- score display -------------------------------------------------
+    draw_number(a, 22, 120, 20, 0x00FFFFFF)
+    draw_number(a, 23, 180, 20, 0x00FFFFFF)
+    a.j("frame")
+    a.nop()
+    return a
+
+
+NUM_SEGMENTS = [
+    (0, 0, 1, 1), (1, 0, 1, 1), (3, 0, 1, 1), (4, 0, 1, 1),
+]
+
+
+def draw_number(a, reg, x, y, color):
+    """Draws the small score digits (0..5) using a 3x5 segment font."""
+    for digit in range(6):
+        done = "dig_%d_%d" % (x, digit)
+        a.li(9, digit)
+        a.bne(reg, 9, done)
+        a.nop()
+        for (cx, cy, w, h) in digit_cells(digit):
+            rect(a, x + cx * 4, y + cy * 4, w, h, color)
+        a.label(done)
+
+
+DIGITS = {
+    0: ["111", "101", "101", "101", "111"],
+    1: ["010", "110", "010", "010", "111"],
+    2: ["111", "001", "111", "100", "111"],
+    3: ["111", "001", "111", "001", "111"],
+    4: ["101", "101", "111", "001", "001"],
+    5: ["111", "100", "111", "001", "111"],
+}
+
+
+def digit_cells(d):
+    rows = DIGITS[d]
+    cells = []
+    for ry, row in enumerate(rows):
+        for rx, ch in enumerate(row):
+            if ch == "1":
+                cells.append((rx, ry, 1, 1))
+    return cells
+
+
+
 DEMOS = [
     ("shapes", "demo_shapes", "GPU: треугольники, спрайты, полупрозрачность", demo_shapes),
     ("logo", "demo_logo", "Текст блочным шрифтом, фон, курсор", demo_logo),
     ("3d", "demo_3d", "GTE: вращающийся каркасный куб", demo_3d),
     ("sound", "demo_sound", "SPU: загрузка ADPCM и воспроизведение", demo_sound),
+    ("tex", "demo_tex", "Текстуры: 4-битная загрузка и кварды", demo_tex),
+    ("pad", "demo_pad", "Геймпад: интерактивный тест кнопок", demo_pad),
+    ("pong", "demo_pong", "Игра: Pong (2/8 - ракетка)", demo_pong),
 ]
 
 

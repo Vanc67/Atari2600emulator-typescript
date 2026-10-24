@@ -26,11 +26,15 @@ public final class MemoryCD implements CdImage {
         try {
             InputStream in = anchor.getResourceAsStream(resource);
             if (in == null) return null;
-            byte[] buf = new byte[256 * 1024];
+            byte[] buf = new byte[64 * 1024];
             int len = 0;
-            int n;
-            while (len < buf.length) {
-                n = in.read(buf, len, buf.length - len);
+            for (;;) {
+                if (len == buf.length) {
+                    byte[] bigger = new byte[buf.length * 2];
+                    System.arraycopy(buf, 0, bigger, 0, len);
+                    buf = bigger;
+                }
+                int n = in.read(buf, len, buf.length - len);
                 if (n <= 0) break;
                 len += n;
             }

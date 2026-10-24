@@ -19,14 +19,28 @@ public final class AudioOutput {
     private final Spu spu;
     private Player player;
     private volatile boolean running;
+    private volatile boolean starting;
     public boolean available;
+
+    /**
+     * True when {@link #start()} is still inside Manager/Player. Some devices
+     * block for a very long time there, so the UI never waits for audio.
+     */
+    public boolean isStarting() {
+        return starting;
+    }
+
+    public boolean isRunning() {
+        return running;
+    }
 
     public AudioOutput(Spu spu) {
         this.spu = spu;
     }
 
     public void start() {
-        if (running) return;
+        if (running || starting) return;
+        starting = true;
         try {
             DataSource ds = new PcmSource(spu);
             player = Manager.createPlayer(ds);
@@ -39,6 +53,8 @@ public final class AudioOutput {
         } catch (Throwable t) {
             running = false;
             available = false;
+        } finally {
+            starting = false;
         }
     }
 
@@ -130,7 +146,8 @@ public final class AudioOutput {
             return new ContentDescriptor("audio/x-wav");
         }
 
-        public long getContentLength() { return 0x7FFFF000L + 44; }
+        /* -1 = unknown: never report a huge length for an endless stream */
+        public long getContentLength() { return -1L; }
 
         public int getSeekType() { return NOT_SEEKABLE; }
 
@@ -149,8 +166,7 @@ public final class AudioOutput {
             int got = spu.drain(b, off + n, len - n);
             n += got;
             if (n == 0) {
-                /* no audio yet: emit a tiny bit of silence instead of blocking */
-                try { Thread.sleep(4); } catch (InterruptedException e) { }
+                /* no audio yet: hand back a little silence instead of blocking */
                 int pad = len > 64 ? 64 : len;
                 for (int i = 0; i < pad; i++) b[off + i] = 0;
                 n = pad;
