@@ -8,7 +8,7 @@ public abstract class Canvas extends Displayable {
     public static final int KEY_LEFT = -3; public static final int KEY_RIGHT = -4;
     public static final int KEY_FIRE = -5; public static final int KEY_GAME_A = -6;
     public static final int KEY_GAME_B = -7; public static final int KEY_GAME_C = -8; public static final int KEY_GAME_D = -9;
-    public static final int KEY_SOFTKEY1 = -6; public static final int KEY_SOFTKEY2 = -7; public static final int KEY_SOFTKEY3 = -5;
+    public static final int KEY_SOFTKEY1 = -6; public static final int KEY_SOFTKEY2 = -7; public static final int KEY_SOFTKEY3 = -8;
     public static final int KEY_NUM0 = 48; public static final int KEY_NUM1 = 49; public static final int KEY_NUM2 = 50;
     public static final int KEY_NUM3 = 51; public static final int KEY_NUM4 = 52; public static final int KEY_NUM5 = 53;
     public static final int KEY_NUM6 = 54; public static final int KEY_NUM7 = 55; public static final int KEY_NUM8 = 56;

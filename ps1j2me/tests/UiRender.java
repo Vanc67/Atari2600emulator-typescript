@@ -154,7 +154,7 @@ public class UiRender {
             setInt(canvas, "demoSelection", sel[i]);
             setInt(canvas, "settingsSelection", sel[i]);
             setInt(canvas, "pauseSelection", sel[i]);
-            setInt(canvas, "helpScroll", 8);
+            setInt(canvas, "helpScroll", 0);
             set(canvas, "status", status[i]);
             set(canvas, "currentTitle", "/res/demos");
             int[] pix = new int[W * H];
@@ -162,17 +162,61 @@ public class UiRender {
             writeBmp(dir + "/" + files[i] + ".bmp", pix);
             System.out.println("wrote " + files[i] + ".bmp");
         }
+        /* a real folder listing and the device picker */
+        try {
+            String base = System.getProperty("java.io.tmpdir") + "/uiRenderFiles";
+            /* the names make FileRoots print the labels a real phone shows */
+            java.io.File card = new java.io.File(base, "memorycard");
+            java.io.File phone = new java.io.File(base, "root2");
+            card.mkdirs();
+            phone.mkdirs();
+            new java.io.File(card, "rpg").mkdirs();
+            new java.io.File(card, "Crash Bandicoot.bin").createNewFile();
+            new java.io.File(card, "Final Fantasy VII.cue").createNewFile();
+            new java.io.File(card, "Tekken 3.iso").createNewFile();
+            new java.io.File(card, "readme.txt").createNewFile();
+
+            Method listDirectory = MainCanvas.class.getDeclaredMethod("listDirectory",
+                    new Class[] { String.class, String.class });
+            listDirectory.setAccessible(true);
+            listDirectory.invoke(canvas, new Object[] { card.getAbsolutePath() + "/", "games" });
+            setInt(canvas, "selected", 2);
+            int[] fpix = new int[W * H];
+            paint.invoke(canvas, new Object[] { new Pix(fpix) });
+            writeBmp(dir + "/ui_files.bmp", fpix);
+            System.out.println("wrote ui_files.bmp");
+
+            System.setProperty("fileconn.dir.memorycard", card.getAbsolutePath() + "/");
+            System.setProperty("fileconn.dir.private", phone.getAbsolutePath() + "/");
+            java.util.Vector roots = psx.FileRoots.discoverRoots();
+            set(canvas, "roots", roots);
+            Method openRoots = MainCanvas.class.getDeclaredMethod("openRoots", new Class[0]);
+            openRoots.setAccessible(true);
+            openRoots.invoke(canvas, new Object[0]);
+            setInt(canvas, "selected", 0);
+            int[] rpix = new int[W * H];
+            paint.invoke(canvas, new Object[] { new Pix(rpix) });
+            writeBmp(dir + "/ui_roots.bmp", rpix);
+            System.out.println("wrote ui_roots.bmp (" + roots.size() + " roots)");
+        } catch (Throwable t) {
+            System.out.println("folder/roots render skipped: " + t);
+        }
+
         /* the game screen must show real emulator output, not a black rectangle */
+        /* the desktop has no MMAPI audio: keep the screenshot clean */
+        psx.Config.get().sound = false;
         Method startDemo = MainCanvas.class.getDeclaredMethod("startDemo", new Class[] { int.class });
         startDemo.setAccessible(true);
         startDemo.invoke(canvas, new Object[] { new Integer(0) });
         Object mach = null;
-        for (int wait = 0; wait < 80; wait++) {
+        for (int wait = 0; wait < 200; wait++) {
             mach = get(canvas, "machine");
-            if (mach != null && mach.getClass().getField("framesRun").getInt(mach) >= 20) break;
+            if (mach != null && mach.getClass().getField("framesRun").getInt(mach) >= 60) break;
             Thread.sleep(50);
         }
         if (mach != null) {
+            /* let the FPS counter settle so the screenshot shows a real value */
+            Thread.sleep(700);
             int[] pix = new int[W * H];
             PaintGame(canvas, pix);
             writeBmp(dir + "/ui_game.bmp", pix);

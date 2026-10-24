@@ -23,7 +23,10 @@ public final class Config {
     public int volume = 80;          /* 0..100 */
     public boolean showFps = true;
     public boolean useHle = false;   /* false = prefer the real BIOS if present */
-    public int padLayout = 0;        /* 0 = standard, 1 = swapped fire/circle */
+    public int padLayout = 0;        /* legacy alias of keyLayout (0/1)         */
+    public int keyLayout = KeyMap.LAYOUT_STANDARD;  /* see KeyMap              */
+    public boolean showAllFiles = false;            /* browser: no ext filter  */
+    public String lastUrl = "";                     /* last browsed directory  */
 
     private static Config instance;
 
@@ -80,18 +83,61 @@ public final class Config {
 
     private String serialize() {
         return scaleMode + "," + frameSkip + "," + (sound ? 1 : 0) + "," + volume + ","
-                + (showFps ? 1 : 0) + "," + (useHle ? 1 : 0) + "," + padLayout;
+                + (showFps ? 1 : 0) + "," + (useHle ? 1 : 0) + "," + keyLayout + ","
+                + (showAllFiles ? 1 : 0) + "," + encode(lastUrl);
+    }
+
+    /** The last directory may contain commas, so it is stored URL escaped. */
+    private static String encode(String s) {
+        if (s == null) return "";
+        StringBuffer sb = new StringBuffer();
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == ',') sb.append("%2C");
+            else if (c == '%') sb.append("%25");
+            else sb.append(c);
+        }
+        return sb.toString();
+    }
+
+    private static String decode(String s) {
+        if (s == null) return "";
+        StringBuffer sb = new StringBuffer();
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '%' && i + 2 < s.length()) {
+                String hex = s.substring(i + 1, i + 3);
+                try {
+                    sb.append((char) Integer.parseInt(hex, 16));
+                    i += 2;
+                    continue;
+                } catch (Throwable t) {
+                    /* not an escape, keep it literal */
+                }
+            }
+            sb.append(c);
+        }
+        return sb.toString();
     }
 
     private void parse(String s) {
         try {
-            int[] v = new int[8];
+            /* nine numeric/boolean fields plus the free form last directory */
+            String[] parts = new String[9];
             int n = 0;
             int start = 0;
-            for (int i = 0; i <= s.length() && n < 8; i++) {
+            for (int i = 0; i <= s.length() && n < 9; i++) {
                 if (i == s.length() || s.charAt(i) == ',') {
-                    v[n++] = Integer.parseInt(s.substring(start, i).trim());
+                    parts[n++] = s.substring(start, i).trim();
                     start = i + 1;
+                }
+            }
+            int[] v = new int[9];
+            for (int i = 0; i < n; i++) {
+                try {
+                    v[i] = Integer.parseInt(parts[i]);
+                } catch (Throwable t) {
+                    v[i] = 0;
                 }
             }
             if (n > 0) scaleMode = clamp(v[0], 0, 2);
@@ -100,10 +146,24 @@ public final class Config {
             if (n > 3) volume = clamp(v[3], 0, 100);
             if (n > 4) showFps = v[4] != 0;
             if (n > 5) useHle = v[5] != 0;
-            if (n > 6) padLayout = clamp(v[6], 0, 1);
+            if (n > 6) keyLayout = clamp(v[6], 0, 2);
+            if (n > 7) showAllFiles = v[7] != 0;
+            if (n >= 9) lastUrl = decode(restAfter(s, 8));
+            padLayout = keyLayout == KeyMap.LAYOUT_SWAPPED ? 1 : 0;
         } catch (Throwable t) {
             /* partial / corrupt record: keep whatever parsed */
         }
+    }
+
+    /** Text that follows the {@code count}-th comma (1 based). */
+    private static String restAfter(String s, int count) {
+        int seen = 0;
+        for (int i = 0; i < s.length(); i++) {
+            if (s.charAt(i) != ',') continue;
+            seen++;
+            if (seen == count) return s.substring(i + 1);
+        }
+        return "";
     }
 
     private static int clamp(int v, int lo, int hi) {
@@ -120,8 +180,13 @@ public final class Config {
         showFps = true;
         useHle = false;
         padLayout = 0;
+        keyLayout = KeyMap.LAYOUT_STANDARD;
+        showAllFiles = false;
+        lastUrl = "";
         save();
     }
+
+    public String keyLayoutName() { return KeyMap.layoutName(keyLayout); }
 
     public String scaleName() {
         switch (scaleMode) {

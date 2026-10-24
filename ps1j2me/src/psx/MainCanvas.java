@@ -35,9 +35,11 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     private static final int MODE_MESSAGE = 7;
     private static final int MODE_INFO = 8;
 
-    public static final String VERSION = "1.6.0";
+    public static final String VERSION = "1.7.0";
 
-    private static final String[] GAME_EXT = { ".bin", ".iso", ".img", ".cue", ".chd", ".mdf" };
+    /* CHD/MDF/NRG need a decompressor or a proprietary header: they are not
+       listed as games so a tap on them cannot fail with an empty screen. */
+    private static final String[] GAME_EXT = { ".bin", ".iso", ".img", ".cue" };
 
     /* ---- palette -------------------------------------------------------- */
     private static final int COLOR_BG = 0x0B1020;
@@ -79,62 +81,171 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     };
 
     private static final String[] HELP_TEXT = {
-        "PS1J2ME - эмулятор Sony PlayStation 1 для Java ME (CLDC 1.1 / MIDP 2.0).",
+        "PS1J2ME - эмулятор Sony",
+        "PlayStation 1 для Java ME",
+        "(CLDC 1.1 / MIDP 2.0).",
         "",
-        "ВОЗМОЖНОСТИ",
-        "- MIPS R3000A: ленивый кэш декодированных блоков CodeBlock[]",
-        "- GTE (COP2): RTPS/RTPT/NCLIP/AVSZ/MVMVA и световые команды",
-        "- GPU: программный растеризатор без float, VRAM 1 МиБ,",
-        "  текстуры 4/8/15 бит, полупрозрачность, спрайты, линии",
-        "- SPU: 24 ADPCM-голоса, ADSR, стерео 44.1 кГц",
-        "- CD-ROM: чтение образов 300-700 МБ через Rolling InputStream",
-        "  и LRU-кэш секторов, без OutOfMemoryError",
-        "- BIOS читается из /res/roms/scph1001.bin через",
-        "  getResourceAsStream; если образа нет - HLE-загрузка игры",
-        "  (SYSTEM.CNF -> PS-X EXE)",
+        "КАК ЗАПУСТИТЬ ИГРУ С КАРТЫ",
+        "",
+        "",
+        "1. Вставьте карту в",
+        "телефон.",
+        "",
+        "2. Скопируйте образ игры в",
+        "папку games: пара GAME.BIN",
+        "+ GAME.CUE или один файл",
+        ".iso / .img.",
+        "",
+        "3. Откройте эмулятор.",
+        "Сначала покажется список",
+        "устройств: карта памяти",
+        "(E:) и память телефона",
+        "(C:). Выберите карту.",
+        "",
+        "4. Войдите в папку с игрой",
+        "и нажмите 5.",
+        "Файл .cue запускается",
+        "сразу: имя образа берётся",
+        "из листа, даже если там",
+        "путь вида",
+        "D:\\GAMES\\GAME.BIN.",
+        "",
+        "БРАУЗЕР ФАЙЛОВ",
+        "",
+        "5 - открыть папку или",
+        "запустить игру. 0 - на",
+        "уровень выше, с корня - в",
+        "меню. * - обновить список,",
+        "# - показать все файлы.",
+        "Левый софткей - меню,",
+        "правый - эта справка. Папки",
+        "помечены [D], игры [G],",
+        "устройства [*].",
+        "Если карта не видна,",
+        "нажмите * на экране",
+        "сообщения: поиск устройств",
+        "повторится.",
         "",
         "УПРАВЛЕНИЕ В ИГРЕ",
-        "2/4/6/8 или джойстик - крестовина",
-        "5 - Cross, 1 - Square, 3 - Triangle, 0 - Circle",
-        "7/9 - L1/R1, * - Start, # - Select",
-        "левый софткей - меню, правый - звук вкл/выкл",
         "",
-        "БРАУЗЕР",
-        "5 - открыть папку или запустить игру",
-        "0 - на уровень выше, * - обновить список",
-        "левый софткей - главное меню, правый - эта справка",
+        "2/4/6/8 или джойстик -",
+        "крестовина. 5 - Cross, 1 -",
+        "Square, 3 - Triangle, 0 -",
+        "Circle. 7/9 - L1/R1, * -",
+        "Start, # - Select.",
+        "Левый софткей - меню,",
+        "правый - звук вкл/выкл,",
+        "средний работает как Cross.",
+        "",
+        "ЕСЛИ КНОПКИ НЕ РАБОТАЮТ",
+        "",
+        "Настройки - Раскладка",
+        "кнопок. Три варианта:",
+        "стандарт - обычная",
+        "раскладка; крест/круг -",
+        "Cross и Circle поменяны",
+        "местами; только цифры -",
+        "джойстик отключён, работает",
+        "блок цифр, помогает на MTK",
+        "и китайских телефонах с",
+        "кривыми кодами.",
+        "В меню кнопка 5 всегда",
+        "подтверждает, 0 всегда",
+        "назад, поэтому раскладка не",
+        "мешает навигации.",
+        "",
+        "ВОЗМОЖНОСТИ",
+        "",
+        "- MIPS R3000A: ленивый кэш",
+        "декодированных блоков",
+        "CodeBlock[]",
+        "- GTE (COP2):",
+        "RTPS/RTPT/NCLIP/AVSZ/MVMVA",
+        "и световые команды, всё в",
+        "fixed-point, без float",
+        "- GPU: программный",
+        "растеризатор, VRAM 1 МиБ,",
+        "текстуры 4/8/15 бит,",
+        "полупрозрачность, спрайты,",
+        "линии",
+        "- SPU: 24 ADPCM-голоса,",
+        "ADSR, стерео 44.1 кГц",
+        "- CD-ROM: образы 300-700 МБ",
+        "читаются потоком и через",
+        "LRU-кэш секторов, без",
+        "OutOfMemoryError",
+        "- BIOS из",
+        "/res/roms/scph1001.bin",
+        "через getResourceAsStream,",
+        "без образа - HLE-загрузка",
+        "(SYSTEM.CNF -> PS-X EXE)",
         "",
         "НАСТРОЙКИ",
-        "Масштаб: на весь экран, 4:3 с полями или 1:1 пиксель.",
-        "Пропуск кадров ускоряет 3D-сцены на слабых телефонах.",
-        "Настройки сохраняются в RMS и переживают перезапуск.",
+        "",
+        "Масштаб: на весь экран, 4:3",
+        "с полями или 1:1 пиксель.",
+        "Пропуск кадров ускоряет 3D",
+        "на слабых телефонах.",
+        "Показывать все файлы -",
+        "браузер не скрывает не-",
+        "игры. Настройки сохраняются",
+        "в RMS вместе с последней",
+        "папкой.",
         "",
         "ДЕМО",
-        "В JAR встроены семь демо: Pong, тест геймпада, фигуры,",
-        "текстуры, логотип, 3D-куб и звук. Запускаются из меню",
-        "'Демо' и не требуют файлов на карте памяти.",
-        "Pong и тест пада проверяют ввод: если кнопки не",
-        "работают, смените раскладку в настройках.",
         "",
-        "ЗАПУСК",
-        "Загрузка игры и звука идёт в фоне, поэтому меню не",
-        "подвисает. Если кадр считается дольше 800 мс, эмулятор",
-        "сам включает пропуск кадров. Если звук недоступен,",
-        "появляется сообщение, а игра продолжается.",
+        "В JAR встроены семь демо:",
+        "Pong, тест геймпада,",
+        "фигуры, текстуры, логотип,",
+        "3D-куб и звук. Они не",
+        "требуют файлов на карте.",
+        "Pong и тест пада проверяют",
+        "ввод: если кнопки не",
+        "работают, смените раскладку",
+        "в настройках.",
+        "",
+        "ЗАГРУЗКА",
+        "",
+        "Загрузка игры и звука идёт",
+        "в фоне, поэтому меню не",
+        "подвисает. Если кадр",
+        "считается дольше 800 мс,",
+        "эмулятор сам включает",
+        "пропуск кадров. Если звук",
+        "недоступен, появляется",
+        "сообщение, а игра",
+        "продолжается.",
         "",
         "ТРЕБОВАНИЯ",
-        "Куча MIDlet: около 5 МиБ. JSR-75 нужен для игр с карты.",
-        "Звук работает, если устройство умеет PCM через MMAPI.",
+        "",
+        "Куча MIDlet: около 5 МиБ.",
+        "JSR-75 нужен для игр с",
+        "карты. Звук работает, если",
+        "устройство умеет PCM через",
+        "MMAPI. J2ME Loader: сборка",
+        "запускается без запросов",
+        "прав, карта хоста видна как",
+        "/sdcard.",
         "",
         "ОГРАНИЧЕНИЯ",
-        "MDEC (видеоролики) не декодируется, реверберация SPU и",
-        "CD-DA отсутствуют, карты памяти не эмулируются.",
+        "",
+        "MDEC (видеоролики) не",
+        "декодируется, реверберация",
+        "SPU и CD-DA отсутствуют,",
+        "карты памяти не",
+        "эмулируются, CHD/MDF не",
+        "читаются.",
         "",
         "БИОС",
-        "Настоящий SCPH1001.BIN защищён авторским правом и в",
-        "репозиторий не входит. Положите свой дамп в",
-        "res/roms/scph1001.bin и пересоберите: эмулятор сам",
-        "определит настоящий BIOS и запустит его.",
+        "",
+        "Настоящий SCPH1001.BIN",
+        "защищён авторским правом и",
+        "в репозиторий не входит.",
+        "Положите свой дамп в",
+        "res/roms/scph1001.bin и",
+        "пересоберите: эмулятор сам",
+        "определит настоящий BIOS и",
+        "запустит его.",
     };
 
     private final PS1Midlet midlet;
@@ -157,6 +268,11 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     private volatile boolean running;
     private volatile boolean paused;
     private volatile int padButtons = 0xFFFF;
+    /** Storage roots found on this handset (see FileRoots). */
+    private Vector roots = new Vector();
+    /** True while the browser shows the list of storage devices. */
+    private boolean showingRoots;
+    private static final int MAX_ENTRIES = 512;
     private int fps;
     private int framesThisSecond;
     private long lastFpsTime;
@@ -176,6 +292,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     private int helpScroll;
     private int demoSelection;
     private int pauseSelection;
+    private int settingsScroll;
     private int infoScroll;
     private String[] infoLines;
 
@@ -206,79 +323,188 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
 
     public void run() {
         try {
-            String root = System.getProperty("fileconn.dir.memorycard");
-            if (root == null) root = System.getProperty("fileconn.dir.memorycard.private");
-            if (root == null) {
-                Enumeration e = FileSystemRegistry.listRoots();
-                if (e != null && e.hasMoreElements()) root = (String) e.nextElement();
-            }
-            if (root == null) {
+            roots = FileRoots.discoverRoots();
+            if (roots.size() == 0) {
+                showingRoots = false;
+                currentUrl = null;
                 status = "Карта памяти не найдена. Нажмите * для повтора, 5 - встроенные демо.";
                 mode = MODE_MESSAGE;
                 repaint();
                 return;
             }
-            if (!root.endsWith("/")) root = root + "/";
-            rootUrl = root;
-            listDirectory(root, "/");
+            /* Re-open the folder the player used last time when it still exists. */
+            String last = config.lastUrl;
+            if (last != null && last.length() > 0 && FileRoots.isUsable(last)) {
+                rootUrl = (String) ((FileRoots.Root) roots.elementAt(0)).url;
+                listDirectory(last, nameOf(last));
+                return;
+            }
+            if (roots.size() == 1) {
+                FileRoots.Root r = (FileRoots.Root) roots.elementAt(0);
+                rootUrl = r.url;
+                listDirectory(r.url, r.label);
+                return;
+            }
+            openRoots();
         } catch (Throwable t) {
+            showingRoots = false;
+            currentUrl = null;
             status = "Ошибка доступа к файловой системе: " + t.toString();
             mode = MODE_MESSAGE;
             repaint();
         }
     }
 
+    /** Shows the list of storage devices (card, phone memory, ...). */
+    private void openRoots() {
+        entries.removeAllElements();
+        selected = 0;
+        scroll = 0;
+        for (int i = 0; i < roots.size(); i++) {
+            FileRoots.Root r = (FileRoots.Root) roots.elementAt(i);
+            Entry e = new Entry();
+            e.name = r.label;
+            e.url = r.url;
+            e.isDir = true;
+            e.root = true;
+            e.size = -1;
+            entries.addElement(e);
+        }
+        showingRoots = true;
+        currentUrl = null;
+        currentTitle = "Устройства";
+        mode = MODE_BROWSER;
+        status = entries.size() + " устройств(а)";
+        repaint();
+    }
+
+    /** Last path segment, used as a folder title. */
+    private static String nameOf(String url) {
+        if (url == null) return "/";
+        String u = url;
+        if (u.endsWith("/")) u = u.substring(0, u.length() - 1);
+        int slash = u.lastIndexOf('/');
+        String n = slash >= 0 ? u.substring(slash + 1) : u;
+        return n.length() == 0 ? "/" : n;
+    }
+
     private void listDirectory(String url, String title) {
         entries.removeAllElements();
         selected = 0;
         scroll = 0;
+        showingRoots = false;
+        boolean ok = false;
+        int gameCount = 0;
         try {
             FileConnection dir = (FileConnection) Connector.open(url, Connector.READ);
             try {
-                Enumeration list = dir.list();
+                Enumeration list = null;
+                try {
+                    list = dir.list();
+                } catch (Throwable t) {
+                    /* some firmwares need the explicit wildcard variant */
+                    list = dir.list("*", false);
+                }
                 Vector dirs = new Vector();
                 Vector games = new Vector();
                 Vector others = new Vector();
                 String base = url.endsWith("/") ? url : url + "/";
-                while (list != null && list.hasMoreElements()) {
-                    String name = (String) list.nextElement();
-                    boolean isDir = name.endsWith("/");
-                    if (name.startsWith(".")) continue;
+                int total = 0;
+                while (list != null && list.hasMoreElements() && total < MAX_ENTRIES) {
+                    String raw = (String) list.nextElement();
+                    if (raw == null) continue;
+                    total++;
+                    if (raw.equals(".") || raw.equals("..")) continue;
+                    if (raw.startsWith(".")) continue;          /* hidden / system */
+                    boolean isDir = raw.endsWith("/") || raw.endsWith("\\");
+                    String name = isDir ? raw.substring(0, raw.length() - 1) : raw;
+                    if (name.length() == 0) continue;
                     Entry e = new Entry();
-                    e.name = isDir ? name.substring(0, name.length() - 1) : name;
+                    e.name = name;
                     e.isDir = isDir;
-                    e.url = base + name;
-                    if (isDir) {
+                    e.url = base + raw;
+                    if (!isDir && name.indexOf('.') < 0) {
+                        /* no extension: a few phones do not append the slash */
+                        e.isDir = isDirectory(e.url);
+                    }
+                    if (e.isDir) {
+                        isDir = true;
                         dirs.addElement(e);
                     } else if (isGame(name)) {
                         e.game = true;
-                        try {
-                            FileConnection f = (FileConnection) Connector.open(e.url, Connector.READ);
-                            e.size = f.fileSize();
-                            f.close();
-                        } catch (Throwable t) {
-                            e.size = -1;
-                        }
+                        e.size = fileSize(e.url);
                         games.addElement(e);
-                    } else {
+                    } else if (config.showAllFiles) {
+                        e.size = fileSize(e.url);
                         others.addElement(e);
                     }
                 }
                 addSorted(dirs);
                 addSorted(games);
                 addSorted(others);
+                gameCount = games.size();
+                ok = true;
             } finally {
                 dir.close();
             }
-            currentUrl = url;
+            currentUrl = baseOf(url);
             currentTitle = title;
+            rootUrl = rootOf(currentUrl);
+            showingRoots = false;
             mode = MODE_BROWSER;
-            status = entries.size() == 0 ? "Пустая папка" : entries.size() + " элементов";
+            if (entries.size() == 0) {
+                status = "Папка пуста";
+            } else {
+                status = entries.size() + " элементов, " + gameCount + " игр(ы)";
+            }
+            /* keep the last folder, but do not hit RMS on every repaint */
+            if (config.lastUrl == null || !config.lastUrl.equals(currentUrl)) {
+                config.lastUrl = currentUrl;
+                config.save();
+            }
         } catch (Throwable t) {
-            status = "Не удалось открыть: " + title;
-            mode = MODE_MESSAGE;
+            if (!ok) {
+                status = "Не удалось открыть: " + title;
+                mode = MODE_MESSAGE;
+            }
         }
         repaint();
+    }
+
+    private static String baseOf(String url) {
+        return url.endsWith("/") ? url : url + "/";
+    }
+
+    private static String rootOf(String url) {
+        if (url == null) return null;
+        int scheme = url.indexOf("://");
+        if (scheme < 0) return url;
+        int slash = url.indexOf('/', scheme + 3);
+        return slash < 0 ? url : url.substring(0, slash + 1);
+    }
+
+    private static boolean isDirectory(String url) {
+        FileConnection fc = null;
+        try {
+            fc = (FileConnection) Connector.open(url, Connector.READ);
+            return fc.isDirectory();
+        } catch (Throwable t) {
+            return false;
+        } finally {
+            FileRoots.close(fc);
+        }
+    }
+
+    private static long fileSize(String url) {
+        FileConnection fc = null;
+        try {
+            fc = (FileConnection) Connector.open(url, Connector.READ);
+            return fc.fileSize();
+        } catch (Throwable t) {
+            return -1;
+        } finally {
+            FileRoots.close(fc);
+        }
     }
 
     private void addSorted(Vector v) {
@@ -311,6 +537,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         String url;
         boolean isDir;
         boolean game;
+        boolean root;
         long size;
     }
 
@@ -319,25 +546,21 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     /* ==================================================================== */
 
     protected void keyPressed(int keyCode) {
-        int action = 0;
-        try {
-            action = getGameAction(keyCode);
-        } catch (Throwable t) { }
-
+        int act = translate(keyCode);
         switch (mode) {
-            case MODE_BROWSER: browserKey(keyCode, action); break;
-            case MODE_GAME: gameKey(keyCode, action, true); break;
-            case MODE_PAUSE: pauseKey(keyCode, action); break;
-            case MODE_SETTINGS: settingsKey(keyCode, action); break;
-            case MODE_HELP: helpKey(keyCode, action); break;
-            case MODE_DEMOS: demoKey(keyCode, action); break;
-            case MODE_INFO: infoKey(keyCode, action); break;
+            case MODE_BROWSER: browserKey(keyCode, act); break;
+            case MODE_GAME: gameKey(keyCode, act, true); break;
+            case MODE_PAUSE: pauseKey(keyCode, act); break;
+            case MODE_SETTINGS: settingsKey(keyCode, act); break;
+            case MODE_HELP: helpKey(keyCode, act); break;
+            case MODE_DEMOS: demoKey(keyCode, act); break;
+            case MODE_INFO: infoKey(keyCode, act); break;
             default:
-                if (keyCode == KEY_STAR) {
+                if (act == KeyMap.START || keyCode == KEY_STAR) {
                     mode = MODE_BOOT;
                     repaint();
                     new Thread(this).start();
-                } else if (keyCode == KEY_NUM5 || keyCode == KEY_NUM0 || keyCode == KEY_SOFTKEY1) {
+                } else if (uiFire(keyCode, act)) {
                     openDemos();
                 }
                 break;
@@ -346,58 +569,87 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
 
     protected void keyReleased(int keyCode) {
         if (mode != MODE_GAME) return;
+        gameKey(keyCode, translate(keyCode), false);
+    }
+
+    /** Translates a raw MIDP key code into a KeyMap action, never throwing. */
+    private int translate(int keyCode) {
         int action = 0;
         try {
             action = getGameAction(keyCode);
-        } catch (Throwable t) { }
-        if (action == 0) {
-            /* directional / fire keys arrive here as KEY_xxx on many phones */
-            if (keyCode == KEY_UP) action = UP;
-            else if (keyCode == KEY_DOWN) action = DOWN;
-            else if (keyCode == KEY_LEFT) action = LEFT;
-            else if (keyCode == KEY_RIGHT) action = RIGHT;
-            else if (keyCode == KEY_FIRE) action = FIRE;
+        } catch (Throwable t) {
+            /* some firmwares throw for unknown codes */
         }
-        gameKey(keyCode, action, false);
+        try {
+            return KeyMap.action(keyCode, action, config.keyLayout);
+        } catch (Throwable t) {
+            return KeyMap.NONE;
+        }
     }
 
-    private static boolean upKey(int keyCode, int action) {
-        return action == UP || keyCode == KEY_NUM2;
+    /* Menu navigation deliberately ignores the game pad layout: "5" always
+       confirms and "0" always goes back, so a player who swapped Cross and
+       Circle for a game still finds the menus where they left them. */
+
+    private static boolean uiUp(int keyCode, int act) {
+        return KeyMap.isUp(act) || keyCode == KEY_NUM2;
     }
 
-    private static boolean downKey(int keyCode, int action) {
-        return action == DOWN || keyCode == KEY_NUM8;
+    private static boolean uiDown(int keyCode, int act) {
+        return KeyMap.isDown(act) || keyCode == KEY_NUM8;
     }
 
-    private static boolean fireKey(int keyCode, int action) {
-        return action == FIRE || keyCode == KEY_NUM5;
+    private static boolean uiFire(int keyCode, int act) {
+        return act == KeyMap.CROSS || act == KeyMap.OK || act == KeyMap.TRIANGLE
+                || keyCode == KEY_NUM5 || keyCode == KEY_FIRE;
     }
 
-    private void browserKey(int keyCode, int action) {
+    private static boolean uiBack(int keyCode, int act) {
+        return KeyMap.isBack(act) || act == KeyMap.SOUND
+                || keyCode == KEY_NUM0 || keyCode == KEY_SOFTKEY2;
+    }
+
+    private void browserKey(int keyCode, int act) {
         int size = entries.size();
-        if (upKey(keyCode, action)) {
+        if (uiUp(keyCode, act)) {
             if (size > 0) selected = (selected + size - 1) % size;
             repaint();
-        } else if (downKey(keyCode, action)) {
+        } else if (uiDown(keyCode, act)) {
             if (size > 0) selected = (selected + 1) % size;
             repaint();
-        } else if (fireKey(keyCode, action)) {
+        } else if (uiFire(keyCode, act)) {
             activate();
-        } else if (keyCode == KEY_NUM0) {
-            goUp();
-        } else if (keyCode == KEY_STAR) {
-            listDirectory(currentUrl == null ? rootUrl : currentUrl, currentTitle);
-        } else if (keyCode == KEY_POUND) {
-            config.showFps = !config.showFps;
-            config.save();
-            repaint();
-        } else if (keyCode == KEY_SOFTKEY1) {
+        } else if (act == KeyMap.MENU) {
             openPauseMenu();
-        } else if (keyCode == KEY_SOFTKEY2) {
+        } else if (act == KeyMap.SOUND) {
             helpScroll = 0;
             mode = MODE_HELP;
             repaint();
+        } else if (act == KeyMap.START) {
+            /* refresh the current folder (or rescan the devices) */
+            if (showingRoots) rescanRoots();
+            else listDirectory(currentUrl, currentTitle);
+        } else if (act == KeyMap.SELECT) {
+            /* non-game files stay hidden unless explicitly asked for */
+            config.showAllFiles = !config.showAllFiles;
+            config.save();
+            if (!showingRoots && currentUrl != null) listDirectory(currentUrl, currentTitle);
+            else repaint();
+        } else if (uiBack(keyCode, act)) {
+            goUp();
         }
+    }
+
+    /** Re-runs storage discovery (card inserted/removed while running). */
+    private void rescanRoots() {
+        Vector found = FileRoots.discoverRoots();
+        if (found.size() == 0) {
+            overlay("Карта памяти не найдена");
+            repaint();
+            return;
+        }
+        roots = found;
+        openRoots();
     }
 
     private void activate() {
@@ -411,25 +663,26 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     }
 
     private void goUp() {
-        if (currentUrl == null) {
+        if (showingRoots || currentUrl == null) {
             openPauseMenu();
             return;
         }
-        if (rootUrl != null && currentUrl.equals(rootUrl)) {
-            openPauseMenu();
+        for (int i = 0; i < roots.size(); i++) {
+            if (currentUrl.equals(((FileRoots.Root) roots.elementAt(i)).url)) {
+                openRoots();
+                return;
+            }
+        }
+        String parent = FileRoots.parent(currentUrl);
+        if (parent == null || parent.equals(currentUrl)) {
+            openRoots();
             return;
         }
-        String url = currentUrl;
-        if (url.endsWith("/")) url = url.substring(0, url.length() - 1);
-        int slash = url.lastIndexOf('/');
-        if (slash <= 6) {
-            listDirectory(rootUrl, "/");
-        } else {
-            String parent = url.substring(0, slash + 1);
-            String name = parent.substring(0, parent.length() - 1);
-            int ps = name.lastIndexOf('/');
-            listDirectory(parent, ps >= 0 ? name.substring(ps + 1) : "/");
+        if (rootUrl != null && parent.equals(rootUrl)) {
+            openRoots();
+            return;
         }
+        listDirectory(parent, nameOf(parent));
     }
 
     /* ---- pause menu ------------------------------------------------------ */
@@ -441,6 +694,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         "Демо-программы",
         "Справка",
         "Диагностика",
+        "Сменить папку с играми",
         "Выход в браузер",
     };
 
@@ -452,13 +706,13 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     }
 
     private void pauseKey(int keyCode, int action) {
-        if (upKey(keyCode, action)) {
+        if (uiUp(keyCode, action)) {
             pauseSelection = (pauseSelection + PAUSE_ITEMS.length - 1) % PAUSE_ITEMS.length;
             repaint();
-        } else if (downKey(keyCode, action)) {
+        } else if (uiDown(keyCode, action)) {
             pauseSelection = (pauseSelection + 1) % PAUSE_ITEMS.length;
             repaint();
-        } else if (fireKey(keyCode, action)) {
+        } else if (uiFire(keyCode, action)) {
             switch (pauseSelection) {
                 case 0:
                     if (machine != null) {
@@ -479,6 +733,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                     break;
                 case 2:
                     settingsSelection = 0;
+                    settingsScroll = 0;
                     mode = MODE_SETTINGS;
                     break;
                 case 3:
@@ -493,17 +748,23 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                     infoLines = null;
                     mode = MODE_INFO;
                     break;
+                case 6:
+                    stopGame();
+                    rescanRoots();
+                    break;
                 default:
                     stopGame();
                     break;
             }
             repaint();
-        } else if (keyCode == KEY_NUM0 || keyCode == KEY_SOFTKEY2) {
+        } else if (uiBack(keyCode, action)) {
             if (machine != null) {
                 paused = false;
                 mode = MODE_GAME;
-            } else {
+            } else if (currentUrl != null) {
                 mode = MODE_BROWSER;
+            } else {
+                mode = MODE_DEMOS;
             }
             repaint();
         }
@@ -518,23 +779,37 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         "Громкость",
         "Счётчик FPS",
         "BIOS / HLE",
+        "Раскладка кнопок",
+        "Показывать все файлы",
         "Сбросить настройки",
         "Назад",
     };
 
     private void settingsKey(int keyCode, int action) {
-        if (upKey(keyCode, action)) {
+        if (uiUp(keyCode, action)) {
             settingsSelection = (settingsSelection + SETTINGS_ITEMS.length - 1) % SETTINGS_ITEMS.length;
             repaint();
-        } else if (downKey(keyCode, action)) {
+        } else if (uiDown(keyCode, action)) {
             settingsSelection = (settingsSelection + 1) % SETTINGS_ITEMS.length;
             repaint();
-        } else if (fireKey(keyCode, action) || keyCode == KEY_STAR) {
+        } else if (uiFire(keyCode, action) || action == KeyMap.TRIANGLE) {
             applySetting();
-        } else if (keyCode == KEY_NUM0 || keyCode == KEY_SOFTKEY2) {
-            mode = MODE_PAUSE;
-            repaint();
+        } else if (uiBack(keyCode, action)) {
+            config.save();
+            backFromSettings();
         }
+    }
+
+    /** Returns to wherever the settings screen was opened from. */
+    private void backFromSettings() {
+        if (machine != null) {
+            mode = MODE_PAUSE;
+        } else if (currentUrl != null || showingRoots) {
+            mode = MODE_BROWSER;
+        } else {
+            mode = MODE_DEMOS;
+        }
+        repaint();
     }
 
     private void applySetting() {
@@ -563,11 +838,21 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                 config.useHle = !config.useHle;
                 break;
             case 6:
+                config.keyLayout = (config.keyLayout + 1) % 3;
+                config.padLayout = config.keyLayout == KeyMap.LAYOUT_SWAPPED ? 1 : 0;
+                break;
+            case 7:
+                config.showAllFiles = !config.showAllFiles;
+                if (mode != MODE_GAME && currentUrl != null && !showingRoots) {
+                    listDirectory(currentUrl, currentTitle);
+                }
+                break;
+            case 8:
                 config.reset();
                 break;
             default:
-                mode = MODE_PAUSE;
-                break;
+                backFromSettings();
+                return;
         }
         config.save();
         repaint();
@@ -581,6 +866,8 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             case 3: return config.volume + "%";
             case 4: return config.showFps ? "вкл" : "выкл";
             case 5: return config.useHle ? "всегда HLE" : "BIOS из JAR";
+            case 6: return config.keyLayoutName();
+            case 7: return config.showAllFiles ? "вкл" : "только игры";
             default: return "";
         }
     }
@@ -589,13 +876,13 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
 
     private void helpKey(int keyCode, int action) {
         int max = HELP_TEXT.length - 1;
-        if (upKey(keyCode, action) || keyCode == KEY_NUM4) {
+        if (uiUp(keyCode, action) || keyCode == KEY_NUM4) {
             helpScroll = Math.max(0, helpScroll - 1);
             repaint();
-        } else if (downKey(keyCode, action) || keyCode == KEY_NUM6) {
+        } else if (uiDown(keyCode, action) || keyCode == KEY_NUM6) {
             helpScroll = Math.min(max, helpScroll + 1);
             repaint();
-        } else if (fireKey(keyCode, action) || keyCode == KEY_NUM0 || keyCode == KEY_SOFTKEY2) {
+        } else if (uiBack(keyCode, action) || uiFire(keyCode, action)) {
             mode = MODE_PAUSE;
             repaint();
         }
@@ -611,15 +898,15 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
 
     private void demoKey(int keyCode, int action) {
         int count = DEMO_RES.length + 1;
-        if (upKey(keyCode, action)) {
+        if (uiUp(keyCode, action)) {
             demoSelection = (demoSelection + count - 1) % count;
             repaint();
-        } else if (downKey(keyCode, action)) {
+        } else if (uiDown(keyCode, action)) {
             demoSelection = (demoSelection + 1) % count;
             repaint();
-        } else if (fireKey(keyCode, action)) {
+        } else if (uiFire(keyCode, action)) {
             if (demoSelection < DEMO_RES.length) startDemo(demoSelection);
-        } else if (keyCode == KEY_NUM0 || keyCode == KEY_SOFTKEY2) {
+        } else if (uiBack(keyCode, action)) {
             mode = MODE_PAUSE;
             repaint();
         }
@@ -627,52 +914,37 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
 
     /* ---- input in game ---------------------------------------------------- */
 
-    private void gameKey(int keyCode, int action, boolean pressed) {
-        int bit = -1;
-        if (action == UP || keyCode == KEY_NUM2) bit = 4;           /* up       */
-        else if (action == DOWN || keyCode == KEY_NUM8) bit = 6;    /* down     */
-        else if (action == LEFT || keyCode == KEY_NUM4) bit = 7;    /* left     */
-        else if (action == RIGHT || keyCode == KEY_NUM6) bit = 5;   /* right    */
-        else if (action == FIRE || keyCode == KEY_NUM5) bit = 14;   /* cross    */
-        else if (keyCode == KEY_NUM1) bit = 15;                     /* square   */
-        else if (keyCode == KEY_NUM3) bit = 12;                     /* triangle */
-        else if (keyCode == KEY_NUM0) bit = 13;                     /* circle   */
-        else if (keyCode == KEY_NUM7) bit = 10;                     /* L1       */
-        else if (keyCode == KEY_NUM9) bit = 11;                     /* R1       */
-        else if (keyCode == KEY_STAR) bit = 3;                      /* start    */
-        else if (keyCode == KEY_POUND) bit = 0;                     /* select   */
-
-        if (config.padLayout == 1) {
-            if (bit == 14) bit = 13;
-            else if (bit == 13) bit = 14;
+    private void gameKey(int keyCode, int act, boolean pressed) {
+        if (act == KeyMap.MENU) {
+            if (pressed) openPauseMenu();
+            return;
         }
-
-        if (pressed && bit < 0) {
-            if (keyCode == KEY_SOFTKEY1) {
-                openPauseMenu();
-                return;
-            }
-            if (keyCode == KEY_SOFTKEY2) {
-                config.sound = !config.sound;
-                config.save();
-                if (config.sound) {
-                    if (machine != null && audio == null) startAudioAsync(machine);
-                } else {
-                    if (audio != null) {
-                        audio.stop();
-                        audio = null;
-                    }
-                }
-                overlay(config.sound ? "Звук включён" : "Звук выключен");
-                return;
-            }
+        if (act == KeyMap.SOUND) {
+            if (pressed) toggleSoundInGame();
+            return;
         }
+        /* the middle soft key is the fire button on phones that have one */
+        if (act == KeyMap.OK) act = KeyMap.CROSS;
+        int bit = KeyMap.padBit(act);
         if (bit >= 0) {
             if (pressed) padButtons &= ~(1 << bit);
             else padButtons |= (1 << bit);
         }
         PS1Machine m = machine;
         if (m != null) m.setButtons(padButtons);
+    }
+
+    /** Soft key 2 during a game: sound on / off without leaving the screen. */
+    private void toggleSoundInGame() {
+        config.sound = !config.sound;
+        config.save();
+        if (config.sound) {
+            if (machine != null && audio == null) startAudioAsync(machine);
+        } else if (audio != null) {
+            audio.stop();
+            audio = null;
+        }
+        overlay(config.sound ? "Звук включён" : "Звук выключен");
     }
 
     /** Shows a short message in the corner of the game screen. */
@@ -715,7 +987,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             overlay("Загрузка уже идёт");
             return;
         }
-        final String url = resolveImageUrl(e.url);
+        final String url = e.url;
         final String name = e.name;
         mode = MODE_MESSAGE;
         status = "Открытие " + name + "...";
@@ -847,25 +1119,6 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         rowMap = null;
         scaledFrame = new int[0];
         System.gc();
-    }
-
-    /** A .cue sheet is a text index; the payload lives in the sibling .bin. */
-    private String resolveImageUrl(String url) {
-        String lower = url.toLowerCase();
-        if (!lower.endsWith(".cue")) return url;
-        String base = url.substring(0, url.length() - 4);
-        String[] candidates = { base + ".bin", base + ".BIN", base + ".img", base + ".iso" };
-        for (int i = 0; i < candidates.length; i++) {
-            try {
-                FileConnection f = (FileConnection) Connector.open(candidates[i], Connector.READ);
-                boolean exists = f.exists();
-                f.close();
-                if (exists) return candidates[i];
-            } catch (Throwable t) {
-                /* try the next candidate */
-            }
-        }
-        return url;
     }
 
     private void stopGame() {
@@ -1065,6 +1318,31 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         txt(g, TinyFont.ellipsize(s, viewW - 8), 4, viewH - 12, Graphics.LEFT | Graphics.TOP);
     }
 
+    /** Shortens a file name but keeps its extension, which matters for games. */
+    private static String shortenName(String name, int maxW) {
+        if (TinyFont.stringWidth(name) <= maxW) return name;
+        int dot = name.lastIndexOf('.');
+        String ext = dot > 0 ? name.substring(dot) : "";
+        if (ext.length() > 5) ext = "";
+        int keep = maxW / TinyFont.WIDTH - 3 - ext.length();
+        if (keep < 3) return TinyFont.ellipsize(name, maxW);
+        return name.substring(0, keep) + "..." + ext;
+    }
+
+    /** Thin vertical scroll bar shown when a list is longer than the screen. */
+    private void scrollBar(Graphics g, int top, int height, int first, int visible, int total) {
+        if (total <= visible || height <= 0) return;
+        int x = viewW - 3;
+        g.setColor(COLOR_BAR);
+        g.fillRect(x, top, 3, height);
+        int h = height * visible / total;
+        if (h < 6) h = 6;
+        int span = total - visible;
+        int y = top + (height - h) * first / span;
+        g.setColor(COLOR_DIM);
+        g.fillRect(x, y, 3, h);
+    }
+
     /** Draws UI text with the built-in bitmap font (no dependency on device fonts). */
     private static void txt(Graphics g, String s, int x, int y, int anchor) {
         TinyFont.draw(g, s, x, y, anchor, boldFlag);
@@ -1097,7 +1375,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
 
     private void paintMessage(Graphics g, Font plain, int barH) {
         drawWrapped(g, status, 10, barH + 20, viewW - 20, plain, COLOR_TEXT);
-        hint(g, "* - снова  5 - демо  0 - выход");
+        hint(g, "* - снова  5 - демо");
     }
 
     /** Help text wrapped to the current screen width (the font is monospaced). */
@@ -1145,14 +1423,23 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             txt(g, line, 6, top + i * lineH, Graphics.LEFT | Graphics.TOP);
         }
         int percent = (int) ((helpScroll * 100L) / Math.max(1, maxScroll));
-        hint(g, "2/8 - листать " + percent + "%   0 - назад");
+        hint(g, "2/8 - листать " + percent + "%");
     }
 
     private void paintSettings(Graphics g, Font bold, Font plain, int barH) {
         int top = barH + 10;
         int rowH = TinyFont.HEIGHT + 10;
-        for (int i = 0; i < SETTINGS_ITEMS.length; i++) {
-            int y = top + i * rowH;
+        int visible = (viewH - 16 - top) / rowH;
+        if (visible < 1) visible = 1;
+        if (settingsSelection < settingsScroll) settingsScroll = settingsSelection;
+        if (settingsSelection >= settingsScroll + visible) settingsScroll = settingsSelection - visible + 1;
+        if (settingsScroll > SETTINGS_ITEMS.length - visible) {
+            settingsScroll = SETTINGS_ITEMS.length - visible;
+        }
+        if (settingsScroll < 0) settingsScroll = 0;
+        scrollBar(g, top - 2, visible * rowH, settingsScroll, visible, SETTINGS_ITEMS.length);
+        for (int i = settingsScroll; i < SETTINGS_ITEMS.length && i < settingsScroll + visible; i++) {
+            int y = top + (i - settingsScroll) * rowH;
             if (i == settingsSelection) {
                 g.setColor(COLOR_SEL);
                 g.fillRect(2, y - 2, viewW - 4, rowH);
@@ -1199,8 +1486,15 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                            String[] items, int selection, String[] values, String hint) {
         int top = barH + 20;
         int rowH = TinyFont.HEIGHT + 14;
-        for (int i = 0; i < items.length; i++) {
-            int y = top + i * rowH;
+        int visible = (viewH - 18 - top) / rowH;
+        if (visible < 1) visible = 1;
+        int first = 0;
+        if (selection >= visible) first = selection - visible + 1;
+        if (first > items.length - visible) first = items.length - visible;
+        if (first < 0) first = 0;
+        scrollBar(g, top - 2, visible * rowH, first, visible, items.length);
+        for (int i = first; i < items.length && i < first + visible; i++) {
+            int y = top + (i - first) * rowH;
             if (i == selection) {
                 g.setColor(COLOR_SEL);
                 g.fillRect(8, y - 4, viewW - 16, rowH);
@@ -1223,6 +1517,17 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     /* ---- diagnostics ----------------------------------------------------- */
 
     /** Snapshot of the emulator state, one line per metric. */
+    /** Disc layout in words, for the diagnostics screen. */
+    private static String layoutName(CdImage image) {
+        if (!(image instanceof VirtualCD)) return "демо в RAM";
+        switch (((VirtualCD) image).getLayout()) {
+            case VirtualCD.LAYOUT_2352_MODE1: return "2352 Mode1";
+            case VirtualCD.LAYOUT_2352_MODE2: return "2352 Mode2";
+            case VirtualCD.LAYOUT_2336_MODE2: return "2336 Mode2";
+            default: return "2048 ISO";
+        }
+    }
+
     private String[] buildInfo() {
         Vector v = new Vector();
         PS1Machine m = machine;
@@ -1237,9 +1542,18 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         v.addElement("Размер кадра " + (m == null ? 0 : m.getFrameWidth())
                 + "x" + (m == null ? 0 : m.getFrameHeight()));
         v.addElement("Диск " + (cd == null ? "нет" : cd.getUrl()));
-        v.addElement("Секторов " + (cd == null ? 0 : cd.getSectorCount()));
+        v.addElement("Секторов " + (cd == null ? 0 : cd.getSectorCount())
+                + "  формат " + (cd == null ? "нет" : layoutName(cd)));
+        if (cd instanceof VirtualCD) {
+            VirtualCD vcd = (VirtualCD) cd;
+            if (vcd.getCueUrl() != null) {
+                v.addElement("CUE " + nameOf(vcd.getCueUrl()));
+                v.addElement("Образ " + vcd.getCueFile());
+            }
+        }
         v.addElement("Звук " + (audio != null && audio.available ? "есть" : "нет"));
         v.addElement("Масштаб " + config.scaleName() + "  пропуск " + config.frameSkip);
+        v.addElement("Кнопки " + config.keyLayoutName());
         if (m != null && m.biosHle != null) {
             v.addElement("BIOS вызовов " + m.biosHle.calls
                     + "  неизвестных " + m.biosHle.unknownCalls);
@@ -1265,6 +1579,10 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                 if (cut <= 0) cut = maxChars;
                 out.addElement(line.substring(0, cut));
                 line = line.substring(cut + 1);
+                /* wrapped continuations start flush left */
+                int lead = 0;
+                while (lead < line.length() && line.charAt(lead) == ' ') lead++;
+                line = line.substring(lead);
             }
             out.addElement(line);
         }
@@ -1280,15 +1598,15 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         if (visible < 1) visible = 1;
         int maxScroll = lines.length - visible;
         if (maxScroll < 0) maxScroll = 0;
-        if (upKey(keyCode, action)) {
+        if (uiUp(keyCode, action)) {
             infoScroll -= visible - 1;
             if (infoScroll < 0) infoScroll = 0;
-        } else if (downKey(keyCode, action)) {
+        } else if (uiDown(keyCode, action)) {
             infoScroll += visible - 1;
             if (infoScroll > maxScroll) infoScroll = maxScroll;
-        } else if (fireKey(keyCode, action) || keyCode == KEY_NUM0 || keyCode == KEY_SOFTKEY2) {
+        } else if (uiBack(keyCode, action) || uiFire(keyCode, action)) {
             mode = MODE_PAUSE;
-        } else if (keyCode == KEY_STAR) {
+        } else if (action == KeyMap.START) {
             infoLines = null;
             infoScroll = 0;
         }
@@ -1312,7 +1630,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             boldFlag = false;
             txt(g, lines[idx], 6, top + i * lineH, Graphics.LEFT | Graphics.TOP);
         }
-        hint(g, "2/8 - листать   * - обновить   0 - выход");
+        hint(g, "2/8 - листать   0 - выход");
     }
 
     private void paintBrowser(Graphics g, Font bold, Font plain, int barH) {
@@ -1331,10 +1649,15 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
 
         if (entries.size() == 0) {
             g.setColor(COLOR_TEXT);
-            txt(g, "Здесь нет файлов игр.", 10, listTop, Graphics.LEFT | Graphics.TOP);
-            g.setColor(COLOR_DIM);
-            txt(g, "Меню - встроенные демо и настройки.", 10, listTop + rowH,
+            txt(g, showingRoots ? "Устройства не найдены." : "Здесь нет файлов игр.", 10, listTop,
                     Graphics.LEFT | Graphics.TOP);
+            g.setColor(COLOR_DIM);
+            txt(g, showingRoots ? "Нажмите 0 - меню." : "Меню - демо, настройки, справка.", 10,
+                    listTop + rowH, Graphics.LEFT | Graphics.TOP);
+            if (!showingRoots) {
+                txt(g, "Игры кладутся в папку games на карте.", 10, listTop + 2 * rowH,
+                        Graphics.LEFT | Graphics.TOP);
+            }
         }
 
         for (int i = 0; i < visible; i++) {
@@ -1346,25 +1669,25 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                 g.setColor(COLOR_SEL);
                 g.fillRect(2, y - 2, viewW - 4, rowH);
             }
-            g.setColor(e.isDir ? COLOR_DIR : (e.game ? COLOR_GAME : COLOR_TEXT));
+            g.setColor(e.root ? COLOR_GAME : (e.isDir ? COLOR_DIR : (e.game ? COLOR_GAME : COLOR_TEXT)));
             boldFlag = true;
-            String tag = e.isDir ? "[D]" : (e.game ? "[G]" : "   ");
+            String tag = e.root ? "[*]" : (e.isDir ? "[D]" : (e.game ? "[G]" : "   "));
             txt(g, tag, 8, y + 2, Graphics.LEFT | Graphics.TOP);
             g.setColor(idx == selected ? 0xFFFFFF : COLOR_TEXT);
             boldFlag = false;
-            String name = e.name;
-            int maxW = viewW - 60;
-            while (TinyFont.stringWidth(name) > maxW && name.length() > 3) {
-                name = name.substring(0, name.length() - 4) + "...";
-            }
+            String name = e.isDir ? e.name : shortenName(e.name, viewW - 60);
             txt(g, name, 34, y + 2, Graphics.LEFT | Graphics.TOP);
-            if (e.game && e.size > 0) {
+            if (!e.isDir && e.size > 0) {
                 g.setColor(COLOR_DIM);
                 txt(g, sizeText(e.size), viewW - 6, y + 2, Graphics.RIGHT | Graphics.TOP);
             }
         }
 
-        hint(g, "5 - открыть  0 - вверх  меню - демо");
+        if (showingRoots) {
+            hint(g, "5 - выбрать  0 - меню");
+        } else {
+            hint(g, "5 - открыть  0 - вверх");
+        }
     }
 
     /* ---- game screen ------------------------------------------------------ */
