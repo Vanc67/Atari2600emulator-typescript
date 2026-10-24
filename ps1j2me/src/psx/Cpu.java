@@ -93,7 +93,7 @@ public final class Cpu {
         pc = 0xBFC00000;
         branchPending = false;
         pendingLoadReg = -1;
-        loadIssued = false;
+        exceptionTaken = false;
         cycles = 0;
         if (cache != null) cache.flush();
     }
@@ -179,22 +179,38 @@ public final class Cpu {
         if (!branchPending) pc = target;
     }
 
-    /** Executes one already decoded instruction. Returns non zero on control flow. */
+    /**
+     * Executes one already decoded instruction. Returns non zero on control
+     * flow.
+     *
+     * <p>MIPS I load delay: a loaded value becomes visible only after the
+     * instruction that follows the load has run, and that instruction still
+     * reads the old contents. Two loads in a row is therefore perfectly legal
+     * (compilers emit it all the time) and the first value must not be lost:
+     * the pending slot is handed over before the instruction executes and the
+     * previous value is committed afterwards.</p>
+     */
     final int execOp(int key, int raw) {
-        int result = execSwitch(key, raw);
-        /* MIPS I load delay: the value becomes visible only after the
-           instruction that follows the load has executed. */
-        if (loadIssued) {
-            loadIssued = false;
-        } else if (pendingLoadReg >= 0) {
-            gpr[pendingLoadReg] = pendingLoadValue;
-            pendingLoadReg = -1;
+        int commitReg = pendingLoadReg;
+        int commitValue = pendingLoadValue;
+        pendingLoadReg = -1;
+        exceptionTaken = false;
+        /* LWL and LWR merge into the register they load, so the documented
+           "lwl rt, A+3 / lwr rt, A" pair must see the first half even though
+           it sits in the load delay slot. */
+        if ((key == K_LWL || key == K_LWR) && commitReg > 0
+                && ((raw >>> 16) & 0x1F) == commitReg) {
+            gpr[commitReg] = commitValue;
+            commitReg = -1;
         }
+        int result = execSwitch(key, raw);
+        if (commitReg > 0 && !exceptionTaken) gpr[commitReg] = commitValue;
         gpr[0] = 0;
         return result;
     }
 
-    private boolean loadIssued;
+    /** Set when an instruction raised an exception; its load is discarded. */
+    private boolean exceptionTaken;
 
     private int execSwitch(int key, int raw) {
         lastPc = pc;
@@ -522,13 +538,13 @@ public final class Cpu {
         if (reg == 0) return;
         pendingLoadReg = reg;
         pendingLoadValue = value;
-        loadIssued = true;
     }
 
     /* ---- exceptions ----------------------------------------------------- */
 
     public void exception(int code) {
         exceptions++;
+        exceptionTaken = true;
         lastExcCode = code;
         int sr = cop0[12];
         int cause = cop0[13] & ~0x7C;
