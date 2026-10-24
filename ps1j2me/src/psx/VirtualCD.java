@@ -2,6 +2,7 @@ package psx;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.DataInputStream;
 import javax.microedition.io.Connector;
 import javax.microedition.io.file.FileConnection;
 
@@ -25,6 +26,8 @@ public final class VirtualCD implements CdImage {
     public static final int LAYOUT_2336_MODE2 = 3;
 
     private String url;
+    private String cueUrl;          /* .cue sheet that was used, if any */
+    private String cueFile;         /* payload named inside the sheet   */
     private int layout = LAYOUT_2048;
     private long fileSize;
     private long sectorOffset;      /* first sector of the data track */
@@ -42,8 +45,181 @@ public final class VirtualCD implements CdImage {
 
     public String getUrl() { return url; }
 
-    /** Opens an ISO/BIN/IMG file (and an optional sibling CUE sheet). */
+    /** Opens an ISO/BIN/IMG file or a .cue sheet. */
     public void open(String fileUrl) throws IOException {
+        if (isCue(fileUrl)) {
+            openCue(fileUrl);
+        } else {
+            openImage(fileUrl, -1);
+        }
+    }
+
+    private static boolean isCue(String u) {
+        return u != null && u.toLowerCase().endsWith(".cue");
+    }
+
+    /** The .cue sheet that was parsed, or null when a plain image was opened. */
+    public String getCueUrl() { return cueUrl; }
+
+    /** The payload file named inside the .cue sheet, or null. */
+    public String getCueFile() { return cueFile; }
+
+    /* ==================================================================== */
+    /*  CUE sheet support                                                   */
+    /* ==================================================================== */
+
+    /**
+     * Parses a CUE sheet and opens the payload of its first data track.
+     *
+     * <p>Only what a PlayStation disc needs is supported: {@code FILE} lines
+     * and the {@code TRACK nn MODE1/2352|MODE2/2352|MODE1/2048|MODE2/2336}
+     * that follows. Everything else (indexes, pregaps, ISRC) is ignored.</p>
+     */
+    private void openCue(String cueUrl) throws IOException {
+        String dir = parentOf(cueUrl);
+        String text = readText(cueUrl, 64 * 1024);
+        String fileName = null;
+        int mode = -1;
+        String[] lines = splitLines(text);
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].trim();
+            if (line.length() == 0 || line.charAt(0) == ';') continue;
+            String upper = line.toUpperCase();
+            if (upper.startsWith("FILE")) {
+                String name = quoted(line);
+                if (name == null) {
+                    /* FILE name BINARY (unquoted) */
+                    int sp = line.indexOf(' ');
+                    if (sp > 0) {
+                        int sp2 = line.indexOf(' ', sp + 1);
+                        name = sp2 > sp ? line.substring(sp + 1, sp2) : line.substring(sp + 1);
+                    }
+                }
+                if (fileName == null) fileName = name;
+            } else if (upper.startsWith("TRACK")) {
+                int m = trackMode(upper);
+                if (m >= 0) {
+                    mode = m;
+                    break;              /* first data track wins */
+                }
+            }
+        }
+        if (fileName == null) throw new IOException("cue: no FILE");
+
+        String payload = dir + baseName(fileName);
+        String[] alt = { payload, dir + swapExt(payload, ".bin"), dir + swapExt(payload, ".BIN"),
+                         dir + swapExt(payload, ".img"), dir + swapExt(payload, ".iso") };
+        String found = null;
+        for (int i = 0; i < alt.length; i++) {
+            if (exists(alt[i])) { found = alt[i]; break; }
+        }
+        if (found == null) {
+            throw new IOException("cue: нет файла " + baseName(fileName));
+        }
+        openImage(found, mode);
+        this.cueUrl = cueUrl;
+        this.cueFile = baseName(fileName);
+    }
+
+    private static String[] splitLines(String s) {
+        int count = 1;
+        for (int i = 0; i < s.length(); i++) if (s.charAt(i) == '\n') count++;
+        String[] out = new String[count];
+        int n = 0, start = 0;
+        for (int i = 0; i <= s.length(); i++) {
+            if (i == s.length() || s.charAt(i) == '\n') {
+                out[n++] = s.substring(start, i);
+                start = i + 1;
+            }
+        }
+        return out;
+    }
+
+    /** Text inside the first pair of double quotes, or null. */
+    private static String quoted(String line) {
+        int a = line.indexOf('"');
+        if (a < 0) return null;
+        int b = line.indexOf('"', a + 1);
+        if (b <= a) return null;
+        return line.substring(a + 1, b);
+    }
+
+    /** Bitmap of a CUE track mode, encoded as VirtualCD layout, or -1. */
+    private static int trackMode(String upper) {
+        if (upper.indexOf("MODE1/2352") >= 0) return LAYOUT_2352_MODE1;
+        if (upper.indexOf("MODE2/2352") >= 0) return LAYOUT_2352_MODE2;
+        if (upper.indexOf("MODE2/2336") >= 0) return LAYOUT_2336_MODE2;
+        if (upper.indexOf("MODE1/2048") >= 0) return LAYOUT_2048;
+        return -1;
+    }
+
+    /** Last path element; CUE sheets often carry Windows absolute paths. */
+    private static String baseName(String path) {
+        int a = path.lastIndexOf('\\');
+        int b = path.lastIndexOf('/');
+        int cut = a > b ? a : b;
+        return cut >= 0 ? path.substring(cut + 1) : path;
+    }
+
+    private static String parentOf(String url) {
+        int slash = url.lastIndexOf('/');
+        return slash >= 0 ? url.substring(0, slash + 1) : url;
+    }
+
+    private static String swapExt(String name, String ext) {
+        int dot = name.lastIndexOf('.');
+        int slash = name.lastIndexOf('/');
+        if (dot <= slash) return name + ext;
+        return name.substring(0, dot) + ext;
+    }
+
+    private static boolean exists(String url) {
+        FileConnection fc = null;
+        try {
+            fc = (FileConnection) Connector.open(url, Connector.READ);
+            return fc.exists();
+        } catch (Throwable t) {
+            return false;
+        } finally {
+            closeQuietly(fc);
+        }
+    }
+
+    private static void closeQuietly(FileConnection fc) {
+        if (fc != null) {
+            try { fc.close(); } catch (Throwable t) { }
+        }
+    }
+
+    private static String readText(String url, int max) throws IOException {
+        FileConnection fc = (FileConnection) Connector.open(url, Connector.READ);
+        DataInputStream in = null;
+        try {
+            in = fc.openDataInputStream();
+            long size = fc.fileSize();
+            int n = (int) (size > 0 && size < max ? size : max);
+            byte[] buf = new byte[n];
+            int got = 0;
+            while (got < n) {
+                int r = in.read(buf, got, n - got);
+                if (r <= 0) break;
+                got += r;
+            }
+            return new String(buf, 0, got);
+        } finally {
+            if (in != null) {
+                try { in.close(); } catch (Throwable t) { }
+            }
+            closeQuietly(fc);
+        }
+    }
+
+    /**
+     * Opens a plain image file.
+     *
+     * @param hint layout suggested by a CUE sheet, or -1 to auto-detect
+     */
+    private void openImage(String fileUrl, int hint) throws IOException {
         close();
         this.url = fileUrl;
         FileConnection fc = (FileConnection) Connector.open(fileUrl, Connector.READ);
@@ -55,7 +231,11 @@ public final class VirtualCD implements CdImage {
         sectorOffset = 0;
         layout = LAYOUT_2048;
         stream = new RollingStream(fileUrl);
-        detectLayout();
+        if (hint >= 0) {
+            layout = hint;
+            if (!checkSignature(new byte[2352])) hint = -1;
+        }
+        if (hint < 0) detectLayout();
         sectorCount = (int) ((fileSize - sectorOffset) / sectorBytes());
         if (sectorCount <= 0) sectorCount = 1;
         cache.clear();
@@ -182,6 +362,8 @@ public final class VirtualCD implements CdImage {
     }
 
     public void close() {
+        cueUrl = null;
+        cueFile = null;
         if (stream != null) {
             stream.close();
             stream = null;

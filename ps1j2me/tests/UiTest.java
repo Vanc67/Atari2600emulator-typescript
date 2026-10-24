@@ -102,8 +102,9 @@ public class UiTest {
         settingsKey.setAccessible(true);
         Method applySetting = MainCanvas.class.getDeclaredMethod("applySetting", new Class[0]);
         applySetting.setAccessible(true);
+        String[] items = (String[]) field(canvas, "SETTINGS_ITEMS");
         boolean settingsOk = true;
-        for (int row = 0; row < 8; row++) {
+        for (int row = 0; row < items.length; row++) {
             setInt(canvas, "settingsSelection", row);
             try {
                 applySetting.invoke(canvas, new Object[0]);
@@ -112,7 +113,101 @@ public class UiTest {
                 System.out.println("  settings row " + row + " failed: " + t.getCause());
             }
         }
-        check(settingsOk, "settings rows apply");
+        check(settingsOk, "settings rows apply (" + items.length + " rows)");
+
+        /* the key layout row must cycle through all three layouts */
+        int layoutRow = -1;
+        for (int i = 0; i < items.length; i++) {
+            if (items[i].indexOf("Раскладка") >= 0) layoutRow = i;
+        }
+        check(layoutRow >= 0, "settings has a key layout row");
+        if (layoutRow >= 0) {
+            cfg.keyLayout = 0;
+            boolean cycleOk = true;
+            setInt(canvas, "settingsSelection", layoutRow);
+            for (int i = 0; i < 3; i++) {
+                try {
+                    applySetting.invoke(canvas, new Object[0]);
+                } catch (Throwable t) {
+                    cycleOk = false;
+                }
+                if (cfg.keyLayout != (i + 1) % 3) cycleOk = false;
+            }
+            check(cycleOk, "key layout cycles 0-1-2-0");
+            check(cfg.keyLayoutName() != null && cfg.keyLayoutName().length() > 3,
+                    "key layout name " + cfg.keyLayoutName());
+        }
+
+        /* the whole config (including the last folder, commas and all) must
+           survive a RecordStore round trip */
+        cfg.keyLayout = 2;
+        cfg.showAllFiles = true;
+        cfg.lastUrl = "file:///E:/games/ps1,cd/";
+        cfg.save();
+        Config again = (Config) fresh.invoke(null, new Object[0]);
+        check(again.keyLayout == 2, "config keeps the key layout");
+        check(again.showAllFiles, "config keeps showAllFiles");
+        check("file:///E:/games/ps1,cd/".equals(again.lastUrl),
+                "config keeps a folder name with a comma (" + again.lastUrl + ")");
+        cfg.reset();
+
+        /* a real folder listing through the JSR-75 shim */
+        try {
+            String base = System.getProperty("java.io.tmpdir") + "/uiBrowserTest";
+            java.io.File dir = new java.io.File(base);
+            dir.mkdirs();
+            new java.io.File(dir, "sub").mkdirs();
+            new java.io.File(dir, "Final Fantasy VII.bin").createNewFile();
+            new java.io.File(dir, "metal gear.cue").createNewFile();
+            new java.io.File(dir, "notes.txt").createNewFile();
+            new java.io.File(dir, "empty.iso").createNewFile();
+            String url = dir.getAbsolutePath() + "/";
+
+            cfg.showAllFiles = false;
+            Method listDirectory = MainCanvas.class.getDeclaredMethod("listDirectory",
+                    new Class[] { String.class, String.class });
+            listDirectory.setAccessible(true);
+            listDirectory.invoke(canvas, new Object[] { url, "Test" });
+            java.util.Vector entries = (java.util.Vector) field(canvas, "entries");
+            int dirs = 0, games = 0, others = 0;
+            String order = "";
+            for (int i = 0; i < entries.size(); i++) {
+                Object e = entries.elementAt(i);
+                boolean isDir = ((Boolean) field(e, "isDir")).booleanValue();
+                boolean game = ((Boolean) field(e, "game")).booleanValue();
+                boolean isRoot = ((Boolean) field(e, "root")).booleanValue();
+                String name = (String) field(e, "name");
+                long size = ((Long) field(e, "size")).longValue();
+                if (isRoot) others++;
+                else if (isDir) dirs++;
+                else if (game) games++;
+                else others++;
+                order += (isDir ? "D" : (game ? "G" : "F"));
+                check(!name.endsWith("/"), "entry name has no trailing slash: " + name);
+                check(isDir || size >= 0, "file size known for " + name);
+            }
+            check(dirs == 1, "one folder listed (" + dirs + ")");
+            check(games == 3, "three game images listed (" + games + ")");
+            check(others == 0, "non-game files hidden by default (" + others + ")");
+            check(entries.size() == 4, "hidden files not listed (" + entries.size() + ")");
+            check(order.startsWith("D"), "folders are listed first (" + order + ")");
+
+            cfg.showAllFiles = true;
+            listDirectory.invoke(canvas, new Object[] { url, "Test" });
+            entries = (java.util.Vector) field(canvas, "entries");
+            check(entries.size() == 5, "showAllFiles lists everything (" + entries.size() + ")");
+
+            /* a missing folder must not throw, it shows a message instead */
+            cfg.showAllFiles = false;
+            listDirectory.invoke(canvas, new Object[] { url + "nope/", "Nope" });
+            check(intField(canvas, "mode") == 7, "missing folder shows a message");
+            String status = (String) field(canvas, "status");
+            check(status != null && status.length() > 0, "missing folder status: " + status);
+            cfg.reset();
+            canvas.shutdown();
+        } catch (Throwable t) {
+            check(false, "folder listing -> " + (t.getCause() != null ? t.getCause() : t));
+        }
 
         /* help screen scrolls through the whole text */
         setInt(canvas, "mode", 5);
