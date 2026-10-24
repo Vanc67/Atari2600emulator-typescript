@@ -21,12 +21,40 @@ CLDC_MAJOR = 47  # Java 1.3 / CLDC 1.1 bytecode
 
 MANIFEST = """Manifest-Version: 1.0
 MIDlet-Name: PS1J2ME
-MIDlet-Version: 1.7.0
+MIDlet-Version: @@VERSION@@
 MIDlet-Vendor: PS1J2ME Project
 MIDlet-1: PS1J2ME, , psx.PS1Midlet
 MicroEdition-Configuration: CLDC-1.1
 MicroEdition-Profile: MIDP-2.0
 """
+
+
+def read_version():
+    """The one and only version string: MainCanvas.VERSION.
+
+    It used to be copy-pasted here and in build.sh, which is how the JAD ended
+    up advertising the previous release while the JAR was already new.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    src = os.path.join(here, "..", "src", "psx", "MainCanvas.java")
+    try:
+        with open(src, "r", encoding="utf-8") as fh:
+            text = fh.read()
+    except (IOError, OSError):
+        return "0.0.0"
+    marker = 'VERSION = "'
+    i = text.find(marker)
+    if i < 0:
+        return "0.0.0"
+    i += len(marker)
+    j = text.find('"', i)
+    if j < 0:
+        return "0.0.0"
+    return text[i:j]
+
+
+def manifest_text():
+    return MANIFEST.replace("@@VERSION@@", read_version())
 
 
 # --------------------------------------------------------------------------
@@ -215,7 +243,7 @@ def cmd_pack(args):
                 arc = "res/" + os.path.relpath(full, args.res).replace(os.sep, "/")
                 entries.append((arc, full))
     entries.sort()
-    manifest = MANIFEST
+    manifest = manifest_text()
     if args.manifest and os.path.exists(args.manifest):
         with open(args.manifest, "r") as fh:
             manifest = fh.read()
@@ -246,7 +274,7 @@ def cmd_jad(args):
     name = os.path.basename(jar)
     lines = [
         "MIDlet-Name: PS1J2ME",
-        "MIDlet-Version: 1.7.0",
+        "MIDlet-Version: " + read_version(),
         "MIDlet-Vendor: PS1J2ME Project",
         "MIDlet-1: PS1J2ME, , psx.PS1Midlet",
         "MicroEdition-Configuration: CLDC-1.1",

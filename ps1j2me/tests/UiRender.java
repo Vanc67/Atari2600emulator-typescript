@@ -139,6 +139,13 @@ public class UiRender {
         MainCanvas canvas = new MainCanvas(null);
         setInt(canvas, "viewW", W);
         setInt(canvas, "viewH", H);
+        /* The memory card scan runs on a worker thread; without waiting the
+           first screens can flip to the "no card" message halfway through. */
+        long deadline = System.currentTimeMillis() + 10000;
+        while (!canvas.isDiscovered() && System.currentTimeMillis() < deadline) {
+            try { Thread.sleep(5); } catch (InterruptedException ie) { }
+        }
+        System.out.println("card scan finished: " + canvas.isDiscovered());
 
         Method paint = MainCanvas.class.getDeclaredMethod("paint", new Class[] { Graphics.class });
         paint.setAccessible(true);

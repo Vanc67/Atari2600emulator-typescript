@@ -78,7 +78,9 @@ public final class VirtualCD implements CdImage {
     private void openCue(String cueUrl) throws IOException {
         String dir = parentOf(cueUrl);
         String text = readText(cueUrl, 64 * 1024);
-        String fileName = null;
+        String currentFile = null;      /* the FILE the following TRACKs belong to */
+        String dataFile = null;         /* FILE of the first data track            */
+        String firstFile = null;        /* fallback: the first FILE of the sheet   */
         int mode = -1;
         String[] lines = splitLines(text);
         for (int i = 0; i < lines.length; i++) {
@@ -95,23 +97,29 @@ public final class VirtualCD implements CdImage {
                         name = sp2 > sp ? line.substring(sp + 1, sp2) : line.substring(sp + 1);
                     }
                 }
-                if (fileName == null) fileName = name;
+                if (name != null && name.length() > 0) {
+                    currentFile = name;
+                    if (firstFile == null) firstFile = name;
+                }
             } else if (upper.startsWith("TRACK")) {
                 int m = trackMode(upper);
                 if (m >= 0) {
+                    /* a mixed mode sheet often starts with a CD-DA track:
+                       take the file the data track belongs to, not the first */
                     mode = m;
-                    break;              /* first data track wins */
+                    dataFile = currentFile;
+                    break;
                 }
             }
         }
+        String fileName = dataFile != null ? dataFile : firstFile;
         if (fileName == null) throw new IOException("cue: no FILE");
 
-        String payload = dir + baseName(fileName);
-        String[] alt = { payload, dir + swapExt(payload, ".bin"), dir + swapExt(payload, ".BIN"),
-                         dir + swapExt(payload, ".img"), dir + swapExt(payload, ".iso") };
-        String found = null;
-        for (int i = 0; i < alt.length; i++) {
-            if (exists(alt[i])) { found = alt[i]; break; }
+        String found = findPayload(dir, fileName);
+        if (found == null && firstFile != null && !firstFile.equals(fileName)) {
+            /* the sheet names a payload that is not here: last chance */
+            found = findPayload(dir, firstFile);
+            if (found != null) fileName = firstFile;
         }
         if (found == null) {
             throw new IOException("cue: нет файла " + baseName(fileName));
@@ -119,6 +127,18 @@ public final class VirtualCD implements CdImage {
         openImage(found, mode);
         this.cueUrl = cueUrl;
         this.cueFile = baseName(fileName);
+    }
+
+    /** Looks for the payload next to the sheet, trying the usual extensions. */
+    private static String findPayload(String dir, String name) {
+        String payload = dir + baseName(name);
+        String[] alt = { payload, swapExt(payload, ".bin"), swapExt(payload, ".BIN"),
+                         swapExt(payload, ".img"), swapExt(payload, ".iso"),
+                         swapExt(payload, ".IMG"), swapExt(payload, ".ISO") };
+        for (int i = 0; i < alt.length; i++) {
+            if (exists(alt[i])) return alt[i];
+        }
+        return null;
     }
 
     private static String[] splitLines(String s) {
