@@ -1112,7 +1112,7 @@ def demo_pad():
 def demo_pong():
     """Playable pong: 2/8 move the paddle, first to five points."""
     a = Asm()
-    init_gpu(a, 0x00000000)
+    init_gpu(a, 0x00101C2C)       # visible dark blue play field, never black
     a.li(16, 100)                 # s0: player paddle y
     a.li(17, 100)                 # s1: cpu paddle y
     a.li(18, 160)                 # s2: ball x
@@ -1124,7 +1124,7 @@ def demo_pong():
 
     a.label("frame")
     wait_vblank(a)
-    fill_screen(a, 0x00000000)
+    fill_screen(a, 0x00101C2C)
     read_pad(a, 6, 7)
 
     # ---- player paddle --------------------------------------------------
@@ -1252,6 +1252,7 @@ def demo_pong():
     a.label("no_goal_p")
 
     # ---- draw ----------------------------------------------------------
+    draw_text(a, "PONG", 128, 6, 2, 0x00FFD040)
     rect_var(a, 24, 16, 8, 40, 0x00FFFFFF)
     rect_var(a, 296, 17, 8, 40, 0x00FF8020)
     rect_var(a, (18,), 19, 8, 8, 0x00A0E0FF)
