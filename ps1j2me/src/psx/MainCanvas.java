@@ -66,13 +66,13 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         "Звук (SPU)",
     };
     private static final String[] DEMO_DESC = {
-        "2/8 - ракетка, играбельными кнопками",
-        "нажмите кнопки - подсветятся",
-        "треугольники, спрайты, полупрозрачность",
-        "4-битная текстура, CLUT, UV",
-        "блочный шрифт, градиент, курсор",
-        "вращение куба через GTE и полигоны",
-        "ADPCM-тон в SPU + эквалайзер",
+        "2/8 - ракетка, играбельно",
+        "кнопки подсвечиваются",
+        "треугольники и спрайты",
+        "CLUT, UV, 4 бита",
+        "блочный шрифт, курсор",
+        "вращение куба через GTE",
+        "ADPCM тон в SPU",
     };
 
     private static final String[] HELP_TEXT = {
@@ -498,7 +498,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     /* ---- settings -------------------------------------------------------- */
 
     private static final String[] SETTINGS_ITEMS = {
-        "Масштаб экрана",
+        "Масштаб",
         "Пропуск кадров",
         "Звук",
         "Громкость",
@@ -993,18 +993,18 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         g.setColor(COLOR_BG);
         g.fillRect(0, 0, viewW, viewH);
 
-        Font bold = Font.getFont(Font.FACE_PROPORTIONAL, Font.STYLE_BOLD, Font.SIZE_MEDIUM);
-        Font plain = Font.getFont(Font.FACE_PROPORTIONAL, Font.STYLE_PLAIN, Font.SIZE_SMALL);
-        int barH = bold.getHeight() + 10;
+        Font bold = null;
+        Font plain = null;
+        int barH = TinyFont.HEIGHT + 10;
 
         g.setColor(COLOR_BAR);
         g.fillRect(0, 0, viewW, barH);
         g.setColor(COLOR_ACCENT);
-        g.setFont(bold);
-        g.drawString("PS1 J2ME", 6, 5, Graphics.LEFT | Graphics.TOP);
+        boldFlag = true;
+        txt(g, "PS1 J2ME", 6, 5, Graphics.LEFT | Graphics.TOP);
         g.setColor(COLOR_DIM);
-        g.setFont(plain);
-        g.drawString(screenTitle(), viewW - 6, 8, Graphics.RIGHT | Graphics.TOP);
+        boldFlag = false;
+        txt(g, screenTitle(), viewW - 6, 5, Graphics.RIGHT | Graphics.TOP);
 
         switch (mode) {
             case MODE_BOOT: paintBoot(g, bold, plain); break;
@@ -1017,6 +1017,23 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         }
     }
 
+    /** True when the next txt() call should use the pseudo-bold font. */
+    private static boolean boldFlag;
+
+    /** Bottom status line: dim, clipped to the screen width. */
+    private void hint(Graphics g, String s) {
+        g.setColor(COLOR_BAR);
+        g.fillRect(0, viewH - 14, viewW, 14);
+        g.setColor(COLOR_DIM);
+        boldFlag = false;
+        txt(g, TinyFont.ellipsize(s, viewW - 8), 4, viewH - 12, Graphics.LEFT | Graphics.TOP);
+    }
+
+    /** Draws UI text with the built-in bitmap font (no dependency on device fonts). */
+    private static void txt(Graphics g, String s, int x, int y, int anchor) {
+        TinyFont.draw(g, s, x, y, anchor, boldFlag);
+    }
+
     private String screenTitle() {
         switch (mode) {
             case MODE_PAUSE: return "МЕНЮ";
@@ -1024,6 +1041,8 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             case MODE_HELP: return "СПРАВКА";
             case MODE_DEMOS: return "ДЕМО";
             case MODE_GAME: return "ИГРА";
+            case MODE_BOOT: return "ЗАГРУЗКА";
+            case MODE_MESSAGE: return "СООБЩЕНИЕ";
             default: return "Sony PlayStation";
         }
     }
@@ -1032,51 +1051,69 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         /* replaced by paintMessage() during boots; kept for the * hotkey */
         int cy = viewH / 2;
         g.setColor(COLOR_ACCENT);
-        g.setFont(bold);
-        g.drawString("Поиск карты памяти", viewW / 2, cy - 20, Graphics.HCENTER | Graphics.BOTTOM);
+        boldFlag = true;
+        txt(g, "Поиск карты памяти", viewW / 2, cy - 20, Graphics.HCENTER | Graphics.BOTTOM);
         g.setColor(COLOR_DIM);
-        g.setFont(plain);
-        g.drawString("без запросов безопасности", viewW / 2, cy, Graphics.HCENTER | Graphics.TOP);
+        boldFlag = false;
+        txt(g, "без запросов безопасности", viewW / 2, cy, Graphics.HCENTER | Graphics.TOP);
     }
 
     private void paintMessage(Graphics g, Font plain, int barH) {
         drawWrapped(g, status, 10, barH + 20, viewW - 20, plain, COLOR_TEXT);
-        g.setColor(COLOR_DIM);
-        g.setFont(plain);
-        g.drawString("* - повторить   5 - демо   0 - выход", viewW / 2, viewH - 20,
-                Graphics.HCENTER | Graphics.TOP);
+        hint(g, "* - снова  5 - демо  0 - выход");
+    }
+
+    /** Help text wrapped to the current screen width (the font is monospaced). */
+    private String[] helpLines() {
+        int maxChars = (viewW - 12) / TinyFont.WIDTH;
+        if (maxChars < 12) maxChars = 12;
+        Vector out = new Vector();
+        for (int i = 0; i < HELP_TEXT.length; i++) {
+            String line = HELP_TEXT[i];
+            boolean head = line.length() > 0 && line.charAt(0) != '-'
+                    && line.charAt(0) != ' ' && line.length() < 24;
+            boolean first = true;
+            while (line.length() > maxChars) {
+                int cut = line.lastIndexOf(' ', maxChars);
+                if (cut <= 0) cut = maxChars;
+                out.addElement((first && head ? "\u0001" : "  ") + line.substring(0, cut));
+                line = line.substring(cut < line.length() ? cut + 1 : cut);
+                first = false;
+            }
+            out.addElement((first && head ? "\u0001" : "") + line);
+        }
+        String[] res = new String[out.size()];
+        for (int i = 0; i < res.length; i++) res[i] = (String) out.elementAt(i);
+        return res;
     }
 
     private void paintHelp(Graphics g, Font bold, Font plain, int barH) {
         int top = barH + 6;
-        int lineH = plain.getHeight() + 1;
+        int lineH = TinyFont.HEIGHT + 2;
         int lines = (viewH - top - 20) / lineH;
         if (lines < 1) lines = 1;
-        int maxScroll = HELP_TEXT.length - lines;
+        String[] text = helpLines();
+        int maxScroll = text.length - lines;
         if (helpScroll > maxScroll) helpScroll = maxScroll;
         if (helpScroll < 0) helpScroll = 0;
-        g.setFont(plain);
+        boldFlag = false;
         for (int i = 0; i < lines; i++) {
             int idx = helpScroll + i;
-            if (idx >= HELP_TEXT.length) break;
-            String line = HELP_TEXT[idx];
-            boolean head = line.length() > 0 && line.charAt(0) != '-' && line.charAt(0) != ' ' && line.length() < 24;
+            if (idx >= text.length) break;
+            String line = text[idx];
+            boolean head = line.length() > 0 && line.charAt(0) == '\u0001';
+            if (head) line = line.substring(1);
             g.setColor(head ? COLOR_ACCENT : COLOR_TEXT);
-            if (head) g.setFont(bold); else g.setFont(plain);
-            g.drawString(line, 6, top + i * lineH, Graphics.LEFT | Graphics.TOP);
+            boldFlag = head;
+            txt(g, line, 6, top + i * lineH, Graphics.LEFT | Graphics.TOP);
         }
-        g.setColor(COLOR_BAR);
-        g.fillRect(0, viewH - 16, viewW, 16);
-        g.setColor(COLOR_DIM);
-        g.setFont(plain);
         int percent = (int) ((helpScroll * 100L) / Math.max(1, maxScroll));
-        g.drawString("2/8 - прокрутка  " + percent + "%   0 - назад", 6, viewH - 15,
-                Graphics.LEFT | Graphics.TOP);
+        hint(g, "2/8 - листать " + percent + "%   0 - назад");
     }
 
     private void paintSettings(Graphics g, Font bold, Font plain, int barH) {
         int top = barH + 10;
-        int rowH = plain.getHeight() + 10;
+        int rowH = TinyFont.HEIGHT + 10;
         for (int i = 0; i < SETTINGS_ITEMS.length; i++) {
             int y = top + i * rowH;
             if (i == settingsSelection) {
@@ -1084,22 +1121,22 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                 g.fillRect(2, y - 2, viewW - 4, rowH);
             }
             g.setColor(i == settingsSelection ? 0xFFFFFF : COLOR_TEXT);
-            g.setFont(plain);
-            g.drawString(SETTINGS_ITEMS[i], 10, y + 2, Graphics.LEFT | Graphics.TOP);
+            boldFlag = false;
             String v = settingValue(i);
+            int valueW = v.length() > 0 ? TinyFont.stringWidth(v) + 8 : 0;
+            txt(g, TinyFont.ellipsize(SETTINGS_ITEMS[i], viewW - 24 - valueW),
+                    10, y + 2, Graphics.LEFT | Graphics.TOP);
             if (v.length() > 0) {
                 g.setColor(i == settingsSelection ? 0xDBEAFE : COLOR_ACCENT);
-                g.drawString(v, viewW - 10, y + 2, Graphics.RIGHT | Graphics.TOP);
+                txt(g, v, viewW - 10, y + 2, Graphics.RIGHT | Graphics.TOP);
             }
         }
-        g.setColor(COLOR_DIM);
-        g.setFont(plain);
-        g.drawString("5/* - изменить   0 - назад", 6, viewH - 16, Graphics.LEFT | Graphics.TOP);
+        hint(g, "5/* - изменить   0 - назад");
     }
 
     private void paintDemos(Graphics g, Font bold, Font plain, int barH) {
-        int top = barH + 16;
-        int rowH = plain.getHeight() + 14;
+        int top = barH + 6;
+        int rowH = 21;
         for (int i = 0; i <= DEMO_RES.length; i++) {
             int y = top + i * rowH;
             boolean sel = i == demoSelection;
@@ -1107,25 +1144,24 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                 g.setColor(COLOR_SEL);
                 g.fillRect(4, y - 4, viewW - 8, rowH);
             }
-            g.setFont(bold);
+            boldFlag = true;
             g.setColor(sel ? 0xFFFFFF : COLOR_GAME);
             String title = i < DEMO_RES.length ? DEMO_NAME[i] : "Назад";
-            g.drawString(title, 12, y, Graphics.LEFT | Graphics.TOP);
+            txt(g, title, 12, y, Graphics.LEFT | Graphics.TOP);
             if (i < DEMO_RES.length) {
-                g.setFont(plain);
+                boldFlag = false;
                 g.setColor(sel ? 0xDBEAFE : COLOR_DIM);
-                g.drawString(DEMO_DESC[i], 20, y + bold.getHeight(), Graphics.LEFT | Graphics.TOP);
+                txt(g, TinyFont.ellipsize(DEMO_DESC[i], viewW - 26), 20, y + 10,
+                        Graphics.LEFT | Graphics.TOP);
             }
         }
-        g.setColor(COLOR_DIM);
-        g.setFont(plain);
-        g.drawString("5 - запустить   0 - назад", 6, viewH - 16, Graphics.LEFT | Graphics.TOP);
+        hint(g, "5 - запустить   0 - назад");
     }
 
     private void paintList(Graphics g, Font bold, Font plain, int barH,
                            String[] items, int selection, String[] values, String hint) {
         int top = barH + 20;
-        int rowH = bold.getHeight() + 14;
+        int rowH = TinyFont.HEIGHT + 14;
         for (int i = 0; i < items.length; i++) {
             int y = top + i * rowH;
             if (i == selection) {
@@ -1133,27 +1169,28 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                 g.fillRect(8, y - 4, viewW - 16, rowH);
             }
             g.setColor(i == selection ? 0xFFFFFF : COLOR_TEXT);
-            g.setFont(bold);
-            g.drawString(items[i], 18, y, Graphics.LEFT | Graphics.TOP);
+            boldFlag = true;
+            String val = values != null ? values[i] : null;
+            int valueW = val != null ? TinyFont.stringWidth(val) + 8 : 0;
+            txt(g, TinyFont.ellipsize(items[i], viewW - 32 - valueW), 18, y,
+                    Graphics.LEFT | Graphics.TOP);
             if (values != null && values[i] != null) {
                 g.setColor(COLOR_ACCENT);
-                g.setFont(plain);
-                g.drawString(values[i], viewW - 14, y + 2, Graphics.RIGHT | Graphics.TOP);
+                boldFlag = false;
+                txt(g, values[i], viewW - 14, y + 2, Graphics.RIGHT | Graphics.TOP);
             }
         }
-        g.setColor(COLOR_DIM);
-        g.setFont(plain);
-        g.drawString(hint, 6, viewH - 16, Graphics.LEFT | Graphics.TOP);
+        hint(g, hint);
     }
 
     private void paintBrowser(Graphics g, Font bold, Font plain, int barH) {
-        int rowH = plain.getHeight() + 10;
-        int listTop = barH + plain.getHeight() + 12;
+        int rowH = TinyFont.HEIGHT + 10;
+        int listTop = barH + TinyFont.HEIGHT + 12;
         int listH = viewH - listTop - 22;
 
         g.setColor(COLOR_DIM);
-        g.setFont(plain);
-        g.drawString(currentTitle, 6, barH + 4, Graphics.LEFT | Graphics.TOP);
+        boldFlag = false;
+        txt(g, currentTitle, 6, barH + 4, Graphics.LEFT | Graphics.TOP);
 
         int visible = listH / rowH;
         if (visible < 1) visible = 1;
@@ -1162,9 +1199,9 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
 
         if (entries.size() == 0) {
             g.setColor(COLOR_TEXT);
-            g.drawString("Здесь нет файлов игр.", 10, listTop, Graphics.LEFT | Graphics.TOP);
+            txt(g, "Здесь нет файлов игр.", 10, listTop, Graphics.LEFT | Graphics.TOP);
             g.setColor(COLOR_DIM);
-            g.drawString("Меню - встроенные демо и настройки.", 10, listTop + rowH,
+            txt(g, "Меню - встроенные демо и настройки.", 10, listTop + rowH,
                     Graphics.LEFT | Graphics.TOP);
         }
 
@@ -1178,29 +1215,24 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                 g.fillRect(2, y - 2, viewW - 4, rowH);
             }
             g.setColor(e.isDir ? COLOR_DIR : (e.game ? COLOR_GAME : COLOR_TEXT));
-            g.setFont(bold);
+            boldFlag = true;
             String tag = e.isDir ? "[D]" : (e.game ? "[G]" : "   ");
-            g.drawString(tag, 8, y + 2, Graphics.LEFT | Graphics.TOP);
+            txt(g, tag, 8, y + 2, Graphics.LEFT | Graphics.TOP);
             g.setColor(idx == selected ? 0xFFFFFF : COLOR_TEXT);
-            g.setFont(plain);
+            boldFlag = false;
             String name = e.name;
             int maxW = viewW - 60;
-            while (plain.stringWidth(name) > maxW && name.length() > 3) {
+            while (TinyFont.stringWidth(name) > maxW && name.length() > 3) {
                 name = name.substring(0, name.length() - 4) + "...";
             }
-            g.drawString(name, 34, y + 2, Graphics.LEFT | Graphics.TOP);
+            txt(g, name, 34, y + 2, Graphics.LEFT | Graphics.TOP);
             if (e.game && e.size > 0) {
                 g.setColor(COLOR_DIM);
-                g.drawString(sizeText(e.size), viewW - 6, y + 2, Graphics.RIGHT | Graphics.TOP);
+                txt(g, sizeText(e.size), viewW - 6, y + 2, Graphics.RIGHT | Graphics.TOP);
             }
         }
 
-        g.setColor(COLOR_BAR);
-        g.fillRect(0, viewH - 18, viewW, 18);
-        g.setColor(COLOR_DIM);
-        g.setFont(plain);
-        g.drawString("5 - открыть  0 - вверх  меню: демо/настройки", 4, viewH - 16,
-                Graphics.LEFT | Graphics.TOP);
+        hint(g, "5 - открыть  0 - вверх  меню - демо");
     }
 
     /* ---- game screen ------------------------------------------------------ */
@@ -1245,34 +1277,33 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             }
         }
 
-        Font f = Font.getFont(Font.FACE_MONOSPACE, Font.STYLE_PLAIN, Font.SIZE_SMALL);
-        g.setFont(f);
+        boldFlag = false;
         if (config.showFps) {
             g.setColor(0x000000);
-            g.fillRect(0, 0, 74, f.getHeight() + 2);
+            g.fillRect(0, 0, 74, TinyFont.HEIGHT + 2);
             g.setColor(COLOR_ACCENT);
-            g.drawString(fps + " fps", 3, 1, Graphics.LEFT | Graphics.TOP);
+            txt(g, fps + " fps", 3, 1, Graphics.LEFT | Graphics.TOP);
         }
         if (paused) {
             g.setColor(0x000000);
             g.fillRect(viewW / 2 - 34, viewH / 2 - 8, 68, 16);
             g.setColor(0xFFFFFF);
-            g.drawString("ПАУЗА", viewW / 2, viewH / 2 - 7, Graphics.HCENTER | Graphics.TOP);
+            txt(g, "ПАУЗА", viewW / 2, viewH / 2 - 7, Graphics.HCENTER | Graphics.TOP);
         }
         if (!sawOutput && machine != null && machine.framesRun < 240) {
             g.setColor(0x000000);
             g.fillRect(0, viewH - 26, viewW, 26);
             g.setColor(COLOR_ACCENT);
-            g.drawString("PS1J2ME: выполняется " + machine.framesRun + " кадр(ов)",
+            txt(g, "PS1J2ME: выполняется " + machine.framesRun + " кадр(ов)",
                     viewW / 2, viewH - 24, Graphics.HCENTER | Graphics.TOP);
             g.setColor(COLOR_DIM);
-            g.drawString("старт эмуляции", viewW / 2, viewH - 12, Graphics.HCENTER | Graphics.TOP);
+            txt(g, "старт эмуляции", viewW / 2, viewH - 12, Graphics.HCENTER | Graphics.TOP);
         }
         if (overlayMessage != null && System.currentTimeMillis() < overlayUntil) {
             g.setColor(0x000000);
             g.fillRect(0, viewH - 16, viewW, 16);
             g.setColor(COLOR_TEXT);
-            g.drawString(overlayMessage, 4, viewH - 15, Graphics.LEFT | Graphics.TOP);
+            txt(g, overlayMessage, 4, viewH - 15, Graphics.LEFT | Graphics.TOP);
         } else if (overlayMessage != null && System.currentTimeMillis() >= overlayUntil) {
             overlayMessage = null;
         }
@@ -1351,23 +1382,24 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     }
 
     private void drawWrapped(Graphics g, String text, int x, int y, int maxW, Font f, int color) {
-        g.setFont(f);
+        if (text == null) return;
+        boldFlag = false;
         g.setColor(color);
-        int lineH = f.getHeight() + 2;
+        int lineH = TinyFont.HEIGHT + 2;
         int start = 0;
         int i = 0;
         while (i < text.length()) {
-            if (f.stringWidth(text.substring(start, i + 1)) > maxW) {
+            if (TinyFont.stringWidth(text.substring(start, i + 1)) > maxW) {
                 int cut = text.lastIndexOf(" ", i);
                 if (cut <= start) cut = i;
-                g.drawString(text.substring(start, cut), x, y, Graphics.LEFT | Graphics.TOP);
+                txt(g, text.substring(start, cut), x, y, Graphics.LEFT | Graphics.TOP);
                 y += lineH;
                 start = cut + 1;
                 if (start > text.length()) break;
             }
             i++;
         }
-        if (start < text.length()) g.drawString(text.substring(start), x, y, Graphics.LEFT | Graphics.TOP);
+        if (start < text.length()) txt(g, text.substring(start), x, y, Graphics.LEFT | Graphics.TOP);
     }
 
     private static String sizeText(long bytes) {

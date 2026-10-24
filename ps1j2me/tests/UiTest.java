@@ -58,6 +58,22 @@ public class UiTest {
         cfg.reset();
         check(Config.get().frameSkip == 0, "config reset");
 
+        /* give the stub canvas a real screen size so paint() lays out properly */
+        javax.microedition.lcdui.Displayable.STUB_WIDTH = 176;
+        javax.microedition.lcdui.Displayable.STUB_HEIGHT = 208;
+
+        /* Cyrillic literals must survive compilation (build.sh passes -encoding UTF-8) */
+        String demo0 = ((String[]) field(new MainCanvas(null), "DEMO_NAME"))[0];
+        boolean cyrillic = demo0.indexOf('\u0438') >= 0 && demo0.indexOf('\ufffd') < 0;
+        check(cyrillic, "demo names keep Cyrillic (" + demo0.length() + " chars)");
+
+        /* the bitmap font must know every character used by the UI */
+        String help = ((String[]) field(new MainCanvas(null), "HELP_TEXT"))[0];
+        check(psx.TinyFont.stringWidth(help) == help.length() * psx.TinyFont.WIDTH,
+                "bitmap font width for help text");
+        check(psx.TinyFont.stringWidth("Привет PS1") == 10 * psx.TinyFont.WIDTH,
+                "bitmap font covers Cyrillic");
+
         MainCanvas canvas = new MainCanvas(null);
         Graphics g = new Graphics();
 
