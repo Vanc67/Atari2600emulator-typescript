@@ -21,7 +21,14 @@ public final class FileConnectionImpl implements FileConnection {
     public boolean canRead() { return file.canRead(); }
     public boolean canWrite() { return file.canWrite(); }
     public boolean isHidden() { return file.isHidden(); }
-    public boolean isDirectory() { return file.isDirectory(); }
+    public boolean isDirectory() {
+        /* Some firmwares throw here instead of returning a value; the flag lets
+           the suite reproduce that behaviour on a desktop JVM. */
+        if (System.getProperty("jsr75.stub.isDirectoryBroken") != null) {
+            throw new RuntimeException("stub: isDirectory is not supported");
+        }
+        return file.isDirectory();
+    }
     public void mkdir() throws IOException { if (!file.mkdir()) throw new IOException("mkdir"); }
     public void create() throws IOException { if (!file.createNewFile()) throw new IOException("create"); }
     public String getName() { return file.getName(); }

@@ -38,6 +38,18 @@ public class UiTest {
         f.setInt(o, v);
     }
 
+    static boolean boolField(Object o, String name) throws Exception {
+        Field f = o.getClass().getDeclaredField(name);
+        f.setAccessible(true);
+        return f.getBoolean(o);
+    }
+
+    static void setBool(Object o, String name, boolean v) throws Exception {
+        Field f = o.getClass().getDeclaredField(name);
+        f.setAccessible(true);
+        f.setBoolean(o, v);
+    }
+
     static int intField(Object o, String name) throws Exception {
         Field f = o.getClass().getDeclaredField(name);
         f.setAccessible(true);
@@ -191,6 +203,13 @@ public class UiTest {
             check(others == 0, "non-game files hidden by default (" + others + ")");
             check(entries.size() == 4, "hidden files not listed (" + entries.size() + ")");
             check(order.startsWith("D"), "folders are listed first (" + order + ")");
+            check("игра".equals(MainCanvas.gamesWord(1))
+                    && "игры".equals(MainCanvas.gamesWord(3))
+                    && "игр".equals(MainCanvas.gamesWord(5))
+                    && "игр".equals(MainCanvas.gamesWord(11))
+                    && "игра".equals(MainCanvas.gamesWord(21))
+                    && "игры".equals(MainCanvas.gamesWord(22))
+                    && "игр".equals(MainCanvas.gamesWord(0)), "russian plural for games");
 
             cfg.showAllFiles = true;
             listDirectory.invoke(canvas, new Object[] { url, "Test" });
@@ -238,6 +257,152 @@ public class UiTest {
         }
         check(resourcesOk, "demo resources on the classpath");
 
+        /* ---- regressions found in 1.7.0 ------------------------------- */
+
+        Method keyPressed = MainCanvas.class.getDeclaredMethod("keyPressed",
+                new Class[] { int.class });
+        keyPressed.setAccessible(true);
+        Method keyReleased = MainCanvas.class.getDeclaredMethod("keyReleased",
+                new Class[] { int.class });
+        keyReleased.setAccessible(true);
+        Method listDirectory = MainCanvas.class.getDeclaredMethod("listDirectory",
+                new Class[] { String.class, String.class });
+        listDirectory.setAccessible(true);
+
+        try {
+            String base = System.getProperty("java.io.tmpdir") + "/uiKeyLayout";
+            java.io.File dir = new java.io.File(base);
+            dir.mkdirs();
+            new java.io.File(dir, "game.iso").createNewFile();
+            new java.io.File(dir, "readme.txt").createNewFile();
+            new java.io.File(dir, "sub").mkdirs();
+            String url = dir.getAbsolutePath() + "/";
+
+            /* 1. menus must not follow the "cross/circle" pad layout:
+                  with CIRCLE swapped to CROSS, "0" used to launch the game */
+            cfg.keyLayout = psx.KeyMap.LAYOUT_SWAPPED;
+            cfg.showAllFiles = false;
+            setInt(canvas, "mode", 1);
+            listDirectory.invoke(canvas, new Object[] { url, "games" });
+            setInt(canvas, "selected", 0);
+            setBool(canvas, "booting", false);
+            keyPressed.invoke(canvas, new Object[] { new Integer(javax.microedition.lcdui.Canvas.KEY_NUM0) });
+            check(!boolField(canvas, "booting"), "0 does not launch a game in the cross/circle layout");
+            check(intField(canvas, "mode") == 3, "0 goes back (pause menu) in the cross/circle layout");
+
+            /* "5" still confirms in every layout (a folder is used on purpose:
+               launching a game here would start a boot that races with the
+               demo launch further down) */
+            boolean fireOk = true;
+            int[] layouts = { 0, 1, 2 };
+            for (int i = 0; i < layouts.length; i++) {
+                cfg.keyLayout = layouts[i];
+                listDirectory.invoke(canvas, new Object[] { url, "games" });
+                int sub = -1;
+                java.util.Vector list = (java.util.Vector) field(canvas, "entries");
+                for (int k = 0; k < list.size(); k++) {
+                    if ("sub".equals((String) field(list.elementAt(k), "name"))) sub = k;
+                }
+                if (sub < 0) { fireOk = false; continue; }
+                setInt(canvas, "mode", 1);
+                setInt(canvas, "selected", sub);
+                keyPressed.invoke(canvas, new Object[] { new Integer(javax.microedition.lcdui.Canvas.KEY_NUM5) });
+                String opened = (String) field(canvas, "currentUrl");
+                if (opened == null || opened.indexOf("/sub/") < 0) fireOk = false;
+            }
+            check(fireOk, "5 confirms in every pad layout");
+            check(!boolField(canvas, "booting"), "no background boot after the key checks");
+
+            /* 2. a tap on a non-game file must answer AND the answer must be
+                  painted (the message used to be drawn on the game screen only) */
+            cfg.keyLayout = 0;
+            cfg.showAllFiles = true;
+            listDirectory.invoke(canvas, new Object[] { url, "games" });
+            int nonGame = -1;
+            java.util.Vector entries2 = (java.util.Vector) field(canvas, "entries");
+            for (int i = 0; i < entries2.size(); i++) {
+                Object e = entries2.elementAt(i);
+                if (!((Boolean) field(e, "isDir")).booleanValue()
+                        && !((Boolean) field(e, "game")).booleanValue()) nonGame = i;
+            }
+            check(nonGame >= 0, "all-files mode lists the text file");
+            if (nonGame >= 0) {
+                setInt(canvas, "selected", nonGame);
+                setBool(canvas, "booting", false);
+                keyPressed.invoke(canvas, new Object[] { new Integer(javax.microedition.lcdui.Canvas.KEY_NUM5) });
+                String msg = (String) field(canvas, "overlayMessage");
+                check(msg != null && msg.length() > 0, "tapping a text file shows a hint");
+                check(intField(canvas, "mode") == 1, "tapping a text file stays in the browser");
+                /* the strip must reach the screen of the browser */
+                int[] pix = new int[176 * 208];
+                setInt(canvas, "viewW", 176);
+                setInt(canvas, "viewH", 208);
+                setInt(canvas, "mode", 1);
+                paint.invoke(canvas, new Object[] { new UiRender.Pix(pix) });
+                /* the strip is black, the glyphs are COLOR_TEXT (0xE2E8F0) */
+                int strip = 0;
+                for (int y = 208 - 14; y < 208; y++) {
+                    for (int x = 0; x < 176; x++) {
+                        int rgb = pix[y * 176 + x] & 0xFFFFFF;
+                        if (rgb != 0x000000 && rgb != 0x0B1020) strip++;
+                    }
+                }
+                check(strip > 20, "overlay text is painted in the browser (" + strip + " px)");
+            }
+            cfg.showAllFiles = false;
+
+            /* 3. toggling "show all files" must not leave the settings screen */
+            setInt(canvas, "mode", 4);
+            int allFilesRow = -1;
+            for (int i = 0; i < items.length; i++) {
+                if (items[i].indexOf("Показывать") >= 0) allFilesRow = i;
+            }
+            check(allFilesRow >= 0, "settings has an all-files row");
+            if (allFilesRow >= 0) {
+                setInt(canvas, "settingsSelection", allFilesRow);
+                applySetting.invoke(canvas, new Object[0]);
+                check(intField(canvas, "mode") == 4, "all-files toggle stays on the settings screen");
+                setInt(canvas, "settingsSelection", allFilesRow);
+                applySetting.invoke(canvas, new Object[0]);
+            }
+
+            /* 4. with a single storage root "up" from the card root is the menu,
+                  not a dead device list */
+            set(canvas, "roots", new java.util.Vector());
+            listDirectory.invoke(canvas, new Object[] { url, "games" });
+            setInt(canvas, "mode", 1);
+            setBool(canvas, "showingRoots", false);
+            keyPressed.invoke(canvas, new Object[] { new Integer(javax.microedition.lcdui.Canvas.KEY_NUM0) });
+            check(!boolField(canvas, "showingRoots"),
+                    "up from a lone card root does not open the device list");
+
+            /* 5. pressing * while a game is booting must not start a second scan */
+            setInt(canvas, "mode", 7);
+            setBool(canvas, "booting", true);
+            keyPressed.invoke(canvas, new Object[] { new Integer(javax.microedition.lcdui.Canvas.KEY_STAR) });
+            check(intField(canvas, "mode") == 7, "no second scan while a game is booting");
+            String bootMsg = (String) field(canvas, "overlayMessage");
+            check(bootMsg != null && bootMsg.length() > 0, "booting hint is shown: " + bootMsg);
+            setBool(canvas, "booting", false);
+
+            /* 6. a key released while the pause menu is open must reach the pad,
+                  otherwise the direction stays pressed after "resume" */
+            Object mach = field(canvas, "machine");
+            if (mach != null) {
+                setInt(canvas, "mode", 3);
+                keyPressed.invoke(canvas, new Object[] { new Integer(javax.microedition.lcdui.Canvas.KEY_NUM6) });
+                setInt(canvas, "mode", 2);
+                keyReleased.invoke(canvas, new Object[] { new Integer(javax.microedition.lcdui.Canvas.KEY_NUM6) });
+                int pads = intField(canvas, "padButtons");
+                check((pads & (1 << 5)) != 0, "released key is not stuck on the pad");
+            } else {
+                check(true, "pad release check skipped (no machine)");
+            }
+            cfg.reset();
+        } catch (Throwable t) {
+            check(false, "regressions 1.7.0 -> " + (t.getCause() != null ? t.getCause() : t));
+        }
+
         /* the demo launcher must boot the embedded image and paint a frame */
         Method startDemo = MainCanvas.class.getDeclaredMethod("startDemo", new Class[] { int.class });
         startDemo.setAccessible(true);
@@ -263,6 +428,11 @@ public class UiTest {
 
             /* the demo must actually produce visible pixels (catches a black screen) */
             Object mach = field(canvas, "machine");
+            check(mach != null, "demo machine available for the frame check");
+            if (mach == null) {
+                System.out.println("  boot failed: " + field(canvas, "status"));
+                throw new IllegalStateException("no machine");
+            }
             for (int wait = 0; wait < 60; wait++) {
                 int fr = mach.getClass().getField("framesRun").getInt(mach);
                 if (fr >= 8) break;
