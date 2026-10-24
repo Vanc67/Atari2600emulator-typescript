@@ -31,6 +31,10 @@ public final class PS1Machine {
 
     private boolean biosLoaded;
     private boolean hleMode;
+    /** BIOS kernel replacement, active in HLE mode. */
+    public BiosHle biosHle;
+    /** Set by exit()/halt() - the running program finished. */
+    public boolean halted;
     private int frameCounter;
     public int framesRun;
     public long totalCycles;
@@ -144,6 +148,16 @@ public final class PS1Machine {
 
     public boolean isHleMode() { return hleMode; }
 
+    /** Installs the BIOS kernel replacement so A0/B0/C0 calls work. */
+    public void installHle() {
+        if (biosHle == null) biosHle = new BiosHle(this);
+        else biosHle.reset();
+        cpu.hle = biosHle;
+    }
+
+    /** Stops the emulated program (BIOS exit()/halt()). */
+    public void halt() { halted = true; }
+
     public boolean isBiosLoaded() { return biosLoaded; }
 
     /** HLE boot: start the executable indicated by SYSTEM.CNF on the CD. */
@@ -233,6 +247,7 @@ public final class PS1Machine {
         cpu.gpr[29] = stack;
         cpu.gpr[30] = stack;
         hleMode = true;
+        installHle();
         bootInfo = "HLE " + Integer.toHexString(pc);
         return true;
     }
@@ -247,6 +262,7 @@ public final class PS1Machine {
 
     /** Runs one PAL/NTSC video frame worth of cycles. */
     public void runFrame() {
+        if (halted) return;
         int budget = FRAME_CYCLES;
         while (budget > 0) {
             int slice = budget > 2000 ? 2000 : budget;

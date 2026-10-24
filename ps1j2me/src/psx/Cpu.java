@@ -58,6 +58,13 @@ public final class Cpu {
     private final Gte gte;
     private final CodeCache cache;
 
+    /**
+     * BIOS kernel replacement (null when a real BIOS image is running).
+     * When set, calls into the A0/B0/C0 vectors are answered in Java instead
+     * of executing the (missing) BIOS code.
+     */
+    public BiosHle hle;
+
     /** Simple execution statistics, shown in the on screen OSD. */
     public int lastBlockCount;
     public int lastInstrCount;
@@ -132,6 +139,18 @@ public final class Cpu {
                 delaySlotStep();
                 continue;
             }
+            if (hle != null) {
+                int vec = pc & 0x1FFFFFFF;
+                if (vec == 0xA0 || vec == 0xB0 || vec == 0xC0) {
+                    int ra = gpr[31];
+                    hle.call(vec, gpr[9]);
+                    gpr[0] = 0;
+                    pc = ra;
+                    branchPending = false;
+                    cycles += 32;
+                    continue;
+                }
+            }
             codeDirty = false;
             CodeBlock b = cache.blockAt(pc);
             currentBlockStart = b.startPc;
@@ -201,7 +220,18 @@ public final class Cpu {
                 branchPending = true;
                 return 1;
             }
-            case K_SYSCALL: exception(EXC_SYS); return 1;
+            case K_SYSCALL:
+                if (hle != null) {
+                    int ra = gpr[31];
+                    hle.syscall(gpr[4]);
+                    gpr[0] = 0;
+                    pc = ra;
+                    branchPending = false;
+                    cycles += 16;
+                    return 1;
+                }
+                exception(EXC_SYS);
+                return 1;
             case K_BREAK:   exception(EXC_BP); return 1;
             case K_MFHI: gpr[rd] = hi; return 0;
             case K_MTHI: hi = gpr[rs]; return 0;

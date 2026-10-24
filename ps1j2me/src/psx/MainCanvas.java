@@ -33,6 +33,9 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     private static final int MODE_HELP = 5;
     private static final int MODE_DEMOS = 6;
     private static final int MODE_MESSAGE = 7;
+    private static final int MODE_INFO = 8;
+
+    public static final String VERSION = "1.6.0";
 
     private static final String[] GAME_EXT = { ".bin", ".iso", ".img", ".cue", ".chd", ".mdf" };
 
@@ -173,6 +176,8 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     private int helpScroll;
     private int demoSelection;
     private int pauseSelection;
+    private int infoScroll;
+    private String[] infoLines;
 
     /* ---- scaling -------------------------------------------------------- */
     private int[] columnMap;
@@ -326,6 +331,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             case MODE_SETTINGS: settingsKey(keyCode, action); break;
             case MODE_HELP: helpKey(keyCode, action); break;
             case MODE_DEMOS: demoKey(keyCode, action); break;
+            case MODE_INFO: infoKey(keyCode, action); break;
             default:
                 if (keyCode == KEY_STAR) {
                     mode = MODE_BOOT;
@@ -434,6 +440,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         "Настройки",
         "Демо-программы",
         "Справка",
+        "Диагностика",
         "Выход в браузер",
     };
 
@@ -480,6 +487,11 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                 case 4:
                     helpScroll = 0;
                     mode = MODE_HELP;
+                    break;
+                case 5:
+                    infoScroll = 0;
+                    infoLines = null;
+                    mode = MODE_INFO;
                     break;
                 default:
                     stopGame();
@@ -886,6 +898,12 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                     last = System.currentTimeMillis();
                     continue;
                 }
+                if (m.halted) {
+                    running = false;
+                    overlay("Программа завершилась - 0 выход, 5 демо");
+                    repaint();
+                    break;
+                }
                 long frameStart = System.currentTimeMillis();
                 try {
                     m.runFrame();
@@ -1030,6 +1048,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             case MODE_SETTINGS: paintSettings(g, bold, plain, barH); break;
             case MODE_HELP: paintHelp(g, bold, plain, barH); break;
             case MODE_DEMOS: paintDemos(g, bold, plain, barH); break;
+            case MODE_INFO: paintInfo(g, bold, plain, barH); break;
             default: paintBrowser(g, bold, plain, barH); break;
         }
     }
@@ -1060,6 +1079,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             case MODE_GAME: return "ИГРА";
             case MODE_BOOT: return "ЗАГРУЗКА";
             case MODE_MESSAGE: return "СООБЩЕНИЕ";
+            case MODE_INFO: return "ДИАГНОСТИКА";
             default: return "Sony PlayStation";
         }
     }
@@ -1200,6 +1220,101 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         hint(g, hint);
     }
 
+    /* ---- diagnostics ----------------------------------------------------- */
+
+    /** Snapshot of the emulator state, one line per metric. */
+    private String[] buildInfo() {
+        Vector v = new Vector();
+        PS1Machine m = machine;
+        v.addElement("Версия " + VERSION);
+        v.addElement("Экран " + viewW + "x" + viewH);
+        v.addElement("Память " + (Runtime.getRuntime().freeMemory() / 1024) + " КиБ свободно");
+        v.addElement("Режим " + (m == null ? "нет машины"
+                : (m.isHleMode() ? "HLE BIOS" : "BIOS из JAR")));
+        v.addElement("Кадров " + (m == null ? 0 : m.framesRun) + "  fps " + fps);
+        v.addElement("GPU пикселей " + (m == null ? 0 : m.getPixelsWritten()));
+        v.addElement("Вывод GPU " + (sawOutput ? "есть" : "нет"));
+        v.addElement("Размер кадра " + (m == null ? 0 : m.getFrameWidth())
+                + "x" + (m == null ? 0 : m.getFrameHeight()));
+        v.addElement("Диск " + (cd == null ? "нет" : cd.getUrl()));
+        v.addElement("Секторов " + (cd == null ? 0 : cd.getSectorCount()));
+        v.addElement("Звук " + (audio != null && audio.available ? "есть" : "нет"));
+        v.addElement("Масштаб " + config.scaleName() + "  пропуск " + config.frameSkip);
+        if (m != null && m.biosHle != null) {
+            v.addElement("BIOS вызовов " + m.biosHle.calls
+                    + "  неизвестных " + m.biosHle.unknownCalls);
+            String last = m.biosHle.getLastLine();
+            if (last.length() > 0) v.addElement("BIOS: " + last);
+            String unk = m.biosHle.getLastUnknown();
+            if (unk.length() > 0) v.addElement("Не реализовано: " + unk);
+        }
+        String[] out = new String[v.size()];
+        for (int i = 0; i < out.length; i++) out[i] = (String) v.elementAt(i);
+        return out;
+    }
+
+    private String[] infoWrapped() {
+        int maxChars = (viewW - 12) / TinyFont.WIDTH;
+        if (maxChars < 12) maxChars = 12;
+        String[] src = buildInfo();
+        Vector out = new Vector();
+        for (int i = 0; i < src.length; i++) {
+            String line = src[i];
+            while (line.length() > maxChars) {
+                int cut = line.lastIndexOf(' ', maxChars);
+                if (cut <= 0) cut = maxChars;
+                out.addElement(line.substring(0, cut));
+                line = line.substring(cut + 1);
+            }
+            out.addElement(line);
+        }
+        String[] res = new String[out.size()];
+        for (int i = 0; i < res.length; i++) res[i] = (String) out.elementAt(i);
+        return res;
+    }
+
+    private void infoKey(int keyCode, int action) {
+        String[] lines = infoWrapped();
+        int lineH = TinyFont.HEIGHT + 2;
+        int visible = (viewH - (TinyFont.HEIGHT + 16) - 20) / lineH;
+        if (visible < 1) visible = 1;
+        int maxScroll = lines.length - visible;
+        if (maxScroll < 0) maxScroll = 0;
+        if (upKey(keyCode, action)) {
+            infoScroll -= visible - 1;
+            if (infoScroll < 0) infoScroll = 0;
+        } else if (downKey(keyCode, action)) {
+            infoScroll += visible - 1;
+            if (infoScroll > maxScroll) infoScroll = maxScroll;
+        } else if (fireKey(keyCode, action) || keyCode == KEY_NUM0 || keyCode == KEY_SOFTKEY2) {
+            mode = MODE_PAUSE;
+        } else if (keyCode == KEY_STAR) {
+            infoLines = null;
+            infoScroll = 0;
+        }
+        repaint();
+    }
+
+    private void paintInfo(Graphics g, Font bold, Font plain, int barH) {
+        int top = barH + 6;
+        int lineH = TinyFont.HEIGHT + 2;
+        int visible = (viewH - top - 20) / lineH;
+        if (visible < 1) visible = 1;
+        String[] lines = infoWrapped();
+        int maxScroll = lines.length - visible;
+        if (maxScroll < 0) maxScroll = 0;
+        if (infoScroll > maxScroll) infoScroll = maxScroll;
+        if (infoScroll < 0) infoScroll = 0;
+        for (int i = 0; i < visible; i++) {
+            int idx = infoScroll + i;
+            if (idx >= lines.length) break;
+            g.setColor(i == 0 ? COLOR_ACCENT : COLOR_TEXT);
+            boldFlag = false;
+            txt(g, lines[idx], 6, top + i * lineH, Graphics.LEFT | Graphics.TOP);
+        }
+        hint(g, "2/8 - листать   * - обновить   0 - выход");
+    }
+
     private void paintBrowser(Graphics g, Font bold, Font plain, int barH) {
         int rowH = TinyFont.HEIGHT + 10;
         int listTop = barH + TinyFont.HEIGHT + 12;
@@ -1307,14 +1422,22 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             g.setColor(0xFFFFFF);
             txt(g, "ПАУЗА", viewW / 2, viewH / 2 - 7, Graphics.HCENTER | Graphics.TOP);
         }
-        if (!sawOutput && machine != null && machine.framesRun < 240) {
+        if (!sawOutput && machine != null) {
             g.setColor(0x000000);
             g.fillRect(0, viewH - 26, viewW, 26);
             g.setColor(COLOR_ACCENT);
-            txt(g, "PS1J2ME: выполняется " + machine.framesRun + " кадр(ов)",
+            boldFlag = false;
+            txt(g, "кадр " + machine.framesRun + "  " + fps + " fps  "
+                    + machine.getPixelsWritten() + " пикс GPU",
                     viewW / 2, viewH - 24, Graphics.HCENTER | Graphics.TOP);
             g.setColor(COLOR_DIM);
-            txt(g, "старт эмуляции", viewW / 2, viewH - 12, Graphics.HCENTER | Graphics.TOP);
+            String note = rawTried ? "показ VRAM напрямую" : "старт эмуляции";
+            if (machine.biosHle != null) {
+                String line = machine.biosHle.getLastLine();
+                if (line.length() > 0) note = line;
+            }
+            txt(g, TinyFont.ellipsize(note, viewW - 8), viewW / 2, viewH - 12,
+                    Graphics.HCENTER | Graphics.TOP);
         }
         if (overlayMessage != null && System.currentTimeMillis() < overlayUntil) {
             g.setColor(0x000000);
