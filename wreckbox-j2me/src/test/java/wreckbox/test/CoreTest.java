@@ -1,5 +1,6 @@
 package wreckbox.test;
 
+import java.io.InputStream;
 import wreckbox.core.BodyStore;
 import wreckbox.core.Buildings;
 import wreckbox.core.CellGrid;
@@ -16,6 +17,7 @@ import wreckbox.core.PeopleStore;
 import wreckbox.core.Props;
 import wreckbox.core.RadiationSystem;
 import wreckbox.core.RagdollStore;
+import wreckbox.core.ResourceLoader;
 import wreckbox.core.StructuralSolver;
 import wreckbox.core.ServiceSystem;
 import wreckbox.core.Tools;
@@ -100,6 +102,13 @@ public final class CoreTest {
       for (int b = 0; b < game.bodies.count; b++) if (game.bodies.type[b] < 0) unknown++;
       System.out.println("MAP " + Maps.IDS[i] + " solid=" + SOLID[i] + " bodies=" + BODIES[i] + " people=" + PEOPLE[i] + " generic=" + unknown + " grid=" + game.grid.memoryBytes() + "B");
     }
+    final int[] opens = {0};
+    Game hooked = new Game();
+    hooked.resources = new ResourceLoader() {
+      public InputStream open(String path) { opens[0]++; return CoreTest.class.getResourceAsStream(path); }
+    };
+    check(hooked.loadMap(0), "platform resource hook loads city");
+    eq(1, opens[0], "platform resource hook called once");
   }
 
   private static void initialPhysics() {

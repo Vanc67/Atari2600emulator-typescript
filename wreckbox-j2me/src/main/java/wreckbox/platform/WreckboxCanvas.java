@@ -7,14 +7,15 @@ import javax.microedition.lcdui.Image;
 import wreckbox.core.Game;
 import wreckbox.core.Maps;
 import wreckbox.core.Materials;
+import wreckbox.core.ResourceLoader;
 import wreckbox.core.Tools;
 
 /** K510i keypad interface: original menu pages plus the original simulation toolbar. */
 public final class WreckboxCanvas extends Canvas implements Runnable {
   static final int MENU_NONE = 0, MENU_MAIN = 1, MENU_SETTINGS = 2, MENU_HELP = 3,
-      MENU_ABOUT = 4, MENU_CONTROL = 5, MENU_MAPS = 6;
+      MENU_ABOUT = 4, MENU_CONTROL = 5, MENU_MAPS = 6, MENU_TOOLS = 7;
   private static final String[] MAIN_ITEMS = {
-    "Играть", "Карта", "Настройки", "Как играть", "Об игре", "Полный экран"
+    "Играть", "Карта", "Настройки", "Как играть", "Об игре", "Инструменты", "Полный экран"
   };
   private static final String[] SETTINGS_ITEMS = {
     "Выключить звук", "Проверить громкость взрывом", "Режим физики", "Тяжёлые эффекты",
@@ -23,7 +24,7 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
   private static final String[] CONTROL_ITEMS = {
     "Пауза", "Замедление времени", "Гравитация", "День / ночь", "Показать нагрузку",
     "Звук", "Кровь", "Убрать обломки", "Перезапуск города", "Справка",
-    "Скрыть интерфейс", "Меню и настройки"
+    "Скрыть интерфейс", "Меню и настройки", "Детонировать / вариант"
   };
   private static final String[] HELP_LINES = {
     "КАМЕРА", "Инструмент «Камера»: стрелки двигают",
@@ -48,7 +49,10 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
     "0 — гравитация; # — детонация.",
     "* — панель управления; правый soft — пауза.",
     "Левый soft — меню; H скрывает интерфейс",
-    "через панель. Весь контент открыт сразу."
+    "через панель. Весь контент открыт сразу.", "",
+    "СЕНСОРНЫЙ ЭКРАН", "Касание и ведение применяют инструмент.",
+    "Верх: меню; справа — управление и подрыв.", "Внизу: края — выбор,",
+    "название — все 27 инструментов, сила — вариант."
   };
   private static final String[] ABOUT_LINES = {
     "Wreckbox — песочница сноса.", "Каждый этаж давит на нижние;",
@@ -61,7 +65,7 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
     "службы. Вода наполняет ямы и подвалы.", "",
     "Автор оригинала: ItsLamba",
     "Оригинальная версия: 1.8",
-    "J2ME: адаптация для Sony Ericsson K510i", "128×160, CLDC 1.1 / MIDP 2.0", "",
+    "Порты: Sony Ericsson K510i и Android 2.3.6+", "128×160 · общий Core без WebView", "",
     "Есть и секреты. Например, клавиша ~."
   };
   private static final String[] SPLASHES = {
@@ -92,8 +96,11 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
   private int viewWidth = 128, viewHeight = 160;
   private Image buffer;
 
-  public WreckboxCanvas() {
+  public WreckboxCanvas() { this(null); }
+
+  public WreckboxCanvas(ResourceLoader loader) {
     setFullScreenMode(true);
+    game.resources = loader;
     game.listener = sound;
     if (!game.loadMap(0)) System.out.println(game.loadError);
     settings.load(game, sound);
@@ -103,6 +110,18 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
 
   final int menuPage() { return menu; }
   final int selectedMap() { return game.mapIndex; }
+  final int selectedTool() { return game.toolIndex; }
+  final void zoomBy(float factor) { game.zoomBy(factor); }
+  final void menuTouchStart(int x, int y) { lastPointerX = x; lastPointerY = y; }
+  final boolean menuTouchDrag(int y) {
+    if (menu == MENU_NONE) return false;
+    int delta = lastPointerY - y, rowHeight = rowHeight();
+    if (Math.abs(delta) < rowHeight) return false;
+    int steps = delta / rowHeight;
+    moveSelection(steps);
+    lastPointerY += steps * rowHeight;
+    return true;
+  }
   final boolean simulationStarted() { return started; }
 
   public void start() {
@@ -111,14 +130,16 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
   }
   public void stop() {
     running = false;
-    if (thread != null) thread.interrupt();
+    Thread old = thread; thread = null;
+    if (old != null) old.interrupt();
     sound.close(); settings.save(game);
   }
   public void suspend() { game.paused = true; sound.close(); settings.save(game); }
 
   public void run() {
+    Thread owner = Thread.currentThread();
     long last = System.currentTimeMillis();
-    while (running) {
+    while (running && thread == owner) {
       long now = System.currentTimeMillis();
       float dt = (now - last) / 1000.0f; last = now;
       if (menu == MENU_NONE && !game.paused) game.update(dt);
@@ -215,9 +236,23 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
 
   protected void pointerPressed(int x, int y) {
     if (menu != MENU_NONE) {
-      if (menu == MENU_HELP || menu == MENU_ABOUT) return;
+      if (menu == MENU_HELP || menu == MENU_ABOUT) {
+        moveSelection(y < viewHeight / 2 ? -visibleRows() : visibleRows());
+        return;
+      }
       int row = (y - rowTop()) / rowHeight() + scroll;
-      if (row >= 0 && row < menuCount()) { selection = row; activate(); }
+      if (row >= scroll && row < scroll + visibleRows() && row < menuCount()) { selection = row; activate(); }
+      return;
+    }
+    if (!game.uiHidden && y < WreckboxRenderer.TOP) {
+      openMenu(x >= viewWidth * 3 / 4 ? MENU_CONTROL : MENU_MAIN);
+      return;
+    }
+    if (!game.uiHidden && y >= viewHeight - WreckboxRenderer.BOTTOM) {
+      if (x < viewWidth / 4) cycleTool(-1);
+      else if (x >= viewWidth * 3 / 4) cycleTool(1);
+      else if (y < viewHeight - WreckboxRenderer.BOTTOM + 11) openMenu(MENU_TOOLS);
+      else adjustTool(x < viewWidth / 2 ? -1 : 1);
       return;
     }
     cursorX = Math.max(0, Math.min(viewWidth - 1, x));
@@ -240,6 +275,7 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
     if (game.held) game.pointerUp();
     menu = which; selection = 0; scroll = 0;
     if (which == MENU_MAPS) selection = game.mapIndex;
+    if (which == MENU_TOOLS) selection = game.toolIndex;
     ensureVisible();
   }
   private void closeMenu() {
@@ -256,6 +292,7 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
   private int menuCount() {
     if (menu == MENU_MAIN) return MAIN_ITEMS.length;
     if (menu == MENU_MAPS) return Maps.COUNT;
+    if (menu == MENU_TOOLS) return Tools.COUNT;
     if (menu == MENU_SETTINGS) return SETTINGS_ITEMS.length;
     if (menu == MENU_CONTROL) return CONTROL_ITEMS.length;
     if (menu == MENU_HELP) return HELP_LINES.length;
@@ -280,6 +317,7 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
     if (menu == MENU_MAPS && selection != game.mapIndex) {
       game.loadMap(selection); settings.save(game);
     }
+    if (menu == MENU_TOOLS && selection != game.toolIndex) game.selectTool(selection);
   }
   private void ensureVisible() {
     int rows = visibleRows();
@@ -292,6 +330,7 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
     if (menu == MENU_HELP) { openMenu(MENU_MAIN); return; }
     if (menu == MENU_ABOUT) { openMenu(MENU_MAIN); return; }
     if (menu == MENU_MAPS) { game.loadMap(selection); closeMenu(); settings.save(game); return; }
+    if (menu == MENU_TOOLS) { game.selectTool(selection); closeMenu(); settings.save(game); return; }
     if (menu == MENU_SETTINGS) {
       switch (selection) {
         case 0: toggleSound(); break;
@@ -313,7 +352,8 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
       case 2: openMenu(MENU_SETTINGS); break;
       case 3: openMenu(MENU_HELP); break;
       case 4: openMenu(MENU_ABOUT); break;
-      case 5: setFullScreenMode(true); break;
+      case 5: openMenu(MENU_TOOLS); break;
+      case 6: setFullScreenMode(true); break;
       default: break;
     }
   }
@@ -335,6 +375,10 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
       case 9: openMenu(MENU_HELP); break;
       case 10: game.uiHidden = !game.uiHidden; closeMenu(); break;
       case 11: openMenu(MENU_MAIN); break;
+      case 12:
+        if ("nuke".equals(Tools.IDS[game.toolIndex]) && game.effects.chargeCount() == 0) game.cycleOption(1);
+        else game.detonate();
+        closeMenu(); break;
       default: break;
     }
   }
@@ -347,6 +391,7 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
   private String menuTitle() {
     if (menu == MENU_SETTINGS) return "Настройки";
     if (menu == MENU_MAPS) return "Выбор карты";
+    if (menu == MENU_TOOLS) return "27 инструментов";
     if (menu == MENU_CONTROL) return "Управление симуляцией";
     if (menu == MENU_HELP) return "Как пользоваться";
     if (menu == MENU_ABOUT) return "Об игре";
@@ -356,6 +401,7 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
     if (menu == MENU_HELP) return HELP_LINES[index];
     if (menu == MENU_ABOUT) return ABOUT_LINES[index];
     if (menu == MENU_MAPS) return (index + 1) + ". " + Maps.NAMES[index];
+    if (menu == MENU_TOOLS) return (index + 1) + ". " + Tools.NAMES[index];
     if (menu == MENU_SETTINGS) {
       if (index == 0) return SETTINGS_ITEMS[index] + ": " + (sound.enabled ? "нет" : "да");
       if (index == 2) return SETTINGS_ITEMS[index] + ": " + game.physicsText();
@@ -413,6 +459,7 @@ public final class WreckboxCanvas extends Canvas implements Runnable {
     String footer = menu == MENU_MAIN ? "ItsLamba · v1.8 · 5 — выбрать" : "Левый soft: назад · 5: действие";
     if (menu == MENU_HELP || menu == MENU_ABOUT) footer = "2/8 — листать · 5 — назад";
     if (menu == MENU_MAPS) footer = "2/8 — выбор · 5 — играть";
+    if (menu == MENU_TOOLS) footer = "2/8 — выбор · 5 — применить";
     g.drawString(footer, w / 2, h - 12, Graphics.HCENTER | Graphics.TOP);
   }
 

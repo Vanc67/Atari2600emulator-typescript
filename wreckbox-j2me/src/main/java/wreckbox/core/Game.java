@@ -29,6 +29,8 @@ public final class Game {
   public final BuildingGenerator buildingGenerator = new BuildingGenerator();
   public final Random random = new Random(0x1a8b0);
   public GameListener listener;
+  /** Optional Android/host asset source; null keeps ordinary JAR resources. */
+  public ResourceLoader resources;
   public MapMetadata metadata;
 
   public int mapIndex, toolIndex = Tools.find("hammer"), gravityIndex, physicsMode = StructuralSolver.NORMAL;
@@ -73,7 +75,7 @@ public final class Game {
     if (index >= Maps.COUNT) index = 0;
     mapIndex = index;
     String path = "/maps/" + Maps.IDS[index] + ".wbmp";
-    InputStream stream = getClass().getResourceAsStream(path);
+    InputStream stream = resources != null ? resources.open(path) : getClass().getResourceAsStream(path);
     if (stream == null) { loadError = "Нет ресурса " + path; return false; }
     grid = new CellGrid(Maps.WIDTHS[index]);
     MapLoader loader = new MapLoader();

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="ru.vanc67.wreckbox"
+    android:versionCode="18"
+    android:versionName="1.8">
+  <uses-sdk android:minSdkVersion="10" android:targetSdkVersion="10" />
+  <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+  <supports-screens android:smallScreens="true" android:normalScreens="true"
+      android:largeScreens="true" android:anyDensity="true" />
+  <application android:label="Wreckbox" android:icon="@drawable/icon"
+      android:allowBackup="false" android:debuggable="false">
+    <activity android:name="ru.vanc67.wreckbox.WreckboxActivity"
+        android:label="Wreckbox"
+        android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+        android:configChanges="orientation|keyboardHidden"
+        android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>

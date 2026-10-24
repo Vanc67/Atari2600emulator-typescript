@@ -71,5 +71,34 @@ public final class CanvasTest {
     press(-6);
     eq(WreckboxCanvas.MENU_NONE, canvas.menuPage(), "return to game");
     paint("final gameplay");
+
+    press(-6); down(5); press(Canvas.KEY_NUM5);
+    eq(WreckboxCanvas.MENU_TOOLS, canvas.menuPage(), "main menu opens all tools");
+    canvas.menuTouchStart(64, 100);
+    check(canvas.menuTouchDrag(40), "tool browser drag scrolls down");
+    eq(5, canvas.selectedTool(), "tool drag changes selection");
+    canvas.menuTouchStart(64, 40);
+    check(canvas.menuTouchDrag(100), "tool browser drag scrolls up");
+    eq(1, canvas.selectedTool(), "tool drag restores hammer");
+    down(5); paint("tool browser selects nuke");
+    press(Canvas.KEY_NUM5);
+    eq(6, canvas.selectedTool(), "tool browser applies nuke");
+    eq(WreckboxCanvas.MENU_NONE, canvas.menuPage(), "tool browser returns to game");
+
+    canvas.pointerPressed(64, 140);
+    eq(WreckboxCanvas.MENU_TOOLS, canvas.menuPage(), "touch tool name opens browser");
+    press(Canvas.KEY_NUM5);
+    canvas.pointerPressed(2, 140);
+    eq(5, canvas.selectedTool(), "touch left toolbar selects previous tool");
+    canvas.pointerPressed(126, 140);
+    eq(6, canvas.selectedTool(), "touch right toolbar selects next tool");
+    canvas.pointerPressed(2, 2);
+    eq(WreckboxCanvas.MENU_MAIN, canvas.menuPage(), "touch top panel opens main menu");
+    press(-6);
+    canvas.pointerPressed(126, 2);
+    eq(WreckboxCanvas.MENU_CONTROL, canvas.menuPage(), "touch top right opens controls");
+    paint("touch controls with detonate command");
+    press(-6); press(-6);
+    paint("final touch gameplay");
   }
 }
