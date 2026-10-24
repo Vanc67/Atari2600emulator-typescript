@@ -161,6 +161,8 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     private long overlayUntil;
     private volatile boolean booting;
     private volatile boolean sawOutput;      /* at least one non black pixel */
+    private volatile boolean rawTried;       /* VRAM-origin scanout attempted */
+    private volatile boolean hintShown;
     private volatile String lastError;
     private long audioStartedAt;
     private int errorCount;
@@ -770,6 +772,11 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             if (bios != null) {
                 try {
                     real = m.loadBios(bios);
+                    /* The bundled image is a header + zeros placeholder: loadBios()
+                       detects that and switches the machine to HLE mode. Treat it
+                       as "no BIOS", otherwise the CPU executes zeros and the
+                       screen stays black forever. */
+                    if (real && m.isHleMode()) real = false;
                 } catch (Throwable t) {
                     real = false;
                 }
@@ -784,6 +791,8 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
 
         machine = m;
         sawOutput = false;
+        rawTried = false;
+        hintShown = false;
         errorCount = 0;
         padButtons = 0xFFFF;
         m.setButtons(padButtons);
@@ -813,7 +822,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         Thread t = new Thread(new Runnable() {
             public void run() {
                 a.start();
-                if (!a.available) overlay("Звук недоступен на этом устройстве");
+                if (!a.available) overlay("Звук недоступен");
             }
         }, "ps1-audio");
         t.start();
@@ -894,11 +903,19 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                         return;
                     }
                 }
-                if (!sawOutput && (m.framesRun & 31) == 0) {
+                if (!sawOutput && (m.framesRun & 15) == 0) {
                     sawOutput = hasVisibleOutput(m);
-                    if (!sawOutput && m.framesRun > 240) {
-                        overlayMessage = "Игра не рисует кадры (нет вывода GPU)";
-                        overlayUntil = System.currentTimeMillis() + 6000;
+                    if (!sawOutput && !rawTried && m.framesRun >= 120) {
+                        /* The display area may be programmed in a way we do not
+                           decode yet: show VRAM from its origin and check again. */
+                        rawTried = true;
+                        m.setRawScanout(true);
+                        sawOutput = hasVisibleOutput(m);
+                    }
+                    if (!sawOutput && !hintShown && m.framesRun >= 900) {
+                        hintShown = true;
+                        overlay("Пока нет вывода: кадр " + m.framesRun
+                                + ", пикселей GPU " + m.getPixelsWritten());
                     }
                 }
                 long frameTime = System.currentTimeMillis() - frameStart;
@@ -972,7 +989,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         long age = System.currentTimeMillis() - audioStartedAt;
         if (!a.isStarting() && age > 4000) {
             audio = null;
-            overlay("Звук недоступен на этом устройстве");
+            overlay("Звук недоступен");
         } else if (a.isStarting() && age > 15000) {
             /* the device is stuck inside Manager: abandon the player */
             audio = null;
@@ -1303,7 +1320,8 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             g.setColor(0x000000);
             g.fillRect(0, viewH - 16, viewW, 16);
             g.setColor(COLOR_TEXT);
-            txt(g, overlayMessage, 4, viewH - 15, Graphics.LEFT | Graphics.TOP);
+            txt(g, TinyFont.ellipsize(overlayMessage, viewW - 8), 4, viewH - 14,
+                    Graphics.LEFT | Graphics.TOP);
         } else if (overlayMessage != null && System.currentTimeMillis() >= overlayUntil) {
             overlayMessage = null;
         }

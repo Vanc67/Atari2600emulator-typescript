@@ -4,7 +4,7 @@
 собранный в байткод **Major 47.0 (Java 1.3)** и упакованный в готовый `PS1J2ME.jar`.
 
 ```
-PS1J2ME.jar                  v1.4.0, 44 записи
+PS1J2ME.jar                  v1.5.0, 44 записи
 ├── META-INF/MANIFEST.MF      MIDlet-1: PS1J2ME, , psx.PS1Midlet
 ├── psx/*.class               35 классов, все major 47.0, без StackMapTable
 ├── res/roms/scph1001.bin     образ BIOS, 524 288 байт (читается getResourceAsStream)
@@ -261,6 +261,45 @@ Pong и тест пада читают контроллер по протоко�
 ---
 
 
+### 2.13 «Игра не рисуется, нет GPU» — настоящая причина
+
+Симптом: демо/игра запускается, эмулятор честно крутит кадры, но экран чёрный,
+через несколько секунд появляется подсказка «нет вывода GPU».
+
+Причина была в загрузке BIOS. В JAR лежит **заглушка** BIOS (заголовок Sony +
+нули, `tools/mkbios_stub.py`), но `loadBios()` возвращала `true`, потому что
+512 КиБ прочитаны успешно. `bootNow()` считал, что «BIOS есть», и **не вызывал
+HLE-загрузчик**:
+
+```
+real = m.loadBios(bios);        // true, хотя это нули
+if (!real && !m.hleBoot(image)) // никогда не выполнялось
+```
+
+CPU после сброса прыгал в BIOS, а там нули — то есть `nop` до бесконечности:
+`framesRun` растёт, GPU пишет 0 пикселей, экран чёрный. Демо на десктопе
+работали, потому что `DemoRender` вызывает `hleBoot()` напрямую.
+
+Исправление в `MainCanvas.bootNow()`:
+
+```java
+real = m.loadBios(bios);
+if (real && m.isHleMode()) real = false;   // заглушка/битый BIOS -> HLE
+if (!real && !m.hleBoot(image)) failBoot(...);
+```
+
+Дополнительно:
+
+* `Gpu.pixelsWritten` — счётчик реально записанных в VRAM пикселей;
+  `PS1Machine.getPixelsWritten()` отдаёт его наружу;
+* аварийный скан `Gpu.scanoutRaw()` — если 120 кадров нет вывода, кадр берётся
+  из начала VRAM, минуя область вывода (игры, которые программа GP1(05h)
+  которого мы ещё не декодируем, больше не «чёрные»);
+* подсказка «нет вывода GPU» заменена на информационную строку
+  `кадр N · fps · пикселей GPU` — сразу видно, рисует ли GPU вообще;
+* в тесты добавлена регрессия: после запуска демо кадр обязан быть не чёрным,
+  а `pixelsWritten > 1000` (`UiTest`, плюс `ui_game.bmp` из `UiRender`).
+
 ### 2.12 Текст: почему «пропадал» и как сделан встроенный шрифт
 
 Причин было две, обе исправлены:
@@ -351,7 +390,8 @@ cd ps1j2me
 
 ```sh
 cd ps1j2me
-ECJ_JAR=lib/ecj.jar ./tests/run_tests.sh
+./tools/setup_toolchain.sh                # ecj + JDK 11 в ~/.cache
+ECJ_JAR=$HOME/.cache/ecj/ecj.jar JAVA_HOME=$HOME/.cache/jdk/jdk11 ./tests/run_tests.sh
 ```
 
 `tests/CoreTest.java` гоняет ядро на обычной JVM: цикл с ветвлениями и delay

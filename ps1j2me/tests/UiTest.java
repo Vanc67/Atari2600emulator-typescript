@@ -165,6 +165,24 @@ public class UiTest {
             paintGame.setAccessible(true);
             paintGame.invoke(canvas, new Object[] { g });
             check(true, "paint game screen");
+
+            /* the demo must actually produce visible pixels (catches a black screen) */
+            Object mach = field(canvas, "machine");
+            for (int wait = 0; wait < 60; wait++) {
+                int fr = mach.getClass().getField("framesRun").getInt(mach);
+                if (fr >= 8) break;
+                Thread.sleep(50);
+            }
+            int[] frame = (int[]) mach.getClass().getMethod("getFrame", new Class[0])
+                    .invoke(mach, new Object[0]);
+            int nonBlack = 0;
+            for (int i = 0; i < frame.length; i++) {
+                if ((frame[i] & 0xFFFFFF) != 0) nonBlack++;
+            }
+            check(nonBlack > 1000, "demo frame is not black (" + nonBlack + " px)");
+            int pixels = ((Integer) mach.getClass().getMethod("getPixelsWritten", new Class[0])
+                    .invoke(mach, new Object[0])).intValue();
+            check(pixels > 1000, "GPU wrote pixels (" + pixels + ")");
             setInt(canvas, "viewW", 176);
             setInt(canvas, "viewH", 208);
             cfg.scaleMode = Config.SCALE_4_3;
