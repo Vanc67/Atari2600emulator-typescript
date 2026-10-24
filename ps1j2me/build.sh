@@ -94,17 +94,18 @@ compile_java() {
     if [ -n "$ECJ" ] && [ -n "$JAVA_BIN" ]; then
         if [ -n "$bcp" ]; then
             "$JAVA_BIN" -Xmx256m -cp "$ECJ" org.eclipse.jdt.internal.compiler.batch.Main \
-                -source 1.3 -target 1.3 -nowarn -g -bootclasspath "$bcp" -d "$out" "$@"
+                -source 1.3 -target 1.3 -nowarn -g -encoding UTF-8 \
+                -bootclasspath "$bcp" -d "$out" "$@"
         else
             "$JAVA_BIN" -Xmx256m -cp "$ECJ" org.eclipse.jdt.internal.compiler.batch.Main \
-                -source 1.3 -target 1.3 -nowarn -g -d "$out" "$@"
+                -source 1.3 -target 1.3 -nowarn -g -encoding UTF-8 -d "$out" "$@"
         fi
     elif [ -n "$JAVAC_BIN" ]; then
         if [ -n "$bcp" ]; then
-            "$JAVAC_BIN" -source 1.3 -target 1.3 -nowarn -g -bootclasspath "$bcp" -d "$out" "$@" 2>/dev/null || \
+            "$JAVAC_BIN" -encoding UTF-8 -source 1.3 -target 1.3 -nowarn -g -bootclasspath "$bcp" -d "$out" "$@" 2>/dev/null || \
             "$JAVAC_BIN" --release 7 -nowarn -g -d "$out" "$@"
         else
-            "$JAVAC_BIN" -source 1.3 -target 1.3 -nowarn -g -d "$out" "$@" 2>/dev/null || \
+            "$JAVAC_BIN" -encoding UTF-8 -source 1.3 -target 1.3 -nowarn -g -d "$out" "$@" 2>/dev/null || \
             "$JAVAC_BIN" --release 7 -nowarn -g -d "$out" "$@"
         fi
     else
