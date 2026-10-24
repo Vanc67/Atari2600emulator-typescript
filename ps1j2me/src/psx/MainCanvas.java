@@ -160,6 +160,8 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     private String overlayMessage;
     private long overlayUntil;
     private volatile boolean booting;
+    private volatile boolean sawOutput;      /* at least one non black pixel */
+    private volatile String lastError;
     private long audioStartedAt;
     private int errorCount;
 
@@ -682,9 +684,13 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             overlay("Загрузка уже идёт");
             return;
         }
+        /* Anchor the class lookup on MainCanvas itself: getClass() inside the
+           anonymous factory below would return the inner class, and some
+           devices then fail to find /res/demos/... */
+        final Class anchor = getClass();
         beginBoot("Загрузка демо: " + DEMO_NAME[index], new ImageFactory() {
             public CdImage create() {
-                MemoryCD mem = MemoryCD.fromResource(getClass(), DEMO_RES[index], DEMO_NAME[index]);
+                MemoryCD mem = MemoryCD.fromResource(anchor, DEMO_RES[index], DEMO_NAME[index]);
                 return mem;
             }
         });
@@ -777,6 +783,8 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         }
 
         machine = m;
+        sawOutput = false;
+        errorCount = 0;
         padButtons = 0xFFFF;
         m.setButtons(padButtons);
         paused = false;
@@ -864,7 +872,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             while (running) {
                 PS1Machine m = machine;
                 if (m == null) break;
-                if (paused || hidden) {
+                if (paused) {
                     try { Thread.sleep(40); } catch (InterruptedException e) { }
                     last = System.currentTimeMillis();
                     continue;
@@ -874,16 +882,23 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                     m.runFrame();
                     framesThisSecond++;
                 } catch (OutOfMemoryError oom) {
-                    running = false;
-                    break;
+                    abortGame("Не хватает памяти MIDlet для эмуляции.\n"
+                            + "Нужно около 5 МиБ. Уменьшите масштаб экрана,\n"
+                            + "закройте другие приложения и попробуйте снова.");
+                    return;
                 } catch (Throwable t) {
                     errorCount++;
-                    if (errorCount <= 3) {
-                        overlayMessage = "Сбой: " + t.toString();
-                        overlayUntil = System.currentTimeMillis() + 4000;
-                    } else {
-                        running = false;
-                        break;
+                    lastError = t.toString();
+                    if (errorCount >= 3) {
+                        abortGame("Сбой эмуляции: " + t.toString());
+                        return;
+                    }
+                }
+                if (!sawOutput && (m.framesRun & 31) == 0) {
+                    sawOutput = hasVisibleOutput(m);
+                    if (!sawOutput && m.framesRun > 240) {
+                        overlayMessage = "Игра не рисует кадры (нет вывода GPU)";
+                        overlayUntil = System.currentTimeMillis() + 6000;
                     }
                 }
                 long frameTime = System.currentTimeMillis() - frameStart;
@@ -918,6 +933,36 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                 last = System.currentTimeMillis();
             }
         }
+    }
+
+    /** True when the emulator has drawn something other than black. */
+    private static boolean hasVisibleOutput(PS1Machine m) {
+        int[] frame = m.getFrame();
+        if (frame == null) return false;
+        int step = frame.length > 4096 ? 7 : 1;
+        for (int i = 0; i < frame.length; i += step) {
+            if ((frame[i] & 0xFFFFFF) != 0) return true;
+        }
+        return false;
+    }
+
+    /** Stops emulation and shows a readable message instead of a black screen. */
+    private void abortGame(String message) {
+        running = false;
+        paused = true;
+        lastError = message;
+        if (audio != null) {
+            try { audio.stop(); } catch (Throwable t) { }
+            audio = null;
+        }
+        if (cd != null) {
+            try { cd.close(); } catch (Throwable t) { }
+            cd = null;
+        }
+        machine = null;
+        status = message;
+        mode = MODE_MESSAGE;
+        repaint();
     }
 
     /** Detects an audio system that never came up, without ever blocking. */
@@ -984,6 +1029,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     }
 
     private void paintBoot(Graphics g, Font bold, Font plain) {
+        /* replaced by paintMessage() during boots; kept for the * hotkey */
         int cy = viewH / 2;
         g.setColor(COLOR_ACCENT);
         g.setFont(bold);
@@ -1174,7 +1220,11 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         if (dstW <= 0 || dstH <= 0) return;
 
         if (dstW == srcW && dstH == srcH) {
-            g.drawRGB(frame, 0, srcW, dstX, dstY, srcW, srcH, false);
+            try {
+                g.drawRGB(frame, 0, srcW, dstX, dstY, srcW, srcH, false);
+            } catch (Throwable t) {
+                drawFrameFallback(g, frame, srcW, dstX, dstY, dstW, dstH);
+            }
         } else {
             if (columnMap == null || mapSrcW != srcW || mapSrcH != srcH
                     || mapDstW != dstW || mapDstH != dstH) {
@@ -1188,7 +1238,11 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                     dst[dstRow + x] = frame[srcRow + columnMap[x]];
                 }
             }
-            g.drawRGB(dst, 0, dstW, dstX, dstY, dstW, dstH, false);
+            try {
+                g.drawRGB(dst, 0, dstW, dstX, dstY, dstW, dstH, false);
+            } catch (Throwable t) {
+                drawFrameFallback(g, dst, dstW, dstX, dstY, dstW, dstH);
+            }
         }
 
         Font f = Font.getFont(Font.FACE_MONOSPACE, Font.STYLE_PLAIN, Font.SIZE_SMALL);
@@ -1205,6 +1259,15 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             g.setColor(0xFFFFFF);
             g.drawString("ПАУЗА", viewW / 2, viewH / 2 - 7, Graphics.HCENTER | Graphics.TOP);
         }
+        if (!sawOutput && machine != null && machine.framesRun < 240) {
+            g.setColor(0x000000);
+            g.fillRect(0, viewH - 26, viewW, 26);
+            g.setColor(COLOR_ACCENT);
+            g.drawString("PS1J2ME: выполняется " + machine.framesRun + " кадр(ов)",
+                    viewW / 2, viewH - 24, Graphics.HCENTER | Graphics.TOP);
+            g.setColor(COLOR_DIM);
+            g.drawString("старт эмуляции", viewW / 2, viewH - 12, Graphics.HCENTER | Graphics.TOP);
+        }
         if (overlayMessage != null && System.currentTimeMillis() < overlayUntil) {
             g.setColor(0x000000);
             g.fillRect(0, viewH - 16, viewW, 16);
@@ -1214,6 +1277,26 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             overlayMessage = null;
         }
     }
+
+    /**
+     * Last-resort renderer for devices whose drawRGB() refuses our buffer:
+     * paints 4x4 colour blocks with fillRect(). Slow, but never black.
+     */
+    private void drawFrameFallback(Graphics g, int[] frame, int scan,
+                                   int dstX, int dstY, int dstW, int dstH) {
+        int step = 4;
+        for (int y = 0; y < dstH; y += step) {
+            int row = (y * frame.length / dstH / scan) * scan;
+            for (int x = 0; x < dstW; x += step) {
+                int src = row + (x * 320 / dstW);
+                if (src >= frame.length) break;
+                g.setColor(frame[src] & 0xFFFFFF);
+                g.fillRect(dstX + x, dstY + y, step, step);
+            }
+        }
+    }
+
+    private final int[] rectCache = new int[4];
 
     /** Destination rectangle for the emulator image, honouring the scale mode. */
     private int[] destRect() {
@@ -1248,7 +1331,11 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                 break;
             }
         }
-        return new int[] { x, y, w, h };
+        rectCache[0] = x;
+        rectCache[1] = y;
+        rectCache[2] = w;
+        rectCache[3] = h;
+        return rectCache;
     }
 
     private void buildMaps(int srcW, int srcH, int dstW, int dstH) {
@@ -1294,17 +1381,14 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     /*  lifecycle                                                           */
     /* ==================================================================== */
 
-    /** Set from hideNotify(): some devices report isShown() wrongly, so the
-        emulator only pauses when the MIDlet really went to the background. */
-    private volatile boolean hidden;
-
     protected void hideNotify() {
-        hidden = true;
-        if (mode == MODE_GAME) paused = true;
+        /* Deliberately does not pause: several devices deliver hideNotify()
+           during start-up, which used to leave the game frozen forever. The
+           player pauses explicitly from the menu. */
+        repaint();
     }
 
     protected void showNotify() {
-        hidden = false;
         repaint();
     }
 

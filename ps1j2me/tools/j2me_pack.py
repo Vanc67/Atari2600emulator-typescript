@@ -21,7 +21,7 @@ CLDC_MAJOR = 47  # Java 1.3 / CLDC 1.1 bytecode
 
 MANIFEST = """Manifest-Version: 1.0
 MIDlet-Name: PS1J2ME
-MIDlet-Version: 1.2.0
+MIDlet-Version: 1.3.0
 MIDlet-Vendor: PS1J2ME Project
 MIDlet-1: PS1J2ME, , psx.PS1Midlet
 MicroEdition-Configuration: CLDC-1.1
@@ -202,6 +202,8 @@ def cmd_downgrade(args):
 
 
 def cmd_pack(args):
+    if not hasattr(args, "deflate_res"):
+        args.deflate_res = False
     entries = []
     for path in iter_classes(args.classes):
         arc = os.path.relpath(path, args.classes).replace(os.sep, "/")
@@ -225,7 +227,13 @@ def cmd_pack(args):
     with zipfile.ZipFile(args.out, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("META-INF/MANIFEST.MF", manifest)
         for arc, path in entries:
-            z.write(path, arc)
+            # Resources stay uncompressed: the BIOS and the demo discs are
+            # random looking data that barely compresses, and inflating 512 KiB
+            # of BIOS on a KVM costs seconds of start-up time. Storing them
+            # also keeps the archive at a predictable ~1 MiB.
+            method = zipfile.ZIP_STORED if arc.startswith("res/") and not args.deflate_res \
+                else zipfile.ZIP_DEFLATED
+            z.write(path, arc, compress_type=method)
     size = os.path.getsize(args.out)
     print("[pack] wrote %s (%d entries, %d KiB)" % (args.out, len(entries) + 1, size // 1024))
 
@@ -236,7 +244,7 @@ def cmd_jad(args):
     name = os.path.basename(jar)
     lines = [
         "MIDlet-Name: PS1J2ME",
-        "MIDlet-Version: 1.2.0",
+        "MIDlet-Version: 1.3.0",
         "MIDlet-Vendor: PS1J2ME Project",
         "MIDlet-1: PS1J2ME, , psx.PS1Midlet",
         "MicroEdition-Configuration: CLDC-1.1",
@@ -298,6 +306,7 @@ def main():
     p = sub.add_parser("pack")
     p.add_argument("--classes", required=True)
     p.add_argument("--res", default="res")
+    p.add_argument("--deflate-res", dest="deflate_res", action="store_true")
     p.add_argument("--out", required=True)
     p.add_argument("--manifest")
     p.set_defaults(func=cmd_pack)
