@@ -28,6 +28,10 @@ public final class Gpu {
 
     /* display (GP1 03..08) */
     private int dispX, dispY;
+    /** Pixels really written into VRAM - used by the start-up watchdog. */
+    public int pixelsWritten;
+    /** When true the scanout ignores the display area (VRAM origin). */
+    private boolean rawScanout;
     private int hRangeX1 = 0x200, hRangeX2 = 0xC00;
     private int vRangeY1 = 0x10, vRangeY2 = 0x100;
     private int videoMode;
@@ -670,6 +674,7 @@ public final class Gpu {
         }
         if (maskForceBit15) out |= 0x8000;
         vram[idx] = (short) out;
+        pixelsWritten++;
     }
 
     private static int modulate(int vcolor, int tex) {
@@ -831,13 +836,25 @@ public final class Gpu {
         return ((videoMode & 0x04) != 0) ? 480 : 240;
     }
 
+    public void setRawScanout(boolean raw) { rawScanout = raw; }
+
     public int[] scanout() {
+        if (rawScanout) return scanoutAt(0, 0);
+        return scanoutAt(dispX & 0x3FF, dispY & 0x1FF);
+    }
+
+    /**
+     * Emergency scanout: shows VRAM from its origin, ignoring the display area.
+     * Some games program GP1(05h) in a way we do not decode yet; without this
+     * the screen stayed black although the GPU was drawing normally.
+     */
+    public int[] scanoutRaw() { return scanoutAt(0, 0); }
+
+    private int[] scanoutAt(int startX, int startY) {
         int nw = getNativeWidth();
         int nh = getNativeHeight();
-        int startX = dispX & 0x3FF;
-        int startY = dispY & 0x1FF;
         int[] dst = frame;
-        if (!displayEnabled) {
+        if (!displayEnabled && !rawScanout) {
             for (int i = 0; i < dst.length; i++) dst[i] = 0xFF000000;
             return dst;
         }

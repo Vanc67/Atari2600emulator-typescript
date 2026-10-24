@@ -82,6 +82,19 @@ public class UiRender {
         f.set(o, v);
     }
 
+    static Object get(Object o, String name) throws Exception {
+        Field f = o.getClass().getDeclaredField(name);
+        f.setAccessible(true);
+        return f.get(o);
+    }
+
+    static void PaintGame(MainCanvas canvas, int[] pix) throws Exception {
+        Method paintGame = MainCanvas.class.getDeclaredMethod("paintGame",
+                new Class[] { Graphics.class });
+        paintGame.setAccessible(true);
+        paintGame.invoke(canvas, new Object[] { new Pix(pix) });
+    }
+
     static void writeBmp(String path, int[] pix) throws IOException {
         int rowBytes = (W * 3 + 3) / 4 * 4;
         int size = 54 + rowBytes * H;
@@ -147,6 +160,22 @@ public class UiRender {
             paint.invoke(canvas, new Object[] { new Pix(pix) });
             writeBmp(dir + "/" + files[i] + ".bmp", pix);
             System.out.println("wrote " + files[i] + ".bmp");
+        }
+        /* the game screen must show real emulator output, not a black rectangle */
+        Method startDemo = MainCanvas.class.getDeclaredMethod("startDemo", new Class[] { int.class });
+        startDemo.setAccessible(true);
+        startDemo.invoke(canvas, new Object[] { new Integer(0) });
+        Object mach = null;
+        for (int wait = 0; wait < 80; wait++) {
+            mach = get(canvas, "machine");
+            if (mach != null && mach.getClass().getField("framesRun").getInt(mach) >= 20) break;
+            Thread.sleep(50);
+        }
+        if (mach != null) {
+            int[] pix = new int[W * H];
+            PaintGame(canvas, pix);
+            writeBmp(dir + "/ui_game.bmp", pix);
+            System.out.println("wrote ui_game.bmp");
         }
         System.out.println("UI RENDER DONE");
         System.exit(0);

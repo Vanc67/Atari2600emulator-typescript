@@ -288,6 +288,12 @@ public final class PS1Machine {
 
     public int getFrameWidth() { return gpu.getViewportWidth(); }
 
+    /** Emergency mode: show VRAM from its origin instead of the display area. */
+    public void setRawScanout(boolean raw) { gpu.setRawScanout(raw); }
+
+    /** Pixels written by the GPU so far - proves whether it is drawing at all. */
+    public int getPixelsWritten() { return gpu.pixelsWritten; }
+
     public int getFrameHeight() { return gpu.getViewportHeight(); }
 
     public void setViewport(int w, int h) {

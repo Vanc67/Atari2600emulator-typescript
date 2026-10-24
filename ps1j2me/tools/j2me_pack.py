@@ -21,7 +21,7 @@ CLDC_MAJOR = 47  # Java 1.3 / CLDC 1.1 bytecode
 
 MANIFEST = """Manifest-Version: 1.0
 MIDlet-Name: PS1J2ME
-MIDlet-Version: 1.4.0
+MIDlet-Version: 1.5.0
 MIDlet-Vendor: PS1J2ME Project
 MIDlet-1: PS1J2ME, , psx.PS1Midlet
 MicroEdition-Configuration: CLDC-1.1
@@ -246,7 +246,7 @@ def cmd_jad(args):
     name = os.path.basename(jar)
     lines = [
         "MIDlet-Name: PS1J2ME",
-        "MIDlet-Version: 1.4.0",
+        "MIDlet-Version: 1.5.0",
         "MIDlet-Vendor: PS1J2ME Project",
         "MIDlet-1: PS1J2ME, , psx.PS1Midlet",
         "MicroEdition-Configuration: CLDC-1.1",
