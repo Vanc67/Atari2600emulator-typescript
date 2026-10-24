@@ -78,8 +78,8 @@ public class UiTest {
         Graphics g = new Graphics();
 
         String[] modes = { "MODE_BOOT", "MODE_BROWSER", "MODE_PAUSE", "MODE_SETTINGS",
-                "MODE_HELP", "MODE_DEMOS", "MODE_MESSAGE" };
-        int[] expected = { 0, 1, 3, 4, 5, 6, 7 };
+                "MODE_HELP", "MODE_DEMOS", "MODE_MESSAGE", "MODE_INFO" };
+        int[] expected = { 0, 1, 3, 4, 5, 6, 7, 8 };
         Method paint = MainCanvas.class.getDeclaredMethod("paint", new Class[] { Graphics.class });
         paint.setAccessible(true);
         for (int i = 0; i < modes.length; i++) {

@@ -4,14 +4,14 @@
 собранный в байткод **Major 47.0 (Java 1.3)** и упакованный в готовый `PS1J2ME.jar`.
 
 ```
-PS1J2ME.jar                  v1.5.0, 44 записи
+PS1J2ME.jar                  v1.6.0, 45 записей
 ├── META-INF/MANIFEST.MF      MIDlet-1: PS1J2ME, , psx.PS1Midlet
-├── psx/*.class               35 классов, все major 47.0, без StackMapTable
+├── psx/*.class               36 классов, все major 47.0, без StackMapTable
 ├── res/roms/scph1001.bin     образ BIOS, 524 288 байт (читается getResourceAsStream)
 └── res/demos/*.iso           7 встроенных демо-образов (Pong, пад, фигуры,
                               текстуры, логотип, 3D-куб, звук)
 
-Содержимое JAR: **99 КиБ на диске** — ресурсы `res/*` сжаты. Это принципиально:
+Содержимое JAR: **114 КиБ на диске** — ресурсы `res/*` сжаты. Это принципиально:
 у части телефонов лимит на JAR 512 КиБ или 1 МиБ, и «тяжёлая» сборка (1013 КиБ
 без сжатия) не ставилась/не запускалась. Нужен распакованный архив — сборка с
 флагом `tools/j2me_pack.py --store-res`.
@@ -261,6 +261,40 @@ Pong и тест пада читают контроллер по протоко�
 ---
 
 
+### 2.14 HLE-эмуляция BIOS (`BiosHle`)
+
+Даже с правильно загруженным `PSX.EXE` игра без BIOS не живёт: она вызывает
+ядро через таблицы `A0/B0/C0` (`jal 0xA0`, номер функции в `r9`). Раньше такие
+вызовы прыгали в нулевой вектор исключений — игра зависала.
+
+Теперь `BiosHle` перехватывает обращения к векторам прямо в `Cpu.run()` и
+отвечает из Java:
+
+| Таблица | Что реализовано |
+|---|---|
+| `A(…)` | `printf` (полный разбор `%d %u %x %X %o %c %s %p` + ширина/точность), `puts/putchar/getchar`, `strlen/strcpy/strcat/strcmp/strncmp/strchr/strstr/strpbrk/strspn`, `memcpy/memset/memmove/memcmp/memchr/bcopy/bzero`, `atoi/strtol`, `rand/srand`, `malloc/calloc/realloc/free/InitHeap` (куча от `InitHeap`, по умолчанию `0x80100000`), файловые `open/read/lseek/close/putc/getc/ioctl/isatty` (чтение прямо из ISO через `Iso.findEntry`), `FlushCache`, `GetSysSp`, GPU-хелперы `GPU_dw`, `gpu_send_dma`, `SendGP1Command`, `GPU_cw`, `GPU_cwp`, `send_gpu_linked_list`, `gpu_sync`, `GetGPUStatus`, `exit/_exit` |
+| `B(…)` | события `OpenEvent/CloseEvent/DeliverEvent/UnDeliverEvent/WaitEvent/TestEvent/EnableEvent/DisableEvent`, `alloc_kernel_memory`, таймеры, `InitPAD2/StartPAD2/StopPAD2` (пад подключён к `Pad`), `GetB0Table/GetC0Table`, `testdevice`, `_get_errno/_get_error`, файловые `B(32..3B)`, `exit` |
+| `C(…)` | критические секции, `SysEnqIntRP/SysDeqIntRP`, обработчики исключений — безопасные заглушки, возвращающие 0 |
+| `syscall` | `EnterCriticalSection`, `ExitCriticalSection`, `ChangeThreadSubFunction`, иначе `DeliverEvent(F0000010,4000)` |
+
+Ничего не «падает»: неизвестная функция возвращает 0 и увеличивает счётчик
+`unknownCalls`, который виден на экране «Диагностика».
+
+### 2.15 Экран «Диагностика»
+
+В меню паузы появился пункт **Диагностика** — снимок состояния, по которому
+можно понять, что именно не работает на телефоне:
+
+```
+Версия 1.6.0          Экран 176x208        Память 60530 КиБ свободно
+Режим HLE BIOS        Кадров 1234  fps 24  GPU пикселей 812345
+Вывод GPU есть        Размер кадра 320x240  Диск cdrom:...
+Секторов 12345        Звук есть            Масштаб 4:3 с полями
+BIOS вызовов 91  неизвестных 0             BIOS: <последняя строка printf>
+```
+
+`*` обновляет снимок, `2/8` листают, `0` выходит.
+
 ### 2.13 «Игра не рисуется, нет GPU» — настоящая причина
 
 Симптом: демо/игра запускается, эмулятор честно крутит кадры, но экран чёрный,
@@ -381,7 +415,7 @@ cd ps1j2me
 [build] compiling emulator (source/target 1.3)
 [build] BIOS: res/roms/scph1001.bin (524288 bytes)
 [demo] 7 image(s) written to res/demos
-[pack] wrote PS1J2ME.jar (44 entries, 99 KiB)
+[pack] wrote PS1J2ME.jar (45 entries, 114 KiB)
 [verify] 34 classes checked
 [verify] OK - CLDC 1.1 / MIDP 2.0 compatible
 ```

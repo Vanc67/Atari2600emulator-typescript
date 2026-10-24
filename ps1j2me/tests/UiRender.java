@@ -143,10 +143,11 @@ public class UiRender {
         Method paint = MainCanvas.class.getDeclaredMethod("paint", new Class[] { Graphics.class });
         paint.setAccessible(true);
 
-        String[] files = { "ui_browser", "ui_demos", "ui_settings", "ui_help", "ui_pause", "ui_message" };
-        int[] modes = { 1, 6, 4, 5, 3, 7 };
-        String[] status = { "", "", "", "", "", "Не хватает памяти MIDlet для эмуляции.\nНужно около 5 МиБ. Уменьшите масштаб экрана и попробуйте снова." };
-        int[] sel = { 2, 0, 1, 0, 1, 0 };
+        String[] files = { "ui_browser", "ui_demos", "ui_settings", "ui_help", "ui_pause",
+                           "ui_message", "ui_info" };
+        int[] modes = { 1, 6, 4, 5, 3, 7, 8 };
+        String[] status = { "", "", "", "", "", "Не хватает памяти MIDlet для эмуляции.\nНужно около 5 МиБ. Уменьшите масштаб экрана и попробуйте снова.", "" };
+        int[] sel = { 2, 0, 1, 0, 1, 0, 0 };
         for (int i = 0; i < modes.length; i++) {
             setInt(canvas, "mode", modes[i]);
             setInt(canvas, "selected", sel[i]);
