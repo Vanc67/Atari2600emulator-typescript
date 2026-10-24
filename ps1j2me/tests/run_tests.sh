@@ -27,7 +27,8 @@ if [ -f "$ECJ" ]; then
     "$JAVA" -cp "$ECJ" org.eclipse.jdt.internal.compiler.batch.Main -source 1.4 -target 1.4 -nowarn -encoding UTF-8 -d "$OUT" $CORE
     "$JAVA" -cp "$ECJ" org.eclipse.jdt.internal.compiler.batch.Main -source 1.4 -target 1.4 -nowarn -encoding UTF-8 -d "$OUT" -cp "$OUT" tests/CoreTest.java tests/HleBootTest.java tests/HleBiosTest.java \
         tests/DemoRender.java tests/FileRootsTest.java tests/CueSheetTest.java \
-        tests/PadTest.java tests/GameFlowTest.java tests/KtableTest.java
+        tests/PadTest.java tests/GameFlowTest.java tests/KtableTest.java \
+        tests/CdromRegTest.java
     "$JAVA" -cp "$ECJ" org.eclipse.jdt.internal.compiler.batch.Main -source 1.4 -target 1.4 -nowarn -encoding UTF-8 -d "$UI" -cp "$OUT" $STUB_SRC $UI_SRC
     "$JAVA" -cp "$ECJ" org.eclipse.jdt.internal.compiler.batch.Main -source 1.4 -target 1.4 -nowarn -encoding UTF-8 -d "$UI" -cp "$OUT:$UI" tests/UiTest.java tests/UiRender.java tests/KeyMapTest.java
 else
@@ -41,6 +42,7 @@ fi
 "$JAVA" -cp "$OUT" HleBootTest
 "$JAVA" -cp "$OUT:." PadTest
 "$JAVA" -cp "$OUT:." GameFlowTest
+"$JAVA" -cp "$OUT:." CdromRegTest
 "$JAVA" -cp "$OUT" FileRootsTest
 "$JAVA" -cp "$OUT" CueSheetTest
 "$JAVA" -cp "$OUT" DemoRender res/demos build/shots
