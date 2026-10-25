@@ -10,3 +10,5 @@ coverage/
 device/samsung/universal7420-common
 device/samsung/zeroltexx
 manifests
+__pycache__/
+*.pyc

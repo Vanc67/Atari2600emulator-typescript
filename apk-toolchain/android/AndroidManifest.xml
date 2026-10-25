@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Hand-written manifest for the Gradle-free APK pipeline in ../tools/build-apk.sh.
+
+  Notes on the choices here:
+    * targetSdkVersion 33 matches the android.jar this tree compiles against
+      (platforms/android-33). Bumping it means fetching a newer android.jar.
+    * Theme.NoTitleBar.Fullscreen hides the status bar without any Java code,
+      which matters because the Activity is emitted as bytecode by mkactivity.py
+      and every extra call is extra risk.
+    * usesCleartextTraffic is on so the WebView can load plain-http pages; the
+      payload app is local, but an embedded browser should not be crippled.
+    * configChanges is wide so a rotation or a dark-mode flip does not recreate
+      the Activity and throw away the WebView's state.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.arena.apkshell"
+    android:versionCode="1"
+    android:versionName="1.0">
+
+    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="33" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <supports-screens
+        android:smallScreens="true"
+        android:normalScreens="true"
+        android:largeScreens="true"
+        android:xlargeScreens="true"
+        android:anyDensity="true" />
+
+    <application
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="true"
+        android:hardwareAccelerated="true"
+        android:usesCleartextTraffic="true"
+        android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:screenOrientation="portrait"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

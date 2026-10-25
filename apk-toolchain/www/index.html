@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<title>iOS on QEMU — что реально работает</title>
+<style>
+  :root{
+    --bg:#0b0d12; --card:#141821; --card2:#1a1f2b; --line:#252c3a;
+    --fg:#e8ecf4; --mut:#98a2b6; --ok:#3fd07a; --warn:#f0b429; --bad:#ff6b6b;
+    --acc:#5aa9ff;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);
+    font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    overscroll-behavior-y:none}
+  .wrap{max-width:760px;margin:0 auto;padding:20px 16px 64px}
+  header{padding:28px 0 18px;border-bottom:1px solid var(--line);margin-bottom:22px}
+  h1{font-size:26px;line-height:1.2;margin:0 0 8px;letter-spacing:-.02em}
+  .sub{color:var(--mut);font-size:14px;margin:0}
+  h2{font-size:19px;margin:30px 0 10px;letter-spacing:-.01em}
+  h3{font-size:16px;margin:0 0 6px}
+  p{margin:0 0 12px}
+  a{color:var(--acc);text-decoration:none}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:16px;margin:0 0 12px}
+  .verdict{background:linear-gradient(160deg,#2a1520,#141821);border-color:#4a2434}
+  .badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;padding:3px 8px;border-radius:6px;margin-bottom:8px}
+  .b-ok{background:rgba(63,208,122,.15);color:var(--ok)}
+  .b-warn{background:rgba(240,180,41,.15);color:var(--warn)}
+  .b-bad{background:rgba(255,107,107,.15);color:var(--bad)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:4px 0 0}
+  th,td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--mut);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em}
+  tr:last-child td{border-bottom:0}
+  td.m{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;color:var(--mut)}
+  .yes{color:var(--ok);font-weight:700}
+  .no{color:var(--bad);font-weight:700}
+  .part{color:var(--warn);font-weight:700}
+  ul{margin:6px 0 12px;padding-left:20px}
+  li{margin-bottom:6px}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;
+    background:var(--card2);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+  pre{background:#0d1119;border:1px solid var(--line);border-radius:10px;padding:12px;
+    overflow-x:auto;font-size:12px;line-height:1.5;margin:8px 0 14px}
+  pre code{background:none;border:0;padding:0}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13.5px;margin-top:8px}
+  .kv dt{color:var(--mut)}
+  .kv dd{margin:0}
+  .note{color:var(--mut);font-size:13px}
+  .tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:14px;
+    scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:0 0 auto;background:var(--card);border:1px solid var(--line);color:var(--mut);
+    border-radius:999px;padding:8px 14px;font-size:13.5px;font-weight:600;cursor:pointer}
+  .tab[aria-selected="true"]{background:var(--acc);border-color:var(--acc);color:#04101f}
+  .pane{display:none}
+  .pane.on{display:block}
+  footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);
+    color:var(--mut);font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Настоящая iOS в QEMU</h1>
+  <p class="sub">Что реально существует в 2026 году, на каком железе, и почему
+  iOS 7–9 с iPhone 4s не запускается ни у кого. Оффлайн-справочник; источник —
+  каталог <code>ios-on-qemu/</code> в репозитории.</p>
+</header>
+
+<div class="card verdict">
+  <span class="badge b-bad">Главный ответ</span>
+  <h3>iOS 8–9 на iPhone 4s не запустится нигде</h3>
+  <p class="note" style="margin-bottom:0">Дело не в шифровании и не в лицензии.
+  Чтобы загрузить iOS в QEMU, нужна <b>модель машины</b> — написанный человеком
+  код, изображающий конкретный SoC: контроллер прерываний, PMU, NAND, дисплейный
+  контроллер, тач, аудио, USB. iPhone 4s — это <b>A5 (S5L8940x)</b>. Модели A5
+  не существует ни в одном публичном форке QEMU. iOS 8 и 9 жили ровно на
+  A5/A6/A7 — то есть в той дыре, которую никто не закрыл. Документация QEMU
+  формулирует это прямо: если машины нет в <code>-machine help</code>, образ
+  «almost certainly not boot».</p>
+</div>
+
+<h2>Платы, которые существуют</h2>
+<div class="card">
+<table>
+  <thead><tr><th>SoC</th><th>Устройства</th><th>Модель</th></tr></thead>
+  <tbody>
+    <tr><td class="m">S5L8900</td><td>iPhone 2G, iPod touch 1G</td><td class="yes">есть</td></tr>
+    <tr><td class="m">S5L8720</td><td>iPod touch 2G</td><td class="yes">есть</td></tr>
+    <tr><td class="m">S5L8920</td><td>iPhone 3GS</td><td class="yes">есть</td></tr>
+    <tr><td class="m">S5L8922</td><td>iPod touch 3G</td><td class="yes">есть</td></tr>
+    <tr><td class="m">A4 / S5L8930</td><td>iPhone 4, iPod touch 4G, iPad 1</td><td class="yes">есть — потолок</td></tr>
+    <tr><td class="m">A5 / S5L8940x</td><td><b>iPhone 4s</b>, iPad 2, iPod touch 5G</td><td class="no">нет</td></tr>
+    <tr><td class="m">A6</td><td>iPhone 5 / 5c</td><td class="no">нет</td></tr>
+    <tr><td class="m">A7</td><td>iPhone 5s</td><td class="no">нет</td></tr>
+    <tr><td class="m">A8 / t7000</td><td>iPhone 6, Apple TV HD</td><td class="part">ветка есть, не доведена</td></tr>
+    <tr><td class="m">A9 / s8000</td><td>iPhone 6s Plus</td><td class="part">есть, но только консоль</td></tr>
+    <tr><td class="m">A13 / t8030</td><td>iPhone 11</td><td class="yes">есть, полноценный GUI</td></tr>
+    <tr><td class="m">virt + свой XNU</td><td>iPhone X (userland)</td><td class="yes">есть, iOS 16 GUI</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Четыре конфигурации, которые работают</h2>
+<div class="tabs" role="tablist">
+  <button class="tab" role="tab" aria-selected="true" data-p="a">A · iOS 14</button>
+  <button class="tab" role="tab" aria-selected="false" data-p="b">B · iOS 16</button>
+  <button class="tab" role="tab" aria-selected="false" data-p="c">C · iPhoneOS 1.0</button>
+  <button class="tab" role="tab" aria-selected="false" data-p="d">D · iOS 12 shell</button>
+</div>
+
+<section class="pane on" id="p-a">
+  <div class="card">
+    <span class="badge b-ok">полноценный GUI</span>
+    <h3>iPhone 11 · iOS 14 · ChefKiss Inferno</h3>
+    <p>Настоящий современный домашний экран iOS 14: Settings, Safari, Photos и
+    остальные стоковые приложения. Мышь = палец. Интернет через VM-компаньон.
+    Можно ставить <b>собранные вами самими</b> приложения (fake-sign через
+    <code>ldid</code>) и пользоваться <code>apt</code> из root-shell.</p>
+    <dl class="kv">
+      <dt>Хост</dt><dd>x86_64 Linux</dd>
+      <dt>CPU</dt><dd>минимум 8 потоков; комфортно 8 ядер / 16 потоков (гость использует 7 эмулируемых ядер)</dd>
+      <dt>ОЗУ</dt><dd>16 ГБ минимум, 32 ГБ комфортно (4 ГБ гостю + 8 ГБ компаньону + десктоп)</dd>
+      <dt>Диск</dt><dd>~25 ГБ</dd>
+      <dt>Загрузка</dt><dd>~2.5 минуты (чистый TCG, софтверный рендер; GPU не используется)</dd>
+      <dt>Сложность</dt><dd>высокая — «вечер или два»</dd>
+      <dt>Прошивка</dt><dd>только iOS 14.0 beta 5 (18A5351d) для iPhone12,1, с серверов Apple</dd>
+    </dl>
+    <p class="note">Официальный гайд просит <b>не публиковать скрипты
+    автоматизации установки</b>, поэтому в репозитории для этого пути есть только
+    проверка хоста. Инструкции: chefkiss.dev/applehax/inferno.</p>
+    <p class="note">Чего нет: App Store, Apple ID/iCloud, Wi-Fi в настройках
+    (интернет идёт по USB-линку), звонки, камеры, Face ID, свайп «назад» от края.</p>
+    <p class="note">Грабли: собирать <b>gcc</b>, не clang; <code>git submodule
+    update --init</code>; оставить <code>-Ddebug=true</code> — иначе restore
+    падает с «SEP returned zero-length ART»; нужен <b>настоящий</b> SEP, на
+    симулированном висит яблоко навсегда; при restore без окна —
+    <code>-display egl-headless</code>, не <code>none</code>.</p>
+  </div>
+</section>
+
+<section class="pane" id="p-b">
+  <div class="card">
+    <span class="badge b-ok">самый свежий настоящий iOS</span>
+    <h3>iPhone X · iOS 16.7.16 (20H392) · lgrachov/ios-qemu</h3>
+    <p>Немодифицированный userland iPhone X: launchd, системные демоны,
+    backboardd, SpringBoard, экран блокировки с обоями, домашний экран с
+    виджетами, стоковые приложения (Mail, Notes, Calendar, Clock, Maps…),
+    Settings и <b>Safari, который реально ходит в интернет</b>. Экран 1125×2436
+    через ramfb, CoreAnimation рендерится на CPU. Звук, сеть (DHCP/DNS/TCP/QUIC/
+    HTTPS), часы следуют за хостом, тач мышью, аппаратная клавиатура. Экран
+    блокировки примерно за минуту.</p>
+    <dl class="kv">
+      <dt>Хост</dt><dd><b>Mac на Apple Silicon</b> — обязателен <code>hvf</code></dd>
+      <dt>Софт</dt><dd>Homebrew qemu (проверено 11.0.2), GNU rsync, gh, ipsw, Xcode CLT</dd>
+      <dt>Диск</dt><dd>~40 ГБ</dd>
+      <dt>Ядро</dt><dd>собирается на GitHub Actions из открытого XNU (xnu-8796) + серия патчей</dd>
+    </dl>
+    <p class="note">Это <b>не Corellium</b>. Corellium грузит собственное ядро
+    Apple на виртуальном железе, похожем на iPhone; здесь ядро пересобирается из
+    открытых исходников Apple, а generic-устройства QEMU маскируются под iPhone
+    для userland. Из IPSW берутся только три диска (OS / SystemOS / AppOS) и
+    device tree для MobileGestalt.</p>
+    <p class="note">Чего нет: GPU, микрофон, камера, Bluetooth, сотовая связь,
+    геолокация, Face ID. Безопасность выключена (разрешающий AMFI и Sandbox,
+    заглушка AppleKeyStore, нет data protection) — ничего личного не хранить.
+    Стандартные обои не подтягиваются, часть демонов перезапускается.</p>
+  </div>
+</section>
+
+<section class="pane" id="p-c">
+  <div class="card">
+    <span class="badge b-ok">быстрый путь</span>
+    <h3>iPod touch 1G · iPhoneOS 1.0 · qemu-ios</h3>
+    <p>Оригинальный домашний экран 2007 года, тач мышью, встроенные приложения
+    работают. Настройка меньше часа.</p>
+    <dl class="kv">
+      <dt>Хост</dt><dd>Linux (лучше Wayland) или macOS</dd>
+      <dt>Диск</dt><dd>~2 ГБ</dd>
+      <dt>Загрузка</dt><dd>~5 секунд</dd>
+      <dt>Сложность</dt><dd>низкая — меньше часа</dd>
+    </dl>
+    <p class="note">Форк <code>samhenrigold/qemu-ios</code> эмулирует устройства
+    достаточно полно, чтобы грузить <b>стоковую прошивку от BootROM до домашнего
+    экрана</b>: тач, кнопки, дисплей, звук, Wi-Fi, USB (usbmux/AFC через
+    libimobiledevice), постоянное хранилище, фейковая сотовая сеть, OpenGL ES
+    через мост к хостовому GL. Платы: <code>iPod-Touch-1G</code>,
+    <code>iPhone-2G</code>, <code>iPod-Touch</code> (2G), <code>n18</code> (3G),
+    <code>n88</code> (3GS), <code>iPod-Touch-4G</code>, <code>iPhone-4</code>,
+    <code>ipad1</code>.</p>
+    <p class="note">Ограничения: интернета нет, изменения между запусками
+    <b>не сохраняются</b>, из сна устройство не просыпается — Power только
+    держать ~5 с, коротко жать нельзя.</p>
+    <p class="note">Управление: мышь = палец, <code>H</code> = Home,
+    <code>=</code>/<code>-</code> = громкость.</p>
+  </div>
+</section>
+
+<section class="pane" id="p-d">
+  <div class="card">
+    <span class="badge b-warn">только консоль</span>
+    <h3>iPhone 6s Plus · iOS 12.1 (16B92) · xnu-qemu-arm64</h3>
+    <p>Загрузка настоящего ядра iOS 12.1 до интерактивного <code>bash-4.4#</code>
+    под root. Проверено: <code>Darwin Kernel Version 18.2.0 … RELEASE_ARM64_S8000
+    iPhone8,2</code>, UID 0. SSH с хоста через tcp-туннель (root/alpine, порт
+    2222).</p>
+    <dl class="kv">
+      <dt>Хост</dt><dd>Linux (с патчами сокет-слоя) или macOS</dd>
+      <dt>ОЗУ</dt><dd><code>-m 6G</code>, один эмулируемый CPU</dd>
+      <dt>Диск</dt><dd>~15 ГБ: <code>hfs.main</code> 6 ГБ + <code>hfs.sec</code> 2 ГБ</dd>
+      <dt>Сложность</dt><dd>средняя</dd>
+    </dl>
+    <p class="note"><b>Домашнего экрана не будет никогда.</b> launchd поднимает
+    SpringBoard (pid 35) и backboardd (pid 38), классы IOMobileFramebuffer и
+    AGXFirmwareKextG5P существуют, но никто не открывает user client
+    фреймбуфера: в модели машины нет ни дисплейного контроллера (CLCD/DCP), ни
+    GPU (AGX/Metal), ни тача (multitouch/SPI), ни HID-клавиатуры. ramfb — только
+    ранняя текстовая консоль XNU. Апстрим-issues #5/#12 открыты с 2019/2020 без
+    движения, форк спящий.</p>
+    <p class="note">Документированные ограничения форка: ramdisk только
+    read-only и не больше 2 ГБ, связь исключительно по UART,
+    «No devices emulation: screen, touch, wifi, BT or anything else».</p>
+    <p class="note">На Linux нужны патчи: сокет-слой форка предполагает macOS
+    (Darwin sockaddr layout, значение <code>O_NONBLOCK</code>, номера errno), а
+    стоковый ramfb заявляет 16 bpp, но рисует 24 bpp → magenta-текст. iOS-сторона
+    туннеля кросс-собирается <b>без Apple SDK</b>: <code>clang -target
+    arm64-apple-ios12.0</code> + рукописные минимальные Darwin-заголовки +
+    <code>ld64.lld</code> + stub <code>libSystem.tbd</code>, подпись
+    <code>ldid</code>.</p>
+  </div>
+</section>
+
+<h2>Почему это не делается в виде APK</h2>
+<div class="card">
+  <ul>
+    <li>Приложениям Android <b>недоступен <code>/dev/kvm</code></b> — вложенная
+    виртуализация запрещена. Остаётся чистый TCG, на котором iOS 14 грузится
+    2.5 минуты даже на 8 ядрах Ryzen 7800X3D.</li>
+    <li>Гостю нужно 4–6 ГБ ОЗУ <b>только на VM</b>, путь A — ещё 8 ГБ на
+    VM-компаньон. Ни один телефон не отдаст столько одному приложению.</li>
+    <li>Нет NDK, значит QEMU под Android не скросс-компилировать.</li>
+    <li>Единственный известный прецедент — QEMUAppleSilicon под Termux на
+    Pixel 3, и он дал <b>последовательную консоль</b>, а не GUI.</li>
+    <li>Любой «iOS emulator APK» в интернете — вредонос или скам. Emulation
+    General Wiki про одноимённое приложение iEmu пишет прямо:
+    «Any Android app going by the name iEmu is a scam and should be avoided».</li>
+  </ul>
+</div>
+
+<h2>Проверить свой IPSW</h2>
+<div class="card">
+  <p class="note" style="margin-top:0">В репозитории есть <code>ipsw-inspect.py</code>
+  — только стандартная библиотека Python, без сети. Он читает
+  <code>BuildManifest.plist</code>, раскладывает члены архива по корзинам
+  (kernelcache / DeviceTree / ramdisk / rootfs / sep-firmware / trustcache /
+  boot chain) и говорит, какому пути этот IPSW подходит. Для iPhone 4s он честно
+  ответит «модели машины не существует».</p>
+<pre><code>python3 ipsw-inspect.py ~/iPhone_5.5_12.1_16B92_Restore.ipsw
+python3 ipsw-inspect.py IPSW --need ios12-shell
+python3 ipsw-inspect.py --paths
+./check-host.sh              # потянет ли этот ПК какой-нибудь из путей</code></pre>
+</div>
+
+<h2>Юридическое</h2>
+<div class="card">
+  <p class="note" style="margin-bottom:0">Прошивка iOS — собственность Apple; её
+  лицензия запрещает запуск на не-Apple железе, обход шифрования подпадает под
+  DMCA §1201. Все четыре проекта работают легально именно потому, что
+  <b>не распространяют</b> файлы Apple: каждый требует скачать IPSW самому с
+  серверов Apple. Правила upstream дополнительно: не делиться своими образами,
+  ставить только собранные вами или открытые приложения — никаких App Store,
+  взломанных или расшифрованных IPA.</p>
+</div>
+
+<footer>
+  Сгенерировано из каталога <code>ios-on-qemu/</code>. Все цифры — из документации
+  самих проектов (alephsecurity, devos50/samhenrigold qemu-ios, ChefKiss Inferno,
+  lgrachov/ios-qemu, eugenesflanagin-spec/ios-emu-linux), а не оценки на глаз.
+  Ни один файл Apple здесь не хранится и не распространяется.
+</footer>
+
+</div>
+<script>
+(function(){
+  var tabs=document.querySelectorAll('.tab');
+  tabs.forEach(function(t){
+    t.addEventListener('click',function(){
+      tabs.forEach(function(o){o.setAttribute('aria-selected','false')});
+      t.setAttribute('aria-selected','true');
+      document.querySelectorAll('.pane').forEach(function(p){p.classList.remove('on')});
+      document.getElementById('p-'+t.dataset.p).classList.add('on');
+      window.scrollTo({top:0,behavior:'smooth'});
+    });
+  });
+})();
+</script>
+</body>
+</html>
