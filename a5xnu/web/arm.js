@@ -236,6 +236,80 @@ var A5 = __g.A5 || (__g.A5 = {});
     // CPU
     // ------------------------------------------------------------------
 
+    // -- processor modes -------------------------------------------------
+    var MODE_USR = 0x10, MODE_FIQ = 0x11, MODE_IRQ = 0x12, MODE_SVC = 0x13,
+        MODE_MON = 0x16, MODE_ABT = 0x17, MODE_HYP = 0x1A, MODE_UND = 0x1B,
+        MODE_SYS = 0x1F;
+
+    // Exception vector offsets from the vector base.
+    var VEC_RESET = 0x00, VEC_UNDEF = 0x04, VEC_SVC = 0x08, VEC_PABT = 0x0C,
+        VEC_DABT = 0x10, VEC_IRQ = 0x18, VEC_FIQ = 0x1C;
+
+    /**
+     * The CPU's view of memory. The Bus holds *physical* pages; every address
+     * an instruction carries is *virtual*, and this is the layer that turns one
+     * into the other, raising a prefetch or data abort when the walk fails.
+     *
+     * It exposes the same read/write surface as the Bus so the decode paths do
+     * not have to know whether translation is on. `fetch*` differ only in that
+     * they return null on an abort instead of a value, because an aborted fetch
+     * must not be decoded.
+     */
+    function CpuMem(cpu) { this.cpu = cpu; }
+
+    CpuMem.prototype._pa = function (va, kind) {
+        var cpu = this.cpu;
+        va >>>= 0;
+        var t = cpu.mmu ? cpu.mmu.translate(va, kind) : { ok: true, pa: va };
+        if (!t.ok) {
+            cpu.takeMemFault(kind, va, t.fsr, t.level, t.domain);
+            return null;
+        }
+        // SCTLR.A makes an unaligned word or halfword access fault instead of
+        // being silently truncated down to its aligned base.
+        if (cpu.mmu && cpu.mmu.alignCheck()) {
+            var need = (kind === "byte") ? 0 : (va & 3) ? 4 : 0;
+            if (need === 4 && kind !== "half") {
+                cpu.takeMemFault(kind, va, A5.FSR.ALIGNMENT, 0, 0);
+                return null;
+            }
+        }
+        return t.pa;
+    };
+
+    CpuMem.prototype.read32 = function (va) {
+        var pa = this._pa(va, "read");
+        return pa === null ? 0 : this.cpu.bus.read32(pa);
+    };
+    CpuMem.prototype.read16 = function (va) {
+        var pa = this._pa(va, "read");
+        return pa === null ? 0 : this.cpu.bus.read16(pa);
+    };
+    CpuMem.prototype.read8 = function (va) {
+        var pa = this._pa(va, "read");
+        return pa === null ? 0 : this.cpu.bus.read8(pa);
+    };
+    CpuMem.prototype.write32 = function (va, v) {
+        var pa = this._pa(va, "write");
+        if (pa !== null) this.cpu.bus.write32(pa, v);
+    };
+    CpuMem.prototype.write16 = function (va, v) {
+        var pa = this._pa(va, "write");
+        if (pa !== null) this.cpu.bus.write16(pa, v);
+    };
+    CpuMem.prototype.write8 = function (va, v) {
+        var pa = this._pa(va, "write");
+        if (pa !== null) this.cpu.bus.write8(pa, v);
+    };
+    CpuMem.prototype.fetch32 = function (va) {
+        var pa = this._pa(va, "exec");
+        return pa === null ? null : this.cpu.bus.read32(pa);
+    };
+    CpuMem.prototype.fetch16 = function (va) {
+        var pa = this._pa(va, "exec");
+        return pa === null ? null : this.cpu.bus.read16(pa);
+    };
+
     function ArmCpu(bus, opts) {
         opts = opts || {};
         this.bus = bus;
@@ -256,6 +330,24 @@ var A5 = __g.A5 || (__g.A5 = {});
         this.stopAt = opts.stopAt || null;   // address that ends the run
         this._branched = false;
         this.unimplementedCount = 0;
+
+        // Banked registers. r8-r12 have two banks (FIQ and everything else);
+        // r13-r14 have one per mode, except USR and SYS, which share.
+        this.bankUsr = new Int32Array(7);   // [0..4] = r8..r12, [5],[6] = r13,r14
+        this.bankFiq = new Int32Array(7);   // same layout, FIQ's own r8..r14
+        this.bankSvc = new Int32Array(2);   // r13, r14
+        this.bankAbt = new Int32Array(2);
+        this.bankIrq = new Int32Array(2);
+        this.bankUnd = new Int32Array(2);
+        this.spsr = {};                     // mode -> saved CPSR
+        this.exceptionCount = 0;
+        this.exceptionLog = [];
+        this.aborts = { prefetch: 0, data: 0 };
+        this._curPc = 0;                    // address of the instruction in flight
+        this.barrierCount = 0;
+        this.haltOnUndefined = opts.haltOnUndefined !== false;
+        this.mmu = opts.mmu || null;
+        this.mem = new CpuMem(this);
     }
 
     ArmCpu.prototype.get = function (n) {
@@ -316,6 +408,122 @@ var A5 = __g.A5 || (__g.A5 = {});
         }
     };
 
+    // -- modes, banked registers and exceptions -------------------------
+
+    ArmCpu.prototype.mode = function () { return this.cpsr & 0x1F; };
+
+    ArmCpu.prototype.privileged = function () {
+        // USR is the only unprivileged mode at EL0; SYS shares its registers
+        // but runs privileged.
+        return this.mode() !== MODE_USR;
+    };
+
+    ArmCpu.prototype._bank1314 = function (mode) {
+        switch (mode) {
+            case MODE_FIQ: return this.bankFiq;   // r13/r14 live at [5],[6]
+            case MODE_SVC: return this.bankSvc;
+            case MODE_ABT: return this.bankAbt;
+            case MODE_IRQ: return this.bankIrq;
+            case MODE_UND: return this.bankUnd;
+            default:       return this.bankUsr;   // USR and SYS share
+        }
+    };
+
+    ArmCpu.prototype.switchMode = function (newMode) {
+        var old = this.mode();
+        if (old === newMode) return;
+        var i, b;
+        if (old === MODE_FIQ) {
+            for (i = 8; i <= 14; i++) this.bankFiq[i - 8] = this.r[i];
+        } else {
+            for (i = 8; i <= 12; i++) this.bankUsr[i - 8] = this.r[i];
+            b = this._bank1314(old);
+            if (old === MODE_USR || old === MODE_SYS) { b[5] = this.r[13]; b[6] = this.r[14]; }
+            else { b[0] = this.r[13]; b[1] = this.r[14]; }
+        }
+        if (newMode === MODE_FIQ) {
+            for (i = 8; i <= 14; i++) this.r[i] = this.bankFiq[i - 8];
+        } else {
+            for (i = 8; i <= 12; i++) this.r[i] = this.bankUsr[i - 8];
+            b = this._bank1314(newMode);
+            if (newMode === MODE_USR || newMode === MODE_SYS) { this.r[13] = b[5]; this.r[14] = b[6]; }
+            else { this.r[13] = b[0]; this.r[14] = b[1]; }
+        }
+        this.cpsr = ((this.cpsr & ~0x1F) | newMode) | 0;
+    };
+
+    ArmCpu.prototype.spsrRead = function () {
+        var m = this.mode();
+        if (m === MODE_USR || m === MODE_SYS) return this.cpsr | 0;   // no SPSR: UNPREDICTABLE
+        return (this.spsr[m] | 0);
+    };
+
+    ArmCpu.prototype.spsrWrite = function (v) {
+        var m = this.mode();
+        if (m === MODE_USR || m === MODE_SYS) return;
+        this.spsr[m] = v | 0;
+    };
+
+    ArmCpu.prototype.vectorBase = function () {
+        return (this.cp15Read(0, 1, 0, 0) & (1 << 13)) ? 0xFFFF0000 : 0x00000000;
+    };
+
+    /**
+     * Take an exception. SPSR gets the CPSR as it was *before* anything here
+     * changed, the target mode's bank is switched in, IRQ is masked (FIQ too
+     * where the architecture requires it), Thumb is cleared, LR gets the
+     * mode-specific return address and PC the vector.
+     */
+    ArmCpu.prototype.takeException = function (vec, newMode, lr, maskF) {
+        var cpsr = this.cpsr >>> 0;
+        var old = cpsr & 0x1F;
+        this.switchMode(newMode);
+        // SPSR_<new mode> receives the CPSR as it was in the *interrupted* mode.
+        // Saving into spsr[old] instead leaves the handler's `mrs Rd, spsr`
+        // reading an untouched zero while the interrupted CPSR sits in a bank
+        // nobody looks at -- the abort still vectors correctly, so the only
+        // symptom is a handler that cannot recover the mode and flags it
+        // interrupted.
+        this.spsr[newMode] = cpsr | 0;
+        var n = (cpsr | 0x80);                    // mask IRQ
+        if (maskF) n |= 0x40;                     // mask FIQ as well
+        n &= ~0x20;                               // exceptions are entered in ARM state
+        n = (n & ~0x1F) | newMode;
+        this.cpsr = n | 0;
+        this.r[14] = lr | 0;
+        this.r[15] = (this.vectorBase() + vec) | 0;
+        this._branched = true;
+        this._aborted = true;
+        this.exceptionCount++;
+        if (this.exceptionLog.length < 4096) {
+            this.exceptionLog.push({
+                vec: vec, mode: newMode, from: old,
+                pc: this._curPc >>> 0, lr: lr >>> 0, spsr: cpsr >>> 0
+            });
+        }
+    };
+
+    // Publish DFSR/IFSR + FAR and vector, exactly as the architecture requires.
+    ArmCpu.prototype.takeMemFault = function (kind, va, fsr, level, domain) {
+        if (kind === "exec") {
+            this.cp15Write(0, 5, 0, 1, fsr);      // IFSR
+            this.cp15Write(0, 6, 0, 0, va);       // FAR
+            this.aborts.prefetch++;
+            // LR_abt = address of the aborted instruction + 4
+            this.takeException(VEC_PABT, MODE_ABT, (this._curPc + 4) >>> 0, false);
+        } else {
+            this.cp15Write(0, 5, 0, 0, fsr);      // DFSR
+            this.cp15Write(0, 6, 0, 0, va);       // FAR
+            this.aborts.data++;
+            // LR_abt = address of the instruction that made the access + 8
+            this.takeException(VEC_DABT, MODE_ABT, (this._curPc + 8) >>> 0, false);
+        }
+    };
+
+    ArmCpu.prototype.takeUndefined = function (pc) {
+        this.takeException(VEC_UNDEF, MODE_UND, (pc + 4) >>> 0, false);
+    };
+
     ArmCpu.prototype.halt = function (reason, addr) {
         this.halted = true;
         this.stopReason = reason;
@@ -350,12 +558,15 @@ var A5 = __g.A5 || (__g.A5 = {});
         }
 
         this._branched = false;
+        this._aborted = false;
         this.instrCount++;
+        this._curPc = pc;
         var wasThumb = this.isThumb();
         if (this.onStep) this.onStep(pc, wasThumb);
 
         if (this.isThumb()) {
             this.stepThumb(pc);
+            if (this._aborted) return !this.halted;
             // Thumb instructions are 2 bytes; the only 32-bit forms implemented
             // (BL/BLX) always branch, so they never reach this advance. Without
             // it PC never moves in Thumb state and the run wedges on the very
@@ -363,7 +574,11 @@ var A5 = __g.A5 || (__g.A5 = {});
             // with all later registers still zero.
             if (!this._branched) this.r[15] = (pc + 2) | 0;
         } else {
-            var insn = this.bus.read32(pc);
+            var insn = this.mem.fetch32(pc);
+            // A translation fault on the fetch has already vectored to the
+            // prefetch-abort handler; decoding the returned zero word would
+            // execute a spurious AND in the middle of taking the exception.
+            if (insn === null) return !this.halted;
             var cond = (insn >>> 28) & 0xF;
             if (!this.checkCond(cond)) {
                 this.r[15] = (pc + 4) | 0;
@@ -373,6 +588,20 @@ var A5 = __g.A5 || (__g.A5 = {});
             if (!this._branched) this.r[15] = (pc + 4) | 0;
         }
         return !this.halted;
+    };
+
+    /**
+     * Clear a halt so execution can continue from the current PC. Used to run a
+     * second stage after the handoff: start() zeroes 40 KB of page tables, so
+     * anything a test wants to install *inside* that region -- the high-vector
+     * L2, for instance -- has to be written after the boot has finished, not
+     * before it.
+     */
+    ArmCpu.prototype.resume = function (stopAt) {
+        this.halted = false;
+        this.stopReason = null;
+        this.stoppedAt = 0;
+        if (stopAt !== undefined && stopAt !== null) this.stopAt = stopAt >>> 0;
     };
 
     ArmCpu.prototype.run = function (maxInstr) {
@@ -401,17 +630,44 @@ var A5 = __g.A5 || (__g.A5 = {});
 
         var hi = (insn >>> 25) & 0x7;
 
-        // SWI / SVC
+        // SWI / SVC. Recorded and then taken for real: the kernel's Mach trap
+        // path is entered through this vector, so stepping over it would hide
+        // every trap the guest makes.
         if ((insn & 0x0F000000) === 0x0F000000) {
             var imm24 = insn & 0xFFFFFF;
             this.syscallLog.push({ pc: pc, imm: imm24 });
-            return true;                       // step over, like the harness does
+            this.takeException(VEC_SVC, MODE_SVC, (pc + 4) >>> 0, false);
+            return true;
         }
 
-        // UDF
+        // Memory barriers. keystone encodes DSB/DMB/ISB in their hint form
+        // (0xF57FF04F / 0xF57FF05F / 0xF57FF06F), not as the `mcr p15, 0, Rt,
+        // c7, ...` aliases, so they never reach execMcrMrc and would otherwise
+        // fall through to "unimplemented".
+        //
+        // They are no-ops here, and legitimately so: there is no cache model, no
+        // write buffer, no second observer of memory, and the MMU reads its
+        // translation state live on every walk -- which is precisely the
+        // guarantee an ISB exists to provide on real hardware.
+        // The >>> 0 is load-bearing. JavaScript's & yields a *signed* 32-bit
+        // integer, so 0xF57FF04F & 0xFFFFFFF0 is negative, while the literal
+        // 0xF57FF040 is a positive double, and the comparison can never be
+        // true. Every other test in this decoder masks bit 31 away and is
+        // therefore safe; this is the only one comparing against a value at or
+        // above 0x80000000. Without the coercion DSB decoded as
+        // `ldrb pc, [pc, #79]` and jumped to a byte of memory.
+        var bar = (insn & 0xFFFFFFF0) >>> 0;
+        if (bar === 0xF57FF040 || bar === 0xF57FF050 || bar === 0xF57FF060) {
+            this.barrierCount++;
+            return true;
+        }
+
+        // UDF. A real Undefined Instruction exception; the harness can instead
+        // stop the run, which is far more useful while bringing code up.
         if ((insn & 0x0FF000F0) === 0x07F000F0) {
-            this.halt("insn-invalid", pc);
-            return false;
+            if (this.haltOnUndefined) { this.halt("insn-invalid", pc); return false; }
+            this.takeUndefined(pc);
+            return true;
         }
 
         // branch / branch-with-link. BL and the BLX immediate share bits
@@ -445,9 +701,17 @@ var A5 = __g.A5 || (__g.A5 = {});
             this.branchTo(this.get(insn & 0xF) >>> 0);
             return true;
         }
-        if ((insn & 0x0FB0FFF0) === 0x010F0000) {          // MRS Rd, CPSR/SPSR
+        // MRS Rd, CPSR/SPSR: cond 0001 0 R 00 1111 Rd 000000000000.
+        // The mask has to check bits[19:16] == 0b1111 and leave Rd free. It used
+        // to be 0x0FB0FFF0, which does the opposite: Rd (bits[15:12]) was forced
+        // to 0 and bits[19:16] were ignored, so only `mrs r0, cpsr` decoded and
+        // every other MRS fell through to the data-processing decoder. With
+        // opcode bits[24:21] == 0b1010 that made `mrs r3, spsr` execute as CMP:
+        // it set flags, wrote nothing, and the Abort handler reported the
+        // leftover boot-loop value of r3 (0x00100000, the 1 MB step) as SPSR.
+        if ((insn & 0x0FBF0FFF) === 0x010F0000) {          // MRS Rd, CPSR/SPSR
             var isSpsr = (insn >>> 22) & 1;
-            this.r[(insn >>> 12) & 0xF] = isSpsr ? 0 : this.cpsr;
+            this.r[(insn >>> 12) & 0xF] = isSpsr ? this.spsrRead() : (this.cpsr | 0);
             return true;
         }
         if ((insn & 0x0DB0F000) === 0x0120F000) {          // MSR CPSR/SPSR, <operand>
@@ -549,7 +813,8 @@ var A5 = __g.A5 || (__g.A5 = {});
         if (mask & 2) m |= 0x0000FF00;      // extension
         if (mask & 4) m |= 0x00FF0000;      // status
         if (mask & 8) m |= 0xFF000000;      // flags
-        this.cpsr = ((this.cpsr & ~m) | (val & m)) >>> 0;
+        if ((insn >>> 22) & 1) this.spsrWrite(((this.spsrRead() & ~m) | (val & m)) >>> 0);
+        else this.cpsr = ((this.cpsr & ~m) | (val & m)) >>> 0;
         return true;
     };
 
@@ -773,13 +1038,13 @@ var A5 = __g.A5 || (__g.A5 = {});
         var t = this._lsAddress(insn, pc);
 
         if (L) {
-            var v = B ? this.bus.read8(t.addr) : this.bus.read32(t.addr);
+            var v = B ? this.mem.read8(t.addr) : this.mem.read32(t.addr);
             if (rt === 15) this.branchTo(v >>> 0);
             else this.r[rt] = v | 0;
         } else {
             var src = (rt === 15) ? ((pc + 8) | 0) : this.r[rt];
-            if (B) this.bus.write8(t.addr, src);
-            else this.bus.write32(t.addr, src);
+            if (B) this.mem.write8(t.addr, src);
+            else this.mem.write32(t.addr, src);
         }
         if (t.writeback !== null && t.rn !== 15) {
             if (!(L && rt === t.rn)) this.r[t.rn] = t.writeback | 0;
@@ -803,12 +1068,12 @@ var A5 = __g.A5 || (__g.A5 = {});
 
         var value;
         if (L) {
-            if (sh === 1) value = this.bus.read16(addr) >>> 0;
-            else if (sh === 2) value = this.bus.read8(addr) | 0;
-            else { value = this.bus.read16(addr); if (value & 0x8000) value |= 0xFFFF0000; value |= 0; }
+            if (sh === 1) value = this.mem.read16(addr) >>> 0;
+            else if (sh === 2) value = this.mem.read8(addr) | 0;
+            else { value = this.mem.read16(addr); if (value & 0x8000) value |= 0xFFFF0000; value |= 0; }
             if (rt === 15) this.branchTo(value >>> 0); else this.r[rt] = value | 0;
         } else {
-            if (sh === 1) this.bus.write16(addr, this.r[rt]);
+            if (sh === 1) this.mem.write16(addr, this.r[rt]);
             else this.unimplementedCount++;
         }
         if (P && W && rn !== 15) this.r[rn] = addr | 0;
@@ -844,11 +1109,11 @@ var A5 = __g.A5 || (__g.A5 = {});
         for (var j = 0; j < 16; j++) {
             if (!(list & (1 << j))) continue;
             if (L) {
-                var v = this.bus.read32(cur >>> 0);
+                var v = this.mem.read32(cur >>> 0);
                 if (j === 15) { this.r[15] = v & ~1; if (v & 1) this.cpsr |= 0x20; else this.cpsr &= ~0x20; this._branched = true; loaded15 = true; }
                 else this.r[j] = v | 0;
             } else {
-                this.bus.write32(cur >>> 0, j === 15 ? (pc + 8) : this.r[j]);
+                this.mem.write32(cur >>> 0, j === 15 ? (pc + 8) : this.r[j]);
             }
             cur = (cur + 4) >>> 0;
         }
@@ -866,7 +1131,9 @@ var A5 = __g.A5 || (__g.A5 = {});
     // immediate group), so the wrong handler ran depending on test order.
 
     ArmCpu.prototype.stepThumb = function (pc) {
-        var hw = this.bus.read16(pc) & 0xFFFF;
+        var hwF = this.mem.fetch16(pc);
+        if (hwF === null) return;
+        var hw = hwF & 0xFFFF;
         var top5 = hw >>> 11;
         var r = this.r;
         var self = this;
@@ -886,7 +1153,9 @@ var A5 = __g.A5 || (__g.A5 = {});
         switch (top5) {
 
         case 0x1E: {                                    // BL / BLX (32-bit)
-            var hw2 = this.bus.read16((pc + 2) >>> 0) & 0xFFFF;
+            var hw2F = this.mem.fetch16((pc + 2) >>> 0);
+            if (hw2F === null) return;
+            var hw2 = hw2F & 0xFFFF;
             var S = (hw >>> 10) & 1;
             var imm10 = hw & 0x3FF;
             var J1 = (hw2 >>> 13) & 1, J2 = (hw2 >>> 11) & 1;
@@ -980,7 +1249,7 @@ var A5 = __g.A5 || (__g.A5 = {});
         case 0x09: {                                    // LDR Rt, [PC, #imm8*4]
             var rt9 = (hw >>> 8) & 7;
             var a9 = ((((pc + 4) >>> 0) & ~3) + ((hw & 0xFF) << 2)) >>> 0;
-            r[rt9] = this.bus.read32(a9) | 0;
+            r[rt9] = this.mem.read32(a9) | 0;
             return;
         }
 
@@ -994,23 +1263,23 @@ var A5 = __g.A5 || (__g.A5 = {});
             var imm5L = (hw >>> 6) & 0x1F;
             var rnL = (hw >>> 3) & 7, rtL = hw & 7;
             var addrL = ((r[rnL] >>> 0) + (imm5L << (byteOp ? 0 : 2))) >>> 0;
-            if (isLoadL) r[rtL] = (byteOp ? this.bus.read8(addrL) : this.bus.read32(addrL)) | 0;
-            else if (byteOp) this.bus.write8(addrL, r[rtL]);
-            else this.bus.write32(addrL, r[rtL]);
+            if (isLoadL) r[rtL] = (byteOp ? this.mem.read8(addrL) : this.mem.read32(addrL)) | 0;
+            else if (byteOp) this.mem.write8(addrL, r[rtL]);
+            else this.mem.write32(addrL, r[rtL]);
             return;
         }
 
         case 0x10: case 0x11: {                         // LDRH/STRH imm5
             var addrH = ((r[(hw >>> 3) & 7] >>> 0) + (((hw >>> 6) & 0x1F) << 1)) >>> 0;
-            if (top5 === 0x11) r[hw & 7] = this.bus.read16(addrH) | 0;
-            else this.bus.write16(addrH, r[hw & 7]);
+            if (top5 === 0x11) r[hw & 7] = this.mem.read16(addrH) | 0;
+            else this.mem.write16(addrH, r[hw & 7]);
             return;
         }
 
         case 0x12: case 0x13: {                         // LDR/STR SP-relative
             var addrS = ((r[13] >>> 0) + ((hw & 0xFF) << 2)) >>> 0;
-            if (top5 === 0x13) r[(hw >>> 8) & 7] = this.bus.read32(addrS) | 0;
-            else this.bus.write32(addrS, r[(hw >>> 8) & 7]);
+            if (top5 === 0x13) r[(hw >>> 8) & 7] = this.mem.read32(addrS) | 0;
+            else this.mem.write32(addrS, r[(hw >>> 8) & 7]);
             return;
         }
 
@@ -1030,8 +1299,8 @@ var A5 = __g.A5 || (__g.A5 = {});
             var isLdm = top5 === 0x19;
             for (var q = 0; q < 8; q++) {
                 if (!(listM & (1 << q))) continue;
-                if (isLdm) r[q] = this.bus.read32(curM) | 0;
-                else this.bus.write32(curM, r[q]);
+                if (isLdm) r[q] = this.mem.read32(curM) | 0;
+                else this.mem.write32(curM, r[q]);
                 curM = (curM + 4) >>> 0;
             }
             if (!(listM & (1 << rbM))) r[rbM] = curM | 0;
@@ -1103,15 +1372,15 @@ var A5 = __g.A5 || (__g.A5 = {});
         var base = (this.r[rn] >>> 0) + (this.r[rm] >>> 0);
         var addr;
         switch (op) {
-            case 0x0: addr = base >>> 0; this.bus.write32(addr, this.r[rt]); return;              // STR
-            case 0x1: addr = base >>> 0; this.bus.write16(addr, this.r[rt]); return;              // STRH
-            case 0x2: addr = base >>> 0; this.bus.write8(addr, this.r[rt]); return;               // STRB
-            case 0x3: { var v = this.bus.read8(base >>> 0); if (v & 0x80) v |= 0xFFFFFF00;        // LDRSB
+            case 0x0: addr = base >>> 0; this.mem.write32(addr, this.r[rt]); return;              // STR
+            case 0x1: addr = base >>> 0; this.mem.write16(addr, this.r[rt]); return;              // STRH
+            case 0x2: addr = base >>> 0; this.mem.write8(addr, this.r[rt]); return;               // STRB
+            case 0x3: { var v = this.mem.read8(base >>> 0); if (v & 0x80) v |= 0xFFFFFF00;        // LDRSB
                         this.r[rt] = v | 0; return; }
-            case 0x4: this.r[rt] = this.bus.read32(base >>> 0) | 0; return;                       // LDR
-            case 0x5: this.r[rt] = this.bus.read16(base >>> 0) | 0; return;                       // LDRH
-            case 0x6: this.r[rt] = this.bus.read8(base >>> 0) | 0; return;                        // LDRB
-            case 0x7: { var w = this.bus.read16(base >>> 0); if (w & 0x8000) w |= 0xFFFF0000;     // LDRSH
+            case 0x4: this.r[rt] = this.mem.read32(base >>> 0) | 0; return;                       // LDR
+            case 0x5: this.r[rt] = this.mem.read16(base >>> 0) | 0; return;                       // LDRH
+            case 0x6: this.r[rt] = this.mem.read8(base >>> 0) | 0; return;                        // LDRB
+            case 0x7: { var w = this.mem.read16(base >>> 0); if (w & 0x8000) w |= 0xFFFF0000;     // LDRSH
                         this.r[rt] = w | 0; return; }
             default: break;
         }
@@ -1141,8 +1410,8 @@ var A5 = __g.A5 || (__g.A5 = {});
             for (var i = 0; i < 8; i++) if (listP & (1 << i)) cntP++;
             var spP = ((r[13] >>> 0) - cntP * 4) >>> 0;
             var curP = spP;
-            for (var j = 0; j < 8; j++) if (listP & (1 << j)) { this.bus.write32(curP, r[j]); curP = (curP + 4) >>> 0; }
-            if (lrP) this.bus.write32(curP, r[14]);
+            for (var j = 0; j < 8; j++) if (listP & (1 << j)) { this.mem.write32(curP, r[j]); curP = (curP + 4) >>> 0; }
+            if (lrP) this.mem.write32(curP, r[14]);
             r[13] = spP | 0;
             return;
         }
@@ -1150,9 +1419,9 @@ var A5 = __g.A5 || (__g.A5 = {});
             var listQ = hw & 0xFF;
             var pcQ = (hw >>> 8) & 1;
             var curQ = r[13] >>> 0;
-            for (var k = 0; k < 8; k++) if (listQ & (1 << k)) { r[k] = this.bus.read32(curQ) | 0; curQ = (curQ + 4) >>> 0; }
+            for (var k = 0; k < 8; k++) if (listQ & (1 << k)) { r[k] = this.mem.read32(curQ) | 0; curQ = (curQ + 4) >>> 0; }
             if (pcQ) {
-                var vq = this.bus.read32(curQ) >>> 0;
+                var vq = this.mem.read32(curQ) >>> 0;
                 curQ = (curQ + 4) >>> 0;
                 this.branchTo(vq);
             }

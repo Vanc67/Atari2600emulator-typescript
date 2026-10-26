@@ -19,9 +19,21 @@ var A5 = __g.A5 || (__g.A5 = {});
 
     // -- memory map ------------------------------------------------------
     A5.RAM_BASE = 0x40000000;
-    A5.RAM_SIZE = 0x80000000;          // 2 GB window so the VA range is backed
+    // Was 0x80000000 so that the kernel's virtual address range 0x80000000..
+    // happened to be backed as well. That is an alias, not a translation: it
+    // cannot fault and cannot enforce permissions, so an access to VA
+    // 0xC0000000 -- which the boot page table deliberately leaves unmapped and
+    // which arm_vm_init only maps later -- silently succeeded. Now that mmu.js
+    // walks the real tables, RAM is sized to what boot_args reports and the
+    // VA range is reachable only through a descriptor that actually exists.
+    A5.RAM_SIZE = 0x20000000;          // 512 MB, = boot_args.memSize
     A5.VIRT_OFFSET = 0x40000000;       // gVirtBase: va = pa + 0x40000000
     A5.KERNEL_VA = 0x80001000;
+
+    // Reset value of the domain access control register. All 16 domains as
+    // "client" (0b01) rather than "manager" (0b11), so the AP/APX/XN bits of
+    // every descriptor are actually checked instead of being waved through.
+    A5.DACR_RESET = 0x55555555;
 
     A5.TOPOFKERNELDATA = 0x40DA0000;
     A5.BOOTARGS_PA = 0x4FF01000;
@@ -209,6 +221,14 @@ var A5 = __g.A5 || (__g.A5 = {});
 
         this.cpu = new A5.ArmCpu(this.bus, { stopAt: null });
         this.cpu.machine = this;
+
+        // Address translation. Until this is attached the CPU's memory view is
+        // the identity, and the boot sequence would still run -- the identity
+        // section start() installs for its own PC makes translation a no-op
+        // there -- but nothing would prove the tables it builds are correct.
+        this.cpu.mmu = new A5.Mmu(this.cpu, this.bus);
+        this.cpu.cp15Write(0, 3, 0, 0, A5.DACR_RESET);    // DACR
+        this.cpu.cp15Write(0, 2, 0, 2, 0);                // TTBCR: N = 0, TTBR0 only
     }
 
     A5Machine.prototype._wire = function (name, base, size, read, write) {
@@ -256,11 +276,27 @@ var A5 = __g.A5 || (__g.A5 = {});
     A5Machine.prototype.SCTLR = "0,1,0,0";
     A5Machine.prototype.TTBR0 = "0,2,0,0";
     A5Machine.prototype.TTBR1 = "0,2,0,1";
+    A5Machine.prototype.TTBCR = "0,2,0,2";
+    A5Machine.prototype.DACR  = "0,3,0,0";
+    A5Machine.prototype.DFSR  = "0,5,0,0";
+    A5Machine.prototype.IFSR  = "0,5,0,1";
+    A5Machine.prototype.FAR   = "0,6,0,0";
+
+    /** Walk the tables without touching the CPU, for inspection and tests. */
+    A5Machine.prototype.translate = function (va, kind) {
+        return this.cpu.mmu.translate(va >>> 0, kind || "read");
+    };
 
     // Run until the CPU stops. The stop reasons that matter during bring-up:
     //   handoff                -> reached the target address (success)
     //   insn-invalid           -> UDF or an encoding Unicorn would reject too
     //   unimplemented-*        -> the model ran out of ARM; the address is the lead
+    A5Machine.prototype.resume = function (opts) {
+        opts = opts || {};
+        this.stalled = null;
+        this.cpu.resume(opts.stopAt);
+    };
+
     A5Machine.prototype.run = function (opts) {
         opts = opts || {};
         if (opts.stopAt !== undefined && opts.stopAt !== null) this.cpu.stopAt = opts.stopAt >>> 0;

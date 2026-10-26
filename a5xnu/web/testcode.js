@@ -13,12 +13,23 @@ var __g = (typeof globalThis !== "undefined") ? globalThis
 var A5 = __g.A5 || (__g.A5 = {});
 
 A5.TESTCODE = {
+    "abt_handler": {
+        thumb: false,
+        source: "movw r5, #0x0200\n        movt r5, #0x4003                // PA 0x40030200, identity mapped\n        str  r2, [r5, #24]              // r2 at entry: the aborted load's\n                                        // destination, which must still be 0.\n                                        // Saved first because the MRC below\n                                        // reuses r2 for FAR -- r0..r12 are not\n                                        // banked between SVC and ABT, so a\n                                        // handler that does not save them\n                                        // destroys the context it interrupted.\n        mrc  p15, 0, r1, c5, c0, 0      // DFSR\n        mrc  p15, 0, r2, c6, c0, 0      // FAR\n        mrs  r3, spsr                   // CPSR as it was before the abort\n        mov  r4, r14                    // LR_abt = faulting instruction + 8\n        str  r1, [r5, #0]\n        str  r2, [r5, #4]\n        str  r3, [r5, #8]\n        str  r4, [r5, #12]\n        mrs  r6, cpsr                   // now in Abort mode\n        str  r6, [r5, #16]\n        mov  r7, r13                    // r13_abt, banked separately from r13_svc\n        str  r7, [r5, #20]\n        movw r8, #0x0200\n        movt r8, #0x8002                // VA 0x80020200, the test stop point\n        bx   r8",
+        bytes: new Uint8Array([
+        0x00, 0x52, 0x00, 0xE3, 0x03, 0x50, 0x44, 0xE3, 0x18, 0x20, 0x85, 0xE5, 0x10, 0x1F, 0x15, 0xEE,
+        0x10, 0x2F, 0x16, 0xEE, 0x00, 0x30, 0x4F, 0xE1, 0x0E, 0x40, 0xA0, 0xE1, 0x00, 0x10, 0x85, 0xE5,
+        0x04, 0x20, 0x85, 0xE5, 0x08, 0x30, 0x85, 0xE5, 0x0C, 0x40, 0x85, 0xE5, 0x00, 0x60, 0x0F, 0xE1,
+        0x10, 0x60, 0x85, 0xE5, 0x0D, 0x70, 0xA0, 0xE1, 0x14, 0x70, 0x85, 0xE5, 0x00, 0x82, 0x00, 0xE3,
+        0x02, 0x80, 0x48, 0xE3, 0x18, 0xFF, 0x2F, 0xE1,
+        ])
+    },
     "cp15_trap": {
         thumb: false,
-        source: "mrc  p15, 0, r1, c1, c0, 0\n        movw r10, #0x380D\n        orr  r1, r1, r10\n        mcr  p15, 0, r1, c1, c0, 0\n        mcr  p15, 0, r6, c2, c0, 0\n        mcr  p15, 0, r6, c2, c0, 1\n        mov  r0, #1",
+        source: "mcr  p15, 0, r6, c2, c0, 0\n        mcr  p15, 0, r6, c2, c0, 1\n        mrc  p15, 0, r1, c1, c0, 0\n        movw r10, #0x380D\n        orr  r1, r1, r10\n        mcr  p15, 0, r1, c1, c0, 0\n        mov  r0, #1",
         bytes: new Uint8Array([
-        0x10, 0x1F, 0x11, 0xEE, 0x0D, 0xA8, 0x03, 0xE3, 0x0A, 0x10, 0x81, 0xE1, 0x10, 0x1F, 0x01, 0xEE,
-        0x10, 0x6F, 0x02, 0xEE, 0x30, 0x6F, 0x02, 0xEE, 0x01, 0x00, 0xA0, 0xE3,
+        0x10, 0x6F, 0x02, 0xEE, 0x30, 0x6F, 0x02, 0xEE, 0x10, 0x1F, 0x11, 0xEE, 0x0D, 0xA8, 0x03, 0xE3,
+        0x0A, 0x10, 0x81, 0xE1, 0x10, 0x1F, 0x01, 0xEE, 0x01, 0x00, 0xA0, 0xE3,
         ])
     },
     "mmio_log": {
@@ -26,6 +37,21 @@ A5.TESTCODE = {
         source: "movw r1, #0x0000\n        movt r1, #0x0F20        // 0x0F200000 = AIC\n        ldr  r2, [r1, #0x20]\n        str  r2, [r1, #0x24]",
         bytes: new Uint8Array([
         0x00, 0x10, 0x00, 0xE3, 0x20, 0x1F, 0x40, 0xE3, 0x20, 0x20, 0x91, 0xE5, 0x24, 0x20, 0x81, 0xE5,
+        ])
+    },
+    "thumb_abort_probe": {
+        thumb: true,
+        source: "movs r1, #12\n        lsls r1, r1, #28        // VA 0xC0000000\n        movs r2, #0\n        ldr  r2, [r1, #0]       // unmapped -> data abort, r2 stays 0\n        movs r0, #0xEE          // must never execute",
+        bytes: new Uint8Array([
+        0x0C, 0x21, 0x09, 0x07, 0x00, 0x22, 0x0A, 0x68, 0xEE, 0x20,
+        ])
+    },
+    "thumb_mmu_post": {
+        thumb: true,
+        source: "movs r4, #2\n        lsls r4, r4, #28        // 0x20000000\n        lsls r4, r4, #2         // 0x80000000\n        movs r5, #1\n        lsls r5, r5, #17        // 0x00020000\n        adds r4, r4, r5         // r4 = VA 0x80020000\n        movs r6, #0xAB\n        strb r6, [r4, #0]\n        str  r6, [r4, #4]\n        ldrb r1, [r0, #2]       // boot_args.Epoch, low byte  (VA 0x8FF01000)\n        ldrb r2, [r0, #3]       //                    high byte\n        strb r1, [r4, #8]\n        strb r2, [r4, #9]\n        ldrb r3, [r4, #0]\n        ldr  r7, [r4, #4]",
+        bytes: new Uint8Array([
+        0x02, 0x24, 0x24, 0x07, 0xA4, 0x00, 0x01, 0x25, 0x6D, 0x04, 0x64, 0x19, 0xAB, 0x26, 0x26, 0x70,
+        0x66, 0x60, 0x81, 0x78, 0xC2, 0x78, 0x21, 0x72, 0x62, 0x72, 0x23, 0x78, 0x67, 0x68,
         ])
     },
     "thumb_smoke": {

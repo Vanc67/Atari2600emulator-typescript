@@ -162,19 +162,46 @@ floop:  orr     r10, r1, r8
         movw    r12, #0xFFF
         str     r10, [r6, r12, lsl #2]
 
-        ; --- MMU, caches and high vectors on; both TTBRs point at the same table
+        ; --- both TTBRs point at the same table, and they MUST be written
+        ;     before SCTLR.M.  While the MMU is off these writes are inert, but
+        ;     the instant M is set every fetch is translated through TTBR0, so
+        ;     enabling first would prefetch-abort on TTBR0's reset value.  This
+        ;     ordering bug survived 20 passing tests: the Unicorn harness traps
+        ;     cp15 into a shadow bank and never enables Unicorn's own MMU, so
+        ;     nothing downstream noticed.  It only became visible when the
+        ;     JavaScript port grew a real ARMv7 translation walk.
+        mcr     p15, 0, r6, c2, c0, 0
+        mcr     p15, 0, r6, c2, c0, 1
+
+        ; --- boot_args PA -> VA, exactly as start() does it.
+        ;
+        ;     This has to happen *before* SCTLR.M is set. The table start()
+        ;     builds maps the kernel VA range 0x800..0x9FF, one identity
+        ;     section for the PC, and the high-vector page; it does NOT map the
+        ;     physical section holding boot_args (L1[0x4FF]). Reading [r0] after
+        ;     the MMU is on therefore takes a data abort on VA 0x4FF01000 --
+        ;     a second ordering bug that only a real translation walk exposes,
+        ;     and again invisible to a harness that shadows cp15 instead of
+        ;     enabling its own MMU.
+        ldr     r11, [r0, #0x04]    ; virtBase
+        ldr     r1,  [r0, #0x08]    ; physBase
+        sub     r0, r0, r1
+        add     r0, r0, r11         ; r0 = boot_args as a VA
+
+        ; --- MMU, caches and high vectors on
         mrc     p15, 0, r1, c1, c0, 0
         movw    r10, #0x380D        ; M | C | W | Z | I | V
         orr     r1, r1, r10
         mcr     p15, 0, r1, c1, c0, 0
-        mcr     p15, 0, r6, c2, c0, 0
-        mcr     p15, 0, r6, c2, c0, 1
 
-        ; --- boot_args PA -> VA, exactly as start() does it ---
-        ldr     r11, [r0, #0x04]    ; virtBase
-        ldr     r1,  [r0, #0x08]    ; physBase
-        sub     r0, r0, r1
-        add     r0, r0, r11
+        ; --- context synchronization.  ARMv7 does not guarantee that a change
+        ;     to SCTLR or to the translation table bases affects the
+        ;     instructions that follow until an ISB has executed, and the ISB
+        ;     must be preceded by a DSB so the table stores above have actually
+        ;     reached memory.  Both are no-ops in an interpreter that reads the
+        ;     translation state live, but they belong in the sequence.
+        dsb
+        isb
 
         bx      lr                  ; lr = 0x80017C41 -> Thumb bit ends up SET
 """

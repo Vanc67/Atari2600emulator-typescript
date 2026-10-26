@@ -32,13 +32,19 @@ PROGRAMS = {
 
     # SCTLR read-modify-write plus TTBR0/TTBR1, then a normal instruction to
     # prove execution continued past the trapped transfers.
+    # r6 must hold a TTBR that points at a table mapping this program's own
+    # section: the last MCR turns the MMU on, and the instruction after it is
+    # fetched through the tables. Writing TTBR0 *after* SCTLR.M -- which is what
+    # this listing used to do, copied from the same mistake in start() -- makes
+    # the very next fetch translate through TTBR0's reset value and take a
+    # prefetch abort.
     "cp15_trap": """
+        mcr  p15, 0, r6, c2, c0, 0
+        mcr  p15, 0, r6, c2, c0, 1
         mrc  p15, 0, r1, c1, c0, 0
         movw r10, #0x380D
         orr  r1, r1, r10
         mcr  p15, 0, r1, c1, c0, 0
-        mcr  p15, 0, r6, c2, c0, 0
-        mcr  p15, 0, r6, c2, c0, 1
         mov  r0, #1
     """,
 
@@ -66,6 +72,77 @@ PROGRAMS = {
 
     # Thumb smoke test: enough of the 16-bit encodings to prove the decoder is
     # wired to the right handlers, ending in a bx back to ARM.
+    # Runs at VA 0x80017C40 immediately after start() hands off, i.e. with
+    # SCTLR.M set and TTBR0 pointing at the table start() just built. r0 is
+    # inherited and holds boot_args as a VA. Thumb-2 is not implemented, so the
+    # 0x80020000 target has to be constructed out of shifts and adds rather than
+    # movw/movt.
+    #
+    # Every access here is a virtual address. The stores land on PA 0x40020000
+    # only if the walk through L1[0x800] is correct, and the test reads them back
+    # through the *physical* bus, so a wrong translation cannot hide.
+    "thumb_mmu_post": """
+        movs r4, #2
+        lsls r4, r4, #28        // 0x20000000
+        lsls r4, r4, #2         // 0x80000000
+        movs r5, #1
+        lsls r5, r5, #17        // 0x00020000
+        adds r4, r4, r5         // r4 = VA 0x80020000
+        movs r6, #0xAB
+        strb r6, [r4, #0]
+        str  r6, [r4, #4]
+        ldrb r1, [r0, #2]       // boot_args.Epoch, low byte  (VA 0x8FF01000)
+        ldrb r2, [r0, #3]       //                    high byte
+        strb r1, [r4, #8]
+        strb r2, [r4, #9]
+        ldrb r3, [r4, #0]
+        ldr  r7, [r4, #4]
+    """,
+
+    # Touches VA 0xC0000000, which the boot page table deliberately leaves
+    # unmapped (arm_vm_init maps it much later). Must take a data abort.
+    "thumb_abort_probe": """
+        movs r1, #12
+        lsls r1, r1, #28        // VA 0xC0000000
+        movs r2, #0
+        ldr  r2, [r1, #0]       // unmapped -> data abort, r2 stays 0
+        movs r0, #0xEE          // must never execute
+    """,
+
+    # Data-abort handler, installed at VA 0xFFFF0010 through the high-vector
+    # coarse table start() points L1[0xFFF] at. Records what the architecture
+    # promises it will find, then leaves through a mapped VA so the test can
+    # inspect the results instead of chasing an abort storm.
+    #
+    # The scratch area at 0x40030200 is reachable because start() identity-maps
+    # the 1 MB section containing its own PC, and 0x40030200 is inside it.
+    "abt_handler": """
+        movw r5, #0x0200
+        movt r5, #0x4003                // PA 0x40030200, identity mapped
+        str  r2, [r5, #24]              // r2 at entry: the aborted load's
+                                        // destination, which must still be 0.
+                                        // Saved first because the MRC below
+                                        // reuses r2 for FAR -- r0..r12 are not
+                                        // banked between SVC and ABT, so a
+                                        // handler that does not save them
+                                        // destroys the context it interrupted.
+        mrc  p15, 0, r1, c5, c0, 0      // DFSR
+        mrc  p15, 0, r2, c6, c0, 0      // FAR
+        mrs  r3, spsr                   // CPSR as it was before the abort
+        mov  r4, r14                    // LR_abt = faulting instruction + 8
+        str  r1, [r5, #0]
+        str  r2, [r5, #4]
+        str  r3, [r5, #8]
+        str  r4, [r5, #12]
+        mrs  r6, cpsr                   // now in Abort mode
+        str  r6, [r5, #16]
+        mov  r7, r13                    // r13_abt, banked separately from r13_svc
+        str  r7, [r5, #20]
+        movw r8, #0x0200
+        movt r8, #0x8002                // VA 0x80020200, the test stop point
+        bx   r8
+    """,
+
     "thumb_smoke": """
         movs r0, #7
         lsls r1, r0, #4

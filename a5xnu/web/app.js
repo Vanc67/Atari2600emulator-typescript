@@ -151,7 +151,7 @@
 
     // ---------------------------------------------------------------- checks
 
-    var UNICORN = { instr: 45094, cpsr: 0x600001F3, r0: 0x8FF01000, r5: 512, ms: 125 };
+    var UNICORN = { instr: 45096, cpsr: 0x600001F3, r0: 0x8FF01000, r5: 512, ms: 95 };
 
     function computeChecks() {
         var m = state.m;
