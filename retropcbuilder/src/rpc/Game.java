@@ -3669,6 +3669,12 @@ public class Game {
      * oscilloscope trace, a paste thickness gauge, a dust bar - instead of the
      * 4.8 text dump.
      */
+    /**
+     * Workshop: tool column, live instrument, repair checklist, feedback.
+     *
+     * Vertical budget is measured first so the checklist only appears when
+     * there is really room for it - no half cards, no overflow.
+     */
     private void paintWorkshopTools() {
         int w = this.W;
         int h = this.H;
@@ -3677,7 +3683,10 @@ public class Game {
 
         int top = this.FH1 + 12;
         int footerTop = h - this.FH0 - 12;
+        int cardH = this.FH0 * 2 + 12;
         int toolCol = 66;
+
+        // tool column (left)
         for (int i = 0; i < 6; i++) {
             int ty = top + i * (this.FH0 + 7);
             boolean sel = i == this.workshop.activeTool;
@@ -3691,12 +3700,19 @@ public class Game {
                     18, ty + 3, 0, sel ? Theme.TEXT : Theme.DIM);
         }
 
+        // instrument panel (right)
         int px = toolCol + 8;
         int pw = w - px - 4;
-        int cardH = this.FH0 * 4 + 10;
         int ph = footerTop - top - cardH - 8;
+        int maxPh = footerTop - top - cardH - 8;
+        if (ph > 150) {
+            ph = 150;
+        }
         if (ph < 90) {
-            ph = 90;
+            ph = Math.min(90, maxPh);
+            if (ph < 60) {
+                ph = 60;
+            }
         }
         this.g.setColor(Theme.PANEL);
         this.g.fillRoundRect(px, top, pw, ph, 4);
@@ -3704,27 +3720,63 @@ public class Game {
         this.g.drawRoundRect(px, top, pw, ph, 4);
         Workshop.draw(this.g, this.workshop, px, top, pw, ph, this.frame);
 
-        int cy = top + ph + 4;
+        // repair checklist, only if the space is left over
+        int gapY = top + ph + 5;
+        boolean[] done = Workshop.checklist(this.workshop);
+        String[] checks = {
+            "\u043d\u043e\u0436\u043a\u0438",
+            "\u043a\u043e\u043d\u0434\u0435\u043d\u0441.",
+            "\u043f\u044b\u043b\u044c",
+            "\u043f\u0430\u0441\u0442\u0430",
+        };
+        int rowH = this.FH0 + 3;
+        int listH = rowH * checks.length;
+        if (gapY + listH < footerTop - cardH - 6) {
+            this.g.setColor(Theme.PANEL);
+            this.g.fillRect(4, gapY, w - 8, rowH * checks.length);
+            this.g.setColor(Theme.LINE);
+            this.g.drawRect(4, gapY, w - 8, rowH * checks.length);
+            for (int i = 0; i < checks.length; i++) {
+                int ry = gapY + i * rowH;
+                this.g.setColor(done[i] ? Theme.GREEN : Theme.LINE);
+                this.g.drawRect(8, ry + 3, 8, 8);
+                if (done[i]) {
+                    this.g.setColor(Theme.GREEN);
+                    this.g.drawLine(9, ry + 7, 11, ry + 9);
+                    this.g.drawLine(11, ry + 9, 14, ry + 4);
+                }
+                Text.draw(this.g, checks[i], 21, ry + 2, 0,
+                        done[i] ? Theme.DIM : Theme.TEXT);
+            }
+        }
+
+        // feedback + progress card (bottom)
+        int cy = footerTop - cardH;
         this.g.setColor(Theme.PANEL);
         this.g.fillRoundRect(4, cy, w - 8, cardH, 4);
         this.g.setColor(Theme.LINE);
         this.g.drawRoundRect(4, cy, w - 8, cardH, 4);
         Text.draw(this.g, Text.fit(this.workshop.toolFeedback, 0, w - 18), 9,
                 cy + 3, 0, Theme.GREEN);
-        int done = Workshop.progress(this.workshop);
-        Text.draw(this.g, "\u0413\u043e\u0442\u043e\u0432\u043d\u043e\u0441\u0442\u044c: " + done + "%", 9,
-                cy + 3 + this.FH0, 0, done >= 100 ? Theme.GREEN : Theme.ACCENT);
-        int bx = 9 + this.g.textWidth("\u0413\u043e\u0442\u043e\u0432\u043d\u043e\u0441\u0442\u044c: 100%", 0) + 6;
+        int progress = Workshop.progress(this.workshop);
+        String label = "\u0413\u043e\u0442\u043e\u0432\u043d\u043e\u0441\u0442\u044c: " + progress + "%";
+        Text.draw(this.g, label, 9, cy + 4 + this.FH0, 0,
+                progress >= 100 ? Theme.GREEN : Theme.ACCENT);
+        int bx = 9 + this.g.textWidth(label, 0) + 6;
         int bw = w - bx - 12;
+        int by = cy + 6 + this.FH0;
         this.g.setColor(Theme.BG);
-        this.g.fillRect(bx, cy + 5 + this.FH0, bw, this.FH0 - 2);
-        this.g.setColor(done >= 100 ? Theme.GREEN : Theme.ACCENT2);
-        this.g.fillRect(bx, cy + 5 + this.FH0, bw * done / 100, this.FH0 - 2);
+        this.g.fillRect(bx, by, bw, this.FH0 - 3);
+        if (progress > 0) {
+            this.g.setColor(progress >= 100 ? Theme.GREEN : Theme.ACCENT2);
+            this.g.fillRect(bx, by, bw * progress / 100, this.FH0 - 3);
+        }
         this.g.setColor(Theme.LINE);
-        this.g.drawRect(bx, cy + 5 + this.FH0, bw, this.FH0 - 2);
+        this.g.drawRect(bx, by, bw, this.FH0 - 3);
         this.footer("OK: \u043f\u0440\u0438\u043c\u0435\u043d\u0438\u0442\u044c  1-6: \u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442",
                 "BACK");
     }
+
 
     private void inputWorkshopTools(int action) {
         if (action >= ACT_NUM1 && action < ACT_NUM1 + 6) {
@@ -4912,60 +4964,94 @@ public class Game {
         }
     }
     
+    /**
+     * Catalogue of hardware categories: a thumbnail of the newest part in the
+     * category, the label, the number of parts and how many generations /
+     * variants the sprite atlas has. Rows are sized from the screen height.
+     */
     private void paintCatalog() {
-        int i = 0;
-        int i0 = 0;
-        while(i0 < CAT_ORDER.length) {
-            i = i + this.db.countInCat(CAT_ORDER[i0]);
-            i0 = i0 + 1;
+        int w = this.W;
+        int h = this.H;
+        int total = 0;
+        for (int i = 0; i < CAT_ORDER.length; i++) {
+            total += this.db.countInCat(CAT_ORDER[i]);
         }
-        this.header("\u041a\u0430\u0442\u0430\u043b\u043e\u0433 \u0436\u0435\u043b\u0435\u0437\u0430", new StringBuffer().append(i).toString());
-        int i1 = this.FH1 + 14;
-        int i2 = (this.H - i1 - this.FH0 - 16) / 34;
-        if (i2 < 1) {
-            i2 = 1;
+        this.header("\u041a\u0430\u0442\u0430\u043b\u043e\u0433 \u0436\u0435\u043b\u0435\u0437\u0430", total + "");
+
+        int top = this.FH1 + 14;
+        int footerTop = h - this.FH0 - 12;
+        int n = CAT_ORDER.length;
+        int rowH = (footerTop - top) / n;
+        if (rowH > 34) {
+            rowH = 34;
         }
+        if (rowH < 20) {
+            rowH = 20;
+        }
+        int thumb = rowH - 6;
         if (this.catSel < this.catTop) {
             this.catTop = this.catSel;
         }
-        if (this.catSel > this.catTop + i2 - 1) {
-            this.catTop = this.catSel - i2 + 1;
+        if (this.catSel > this.catTop + n - 1) {
+            this.catTop = this.catSel - n + 1;
         }
-        int i3 = 0;
-        while(true) {
-            if (i3 < i2) {
-                int i4 = this.catTop + i3;
-                if (i4 < CAT_ORDER.length) {
-                    int i5 = CAT_ORDER[i4];
-                    int i6 = i1 + i3 * 34;
-                    boolean b = i4 == this.catSel;
-                    this.g.setColor(b ? 2308170 : 1780536);
-                    this.g.fillRect(4, i6, this.W - 8, 32);
-                    if (b) {
-                        this.g.setColor(3793530);
-                        this.g.drawRect(4, i6, this.W - 8, 32);
-                    }
-                    this.g.setColor(791580);
-                    this.g.fillRect(6, i6 + 3, 44, 26);
-                    if (rpc.Assets.ready) {
-                        rpc.Assets.drawEdition(this.g, i5, 2023, 6, i6 + 3, 44, 26);
-                    }
-                    this.g.setColor(b ? 3793530 : 15003895);
-                    this.g.drawText(this.fit(rpc.Db.CAT_LABEL[i5], this.W - 110, 0), 56, i6 + 5, 0);
-                    this.g.setColor(8297134);
-                    this.g.drawText(new StringBuffer().append(this.db.countInCat(i5)).toString(), this.W - this.g.textWidth("0000", 0) - 10, i6 + 5, 0);
-                    if (rpc.Assets.ready) {
-                        this.g.setColor(16763196);
-                        this.g.drawText(new StringBuffer(String.valueOf(rpc.Assets.editions(i5))).append(" \u043f\u043e\u043a\u043e\u043b\u0435\u043d\u0438\u0439 \u2022 ").append(rpc.Assets.variants()).append(" \u0438\u0441\u043f.").toString(), 56, i6 + 18, 0);
-                    }
-                    i3 = i3 + 1;
-                    continue;
-                }
+        for (int i = 0; i < n; i++) {
+            int idx = this.catTop + i;
+            if (idx >= n) {
+                break;
             }
-            this.footer("OK \u2014 \u0441\u043c\u043e\u0442\u0440\u0435\u0442\u044c", "1: \u043c\u0435\u043d\u044e");
-            return;
+            int cat = CAT_ORDER[idx];
+            int ry = top + i * rowH;
+            boolean sel = idx == this.catSel;
+            this.g.setColor(sel ? Theme.PANEL2 : Theme.PANEL);
+            this.g.fillRoundRect(4, ry, w - 8, rowH - 3, 4);
+            if (sel) {
+                this.g.setColor(Theme.ACCENT);
+                this.g.drawRoundRect(4, ry, w - 8, rowH - 3, 4);
+                this.g.fillRect(4, ry + 3, 3, rowH - 9);
+            }
+            // thumbnail of the newest part of this category
+            this.g.setColor(Theme.BG);
+            this.g.fillRect(10, ry + 3, thumb, rowH - 9);
+            if (rpc.Assets.ready) {
+                rpc.Assets.drawEdition(this.g, cat, 2023, 10, ry + 3, thumb,
+                        rowH - 9);
+            }
+            int tx = 14 + thumb;
+            Text.draw(this.g, Text.fit(rpc.Db.CAT_LABEL[cat], 0, w - tx - 48),
+                    tx, ry + 4, 0, sel ? Theme.TEXT : Theme.DIM);
+            String count = Integer.toString(this.db.countInCat(cat));
+            Text.draw(this.g, count, w - this.g.textWidth(count, 0) - 8,
+                    ry + 4, 0, sel ? Theme.ACCENT : Theme.MUTED);
+            if (rpc.Assets.ready && rowH >= 26) {
+                String meta = rpc.Assets.editions(cat) + " "
+                        + plural(rpc.Assets.editions(cat), "\u043f\u043e\u043a\u043e\u043b\u0435\u043d\u0438\u0435",
+                                  "\u043f\u043e\u043a\u043e\u043b\u0435\u043d\u0438\u044f",
+                                  "\u043f\u043e\u043a\u043e\u043b\u0435\u043d\u0438\u0439")
+                        + " \u2022 " + rpc.Assets.variants() + " \u0441\u043f\u0440\u0430\u0439\u0442\u043e\u0432";
+                Text.draw(this.g, Text.fit(meta, 0, w - tx - 8), tx,
+                        ry + 5 + this.FH0, 0, Theme.ACCENT2);
+            }
         }
+        this.footer("OK \u2014 \u0441\u043c\u043e\u0442\u0440\u0435\u0442\u044c", "BACK");
     }
+
+    /** Russian plural form for a count (1 поколение / 2 поколения / 5 поколений). */
+    private String plural(int n, String one, String few, String many) {
+        int mod100 = n % 100;
+        int mod10 = n % 10;
+        if (mod100 >= 11 && mod100 <= 14) {
+            return many;
+        }
+        if (mod10 == 1) {
+            return one;
+        }
+        if (mod10 >= 2 && mod10 <= 4) {
+            return few;
+        }
+        return many;
+    }
+
     
     private void paintCatParts() {
         int i = CAT_ORDER[this.catSel];

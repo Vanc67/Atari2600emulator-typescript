@@ -175,26 +175,39 @@ public final class Workshop {
                                 int h, int frame) {
         Text.small(g, "\u041f\u044b\u043b\u044c в радиаторе", x + 5, y + 4,
                 Theme.ACCENT);
-        Text.small(g, ws.dustRemaining + "%", x + w - 40, y + 4,
-                ws.dustRemaining > 20 ? Theme.ORANGE : Theme.GREEN);
+
         // radiator fins
         int rx = x + 8;
         int ry = y + 20;
         int rw = w - 16;
-        int rh = Math.min(60, h - 50);
+        int rh = Math.max(40, Math.min(h - 62, 110));
         int fins = 14;
         for (int i = 0; i < fins; i++) {
             int fx = rx + i * rw / fins;
             g.setColor(0x6E7482);
             g.fillRect(fx, ry, Math.max(1, rw / fins - 2), rh);
         }
-        // dust layer on top of the fins
+        // dust: a dithered felt that clings to the fins, denser at the bottom
         int dustH = rh * ws.dustRemaining / 100;
-        g.setColor(0x8A7A5A);
-        g.fillRect(rx, ry + rh - dustH, rw, dustH);
-        g.setColor(0xB0A080);
-        for (int i = 0; i < 20; i++) {
-            g.fillRect(rx + (i * 37) % rw, ry + rh - 2, 2, 1);
+        int dustTop = ry + rh - dustH;
+        for (int row = 0; row < dustH; row++) {
+            int y0 = dustTop + row;
+            int density = 40 + row * 55 / Math.max(1, dustH);
+            for (int col = 0; col < rw; col++) {
+                // 3x3 ordered dither so the dust looks like dust, not paint
+                int t = ((col % 3) * 3 + (y0 % 3)) * 100 / 9;
+                if (t < density) {
+                    g.setColor(row > dustH * 2 / 3 ? 0xA89468 : 0x8A7A5A);
+                    g.fillRect(rx + col, y0, 1, 1);
+                }
+            }
+        }
+        // a few clumps and hairs poking out of the felt
+        g.setColor(0xC8B890);
+        for (int i = 0; i < 9; i++) {
+            int cx2 = rx + (i * 53 + 11) % rw;
+            int cy2 = dustTop + (i * 29 + 3) % Math.max(1, dustH);
+            g.fillRect(cx2, cy2, 2, 2);
         }
         // air puffs
         if ((frame / 4) % 2 == 0) {
@@ -203,8 +216,10 @@ public final class Workshop {
                 g.fillRect(rx + rw + 2 + i * 3, ry + 6 + i * 5, 3, 2);
             }
         }
-        Text.small(g, ws.dustRemaining + "%  \u043f\u0440\u043e\u0434\u0443\u0442\u044c: OK", x + 5,
-                ry + rh + 6, Theme.TEXT);
+        Text.small(g, ws.dustRemaining + "%",
+                x + 5, ry + rh + 6, ws.dustRemaining > 20 ? Theme.ORANGE : Theme.GREEN);
+        Text.small(g, "\u043f\u0440\u043e\u0434\u0443\u0442\u044c: OK", x + w - 70,
+                ry + rh + 6, Theme.MUTED);
     }
 
     /* ---- 5. multimeter / oscilloscope ------------------------------- */
@@ -212,16 +227,17 @@ public final class Workshop {
                                   int h, int frame) {
         Text.small(g, "\u041c\u0443\u043b\u044c\u0442\u0438\u043c\u0435\u0442\u0440", x + 5, y + 4,
                 Theme.ACCENT);
-        Text.small(g, "+12V " + fmt(ws.v12) + "  +5V " + fmt(ws.v5)
-                + "  +3.3V " + fmt(ws.v33), x + 5, y + 15, Theme.TEXT);
-        Text.small(g, "VCore " + fmt(ws.vCore) + "  \u043f\u0443\u043b\u044c\u0441\u0430\u0446\u0438\u0438 "
-                + ws.rippleMv + " \u043c\u0412", x + 5, y + 24,
-                ws.rippleMv > 150 ? Theme.RED : Theme.GREEN);
+        Text.small(g, "+12V " + fmt(ws.v12) + "   +5V " + fmt(ws.v5), x + 5, y + 15,
+                Theme.TEXT);
+        Text.small(g, "+3.3V " + fmt(ws.v33) + "   VCore " + fmt(ws.vCore),
+                x + 5, y + 24, Theme.TEXT);
+        Text.small(g, "\u043f\u0443\u043b\u044c\u0441\u0430\u0446\u0438\u0438 " + ws.rippleMv + " \u043c\u0412",
+                x + 5, y + 33, ws.rippleMv > 150 ? Theme.RED : Theme.GREEN);
         // scope
         int sx = x + 8;
-        int sy = y + 34;
+        int sy = y + 44;
         int sw = w - 16;
-        int sh = Math.min(50, h - 48);
+        int sh = Math.max(30, Math.min(56, h - 60));
         g.setColor(0x06120A);
         g.fillRect(sx, sy, sw, sh);
         g.setColor(0x143818);
@@ -287,6 +303,24 @@ public final class Workshop {
             case WorkshopTools.TOOL_METER: return "Мультиметр";
             default: return "CMOS";
         }
+    }
+
+    /** {pins, caps, dust, paste} - true when that step is done. */
+    public static boolean[] checklist(WorkshopTools ws) {
+        boolean pinsOk = true;
+        for (int i = 0; i < ws.cpuPins.length; i++) {
+            if (ws.cpuPins[i] != 0) {
+                pinsOk = false;
+            }
+        }
+        boolean capsOk = true;
+        for (int i = 0; i < ws.caps.length; i++) {
+            if (ws.caps[i] != 0) {
+                capsOk = false;
+            }
+        }
+        boolean pasteOk = ws.pasteThickness >= 30 && ws.pasteThickness <= 75;
+        return new boolean[] { pinsOk, capsOk, ws.dustRemaining <= 20, pasteOk };
     }
 
     /** 0..100 how much of the repair job is done. */

@@ -123,9 +123,9 @@ public final class Room {
         drawCase(g, caseX, caseY, caseW, caseH, frame, pcOn);
 
         /* radio on the desk */
-        int radioX = w * 55 / 100;
-        int radioY = deskY - h * 6 / 100;
-        drawRadio(g, radioX, radioY, w * 13 / 100, h * 6 / 100, life, frame);
+        int radioX = w * 54 / 100;
+        int radioY = deskY - h * 7 / 100;
+        drawRadio(g, radioX, radioY, w * 15 / 100, h * 7 / 100, life, frame);
 
         /* mug - the star of the tea screen, visible here too */
         int mugX = w * 70 / 100;
@@ -752,8 +752,8 @@ public final class Room {
                 return new int[] { w * 6 / 100, deskY + h * 8 / 100,
                         w * 46 / 100, h * 8 / 100 };
             default: /* HOT_RADIO */
-                return new int[] { w * 55 / 100, deskY - h * 7 / 100,
-                        w * 13 / 100, h * 7 / 100 };
+                return new int[] { w * 54 / 100, deskY - h * 8 / 100,
+                        w * 15 / 100, h * 8 / 100 };
         }
     }
 }
