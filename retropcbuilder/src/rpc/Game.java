@@ -3675,18 +3675,48 @@ public class Game {
      * Vertical budget is measured first so the checklist only appears when
      * there is really room for it - no half cards, no overflow.
      */
+    /**
+     * Workshop screen.
+     *
+     * Layout is computed bottom-up: the feedback card is pinned to the footer,
+     * the instrument panel fills everything above it, and the repair checklist
+     * lives in the tool column so the panel can use the whole height.
+     */
     private void paintWorkshopTools() {
         int w = this.W;
         int h = this.H;
-        this.header(Workshop.shortName(this.workshop.activeTool),
-                "\u0424\u0438\u0437\u0438\u043a\u0430 & \u0440\u0435\u043c\u043e\u043d\u0442");
+        this.header("\u041c\u0430\u0441\u0442\u0435\u0440\u0441\u043a\u0430\u044f",
+                "\u0444\u0438\u0437\u0438\u043a\u0430 & \u0440\u0435\u043c\u043e\u043d\u0442");
 
         int top = this.FH1 + 12;
         int footerTop = h - this.FH0 - 12;
         int cardH = this.FH0 * 2 + 12;
+        int cardY = footerTop - cardH;
+        int cardGap = 6;
         int toolCol = 66;
+        int px = toolCol + 8;
+        int pw = w - px - 4;
+        int rowH = this.FH0 + 3;
+        boolean[] done = Workshop.checklist(this.workshop);
 
-        // tool column (left)
+        // instrument panel takes the height above the feedback card, minus a
+        // strip for the checklist in the left column
+        int checkH = rowH * 4 + 8;
+        int toolH = 6 * (this.FH0 + 7);
+        int leftNeeded = toolH + 4 + checkH;
+        int ph = cardY - cardGap - top;
+        int checkTop = top + Math.max(toolH + 4, ph - checkH - 4);
+        boolean showCheck = checkTop + checkH <= cardY - cardGap
+                && checkH >= toolH * 0 + rowH * 4 + 8;
+        int panelH = (showCheck ? checkTop - 6 : cardY - cardGap) - top;
+
+        this.g.setColor(Theme.PANEL);
+        this.g.fillRoundRect(px, top, pw, panelH, 4);
+        this.g.setColor(Theme.LINE);
+        this.g.drawRoundRect(px, top, pw, panelH, 4);
+        Workshop.draw(this.g, this.workshop, px, top, pw, panelH, this.frame);
+
+        // tool column
         for (int i = 0; i < 6; i++) {
             int ty = top + i * (this.FH0 + 7);
             boolean sel = i == this.workshop.activeTool;
@@ -3700,71 +3730,46 @@ public class Game {
                     18, ty + 3, 0, sel ? Theme.TEXT : Theme.DIM);
         }
 
-        // instrument panel (right)
-        int px = toolCol + 8;
-        int pw = w - px - 4;
-        int ph = footerTop - top - cardH - 8;
-        int maxPh = footerTop - top - cardH - 8;
-        if (ph > 150) {
-            ph = 150;
-        }
-        if (ph < 90) {
-            ph = Math.min(90, maxPh);
-            if (ph < 60) {
-                ph = 60;
-            }
-        }
-        this.g.setColor(Theme.PANEL);
-        this.g.fillRoundRect(px, top, pw, ph, 4);
-        this.g.setColor(Theme.LINE);
-        this.g.drawRoundRect(px, top, pw, ph, 4);
-        Workshop.draw(this.g, this.workshop, px, top, pw, ph, this.frame);
-
-        // repair checklist, only if the space is left over
-        int gapY = top + ph + 5;
-        boolean[] done = Workshop.checklist(this.workshop);
-        String[] checks = {
-            "\u043d\u043e\u0436\u043a\u0438",
-            "\u043a\u043e\u043d\u0434\u0435\u043d\u0441.",
-            "\u043f\u044b\u043b\u044c",
-            "\u043f\u0430\u0441\u0442\u0430",
-        };
-        int rowH = this.FH0 + 3;
-        int listH = rowH * checks.length;
-        if (gapY + listH < footerTop - cardH - 6) {
+        // repair checklist under the tool column
+        if (showCheck) {
+            String[] checks = {
+                "\u043d\u043e\u0436\u043a\u0438",
+                "\u043a\u043e\u043d\u0434\u0435\u043d\u0441.",
+                "\u043f\u044b\u043b\u044c",
+                "\u043f\u0430\u0441\u0442\u0430",
+            };
             this.g.setColor(Theme.PANEL);
-            this.g.fillRect(4, gapY, w - 8, rowH * checks.length);
+            this.g.fillRoundRect(4, checkTop, toolCol, checkH, 4);
             this.g.setColor(Theme.LINE);
-            this.g.drawRect(4, gapY, w - 8, rowH * checks.length);
+            this.g.drawRoundRect(4, checkTop, toolCol, checkH, 4);
             for (int i = 0; i < checks.length; i++) {
-                int ry = gapY + i * rowH;
+                int ry = checkTop + 4 + i * rowH;
                 this.g.setColor(done[i] ? Theme.GREEN : Theme.LINE);
-                this.g.drawRect(8, ry + 3, 8, 8);
+                this.g.drawRect(8, ry + 1, 8, 8);
                 if (done[i]) {
                     this.g.setColor(Theme.GREEN);
-                    this.g.drawLine(9, ry + 7, 11, ry + 9);
-                    this.g.drawLine(11, ry + 9, 14, ry + 4);
+                    this.g.drawLine(9, ry + 5, 11, ry + 7);
+                    this.g.drawLine(11, ry + 7, 14, ry + 2);
                 }
-                Text.draw(this.g, checks[i], 21, ry + 2, 0,
+                Text.draw(this.g, checks[i], 20, ry, 0,
                         done[i] ? Theme.DIM : Theme.TEXT);
             }
         }
 
-        // feedback + progress card (bottom)
-        int cy = footerTop - cardH;
+        // feedback + progress
         this.g.setColor(Theme.PANEL);
-        this.g.fillRoundRect(4, cy, w - 8, cardH, 4);
+        this.g.fillRoundRect(4, cardY, w - 8, cardH, 4);
         this.g.setColor(Theme.LINE);
-        this.g.drawRoundRect(4, cy, w - 8, cardH, 4);
+        this.g.drawRoundRect(4, cardY, w - 8, cardH, 4);
         Text.draw(this.g, Text.fit(this.workshop.toolFeedback, 0, w - 18), 9,
-                cy + 3, 0, Theme.GREEN);
+                cardY + 3, 0, Theme.GREEN);
         int progress = Workshop.progress(this.workshop);
-        String label = "\u0413\u043e\u0442\u043e\u0432\u043d\u043e\u0441\u0442\u044c: " + progress + "%";
-        Text.draw(this.g, label, 9, cy + 4 + this.FH0, 0,
+        String label = "\u0433\u043e\u0442\u043e\u0432\u043d\u043e\u0441\u0442\u044c " + progress + "%";
+        Text.draw(this.g, label, 9, cardY + 4 + this.FH0, 0,
                 progress >= 100 ? Theme.GREEN : Theme.ACCENT);
         int bx = 9 + this.g.textWidth(label, 0) + 6;
         int bw = w - bx - 12;
-        int by = cy + 6 + this.FH0;
+        int by = cardY + 6 + this.FH0;
         this.g.setColor(Theme.BG);
         this.g.fillRect(bx, by, bw, this.FH0 - 3);
         if (progress > 0) {
@@ -3776,6 +3781,7 @@ public class Game {
         this.footer("OK: \u043f\u0440\u0438\u043c\u0435\u043d\u0438\u0442\u044c  1-6: \u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442",
                 "BACK");
     }
+
 
 
     private void inputWorkshopTools(int action) {

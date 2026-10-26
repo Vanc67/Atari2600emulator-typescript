@@ -102,7 +102,7 @@ public final class Workshop {
         int cw = Math.min(20, (w - 24) / n);
         for (int i = 0; i < n; i++) {
             int cx = x + 12 + i * cw;
-            int ch = Math.min(70, h - 70);
+            int ch = Math.min(140, h - 60);
             boolean bad = ws.caps[i] != 0;
             // body
             g.setColor(bad ? Theme.ORANGE : 0x3A5A8A);
@@ -180,7 +180,7 @@ public final class Workshop {
         int rx = x + 8;
         int ry = y + 20;
         int rw = w - 16;
-        int rh = Math.max(40, Math.min(h - 62, 110));
+        int rh = Math.max(40, Math.min(h - 62, 170));
         int fins = 14;
         for (int i = 0; i < fins; i++) {
             int fx = rx + i * rw / fins;
@@ -237,7 +237,7 @@ public final class Workshop {
         int sx = x + 8;
         int sy = y + 44;
         int sw = w - 16;
-        int sh = Math.max(30, Math.min(56, h - 60));
+        int sh = Math.max(30, Math.min(120, h - 60));
         g.setColor(0x06120A);
         g.fillRect(sx, sy, sw, sh);
         g.setColor(0x143818);
