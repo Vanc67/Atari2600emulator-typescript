@@ -1,4 +1,11 @@
+# Intermediate and re-creatable output of tools/build-apk.sh.
 build/
 *.apk
 *.keystore
 *.jks
+
+# The one exception: release/ holds the artifact that is actually handed to the
+# user. The pipeline needs a Java runtime plus the Android build-tools, which
+# are not present on a normal checkout, so this APK cannot be rebuilt there -
+# unlike everything under build/, it is a deliverable, not an intermediate.
+!release/A5-Boot-Lab.apk
