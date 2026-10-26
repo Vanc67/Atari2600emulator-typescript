@@ -77,8 +77,14 @@ public final class BuildView {
         // ---- bench surface -------------------------------------------
         g.setColor(Theme.PANEL2);
         g.fillRect(x, y, w, h);
-        g.setColor(0x2A2E3C);
-        g.fillRect(x, y + h - 6, w, 6);
+        g.setColor(0x232838);
+        for (int i = 0; i < h; i += 6) {
+            g.drawLine(x, y + i, x + w, y + i);
+        }
+        g.setColor(0x1A1E28);
+        g.fillRect(x, y + h - 5, w, 5);
+        g.setColor(0x3A4254);
+        g.fillRect(x, y + h - 5, w, 1);
 
         drawCase(g, slots, cursor, x, y, w, h, sx, sy, pcOn, frame);
         drawMonitor(g, slots, cursor, x, y, w, h, sx, sy, pcOn, frame);
@@ -88,11 +94,9 @@ public final class BuildView {
         int[] r = cursor < 20 ? slotRect(cursor, x, y, w, h) : null;
         if (r != null) {
             g.setColor(Theme.ACCENT);
-            if ((frame / 8) % 2 == 0) {
-                g.drawRect(r[0] - 1, r[1] - 1, r[2] + 2, r[3] + 2);
-            } else {
-                g.drawRect(r[0] - 2, r[1] - 2, r[2] + 4, r[3] + 4);
-            }
+            int pad = (frame / 12) % 2;
+            g.drawRect(r[0] - 1 - pad, r[1] - 1 - pad, r[2] + 2 + pad * 2,
+                    r[3] + 2 + pad * 2);
         }
     }
 
@@ -267,10 +271,14 @@ public final class BuildView {
         int mw = r[2] * sx / 1000;
         int mh = r[3] * sy / 1000;
         Part mon = slots[13];
-        g.setColor(mon != null ? 0xB9BECB : 0x5A6070);
+        int body = mon != null ? 0xCFD4DE : 0x5A6070;
+        int shade = mon != null ? 0x9AA2B0 : 0x454B58;
+        g.setColor(shade);
         g.fillRoundRect(mx, my, mw, mh, 3);
-        g.setColor(0x1A1E28);
-        g.fillRect(mx + 3, my + 3, mw - 6, mh - 12);
+        g.setColor(body);
+        g.fillRoundRect(mx + 1, my + 1, mw - 2, mh - 3, 3);
+        g.setColor(0x2A2E38);
+        g.fillRoundRect(mx + 3, my + 3, mw - 6, mh - 13, 2);
         if (pcOn) {
             g.setColor(0x1B3A5A);
             g.fillRect(mx + 4, my + 4, mw - 8, mh - 14);
@@ -284,12 +292,20 @@ public final class BuildView {
                 g.fillRect(mx + 7, my + 13 + i * 3, len, 1);
             }
         } else {
-            g.setColor(0x0E1218);
-            g.fillRect(mx + 4, my + 4, mw - 8, mh - 14);
+            // powered off, but the glass still reflects the room
+            g.setColor(0x11151C);
+            g.fillRoundRect(mx + 4, my + 4, mw - 8, mh - 15, 2);
+            g.setColor(0x232A36);
+            g.fillRect(mx + 7, my + 7, (mw - 14) * 2 / 5, 2);
+            g.fillRect(mx + 7, my + 11, (mw - 14) / 3, 1);
         }
-        // stand
+        // stand + LED
         g.setColor(0x6E7482);
-        g.fillRect(mx + mw / 3, my + mh, mw / 3, 3);
+        g.fillRect(mx + mw / 3, my + mh - 2, mw / 3, 3);
+        g.setColor(0x8A90A0);
+        g.fillRect(mx + mw / 5, my + mh + 1, mw * 3 / 5, 2);
+        g.setColor(pcOn ? 0x63E6A0 : 0x4A5060);
+        g.fillRect(mx + mw - 7, my + mh - 7, 2, 2);
         if (cursor == 13) {
             g.setColor(Theme.ACCENT);
             g.drawRoundRect(mx - 1, my - 1, mw + 2, mh + 2, 3);

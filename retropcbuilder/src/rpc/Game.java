@@ -4204,19 +4204,28 @@ public class Game {
         }
     }
     
+    /**
+     * Toast banner.
+     *
+     * It used to sit just above the footer, where it covered the action
+     * buttons of the assembly and workshop screens.  It now floats under the
+     * header, over the scene, and never hides an input.
+     */
     private void paintToast() {
-        int i = Math.min(this.W - 12, this.g.textWidth(this.toast, 0) + 16);
-        int i0 = this.FH0 + 12;
-        int i1 = (this.W - i) / 2;
-        int i2 = this.H - i0 - this.FH0 - 18;
-        this.g.setColor(16763196);
-        this.g.fillRoundRect(i1, i2, i, i0, 6);
-        this.g.setColor(1056800);
-        int i3 = i1 + 8;
-        if (this.g.textWidth(this.toast, 0) > i - 16) {
-            i3 = i1 + 6;
-        }
-        this.g.drawText(this.toast, i3, i2 + 6, 0);
+        int textW = this.g.textWidth(this.toast, 0);
+        int boxW = Math.min(this.W - 10, textW + 18);
+        int boxH = this.FH0 + 12;
+        int x = (this.W - boxW) / 2;
+        int y = this.FH1 + 16;
+        // shadow + plate
+        this.g.setColor(0x05070B);
+        this.g.fillRoundRect(x + 1, y + 2, boxW, boxH, 6);
+        this.g.setColor(Theme.ACCENT);
+        this.g.fillRoundRect(x, y, boxW, boxH, 6);
+        this.g.setColor(0x241A00);
+        this.g.fillRoundRect(x + 1, y + 1, boxW - 2, boxH - 2, 5);
+        Text.draw(this.g, Text.fit(this.toast, 0, boxW - 12), x + 6, y + 5, 0,
+                Theme.ACCENT);
     }
     
     private String fit(String s, int i, int i0) {
@@ -4591,12 +4600,21 @@ public class Game {
 
         // --- action buttons ----------------------------------------------
         int ay = dy + dh + 4;
-        int bh = btnH;
+        int avail = footerTop - ay - 4;
+        int bh = avail / 4 - 2;
+        if (bh > btnH + 6) {
+            bh = btnH + 6;
+        }
+        if (bh < btnH) {
+            bh = btnH;
+        }
         for (int i = 0; i < 7; i++) {
-            int col = i % 2;
-            int row = i / 2;
-            int bw = (this.W - 14) / 2;
-            int bx = 5 + col * (bw + 4);
+            // the seventh action (BIOS/POST) is the important one: full width
+            boolean wide = i == 6;
+            int col = wide ? 0 : i % 2;
+            int row = wide ? 3 : i / 2;
+            int bw = wide ? this.W - 10 : (this.W - 14) / 2;
+            int bx = 5 + col * ((this.W - 14) / 2 + 4);
             int by = ay + row * (bh + 2);
             boolean sel = (20 + i) == this.buildSel;
             this.g.setColor(sel ? 0x2A3D2E : Theme.PANEL);
