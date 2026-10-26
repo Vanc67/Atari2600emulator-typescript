@@ -9,6 +9,7 @@
 const path = require("path");
 require(path.join(__dirname, "..", "web", "arm.js"));       // Bus, ArmCpu
 require(path.join(__dirname, "..", "web", "mmu.js"));       // ARMv7 translation
+require(path.join(__dirname, "..", "web", "firmware.js"));  // Mach-O segment loading
 const A5 = require(path.join(__dirname, "..", "web", "a5.js")); // machine model
 const ENTRY = require(path.join(__dirname, "..", "web", "entrycode.js"));
 const TC = require(path.join(__dirname, "..", "web", "testcode.js")).TESTCODE;
@@ -394,6 +395,118 @@ console.log("\ndata abort through the high vectors");
     const tvec = m.translate((VEC_VA + 0x10) >>> 0, "exec");
     check("VA 0xFFFF0010 -> the handler's first instruction",
           tvec.ok && tvec.pa === ((VEC_PA + 0x10) >>> 0), JSON.stringify(tvec));
+}
+
+
+// ------------------------------------------------------- LDRD/STRD and SWP
+console.log("\nLDRD / STRD / SWP / SWPB");
+{
+    const m = new A5.A5Machine();
+    const prog = TC.doubleword_swap.bytes;
+    const base = 0x40070000;
+    m.write(base, prog);
+    m.cpu.r[15] = base;
+    m.run({ count: 200, stopAt: (base + prog.length) >>> 0 });
+    eq("ran to the end", m.cpu.stopReason, "handoff");
+    eq("nothing unimplemented was hit", m.cpu.unimplementedCount, 0);
+    eq("STRD wrote the low word", m.read32(0x40060010), 0x9ABC1234);
+    eq("STRD wrote the high word (Rt2 = Rt+1)", m.read32(0x40060014), 0xDEF05678);
+    eq("LDRD restored Rt", m.cpu.r[2] >>> 0, 0x9ABC1234);
+    eq("LDRD restored Rt2", m.cpu.r[3] >>> 0, 0xDEF05678);
+    eq("SWP loaded the old value into Rt", m.cpu.r[5] >>> 0, 0x0000BEEF);
+    eq("SWPB loaded the low byte", m.cpu.r[7] & 0xFF, 0xAA);
+    // 0x5555AAAA from SWP, then byte 0 overwritten with 0xFF by SWPB.
+    eq("SWP stored Rt2 and SWPB overwrote byte 0", m.read32(0x40060000), 0x5555AAFF);
+}
+
+// ------------------------------------------------------------ VFP bring-up
+console.log("\nVFP bring-up (CPACR + FPEXC through cp10)");
+{
+    const m = new A5.A5Machine();
+    const prog = TC.vfp_enable.bytes;
+    const base = 0x40071000;
+    m.write(base, prog);
+    m.cpu.r[15] = base;
+    m.run({ count: 200, stopAt: (base + prog.length) >>> 0 });
+    eq("ran to the end", m.cpu.stopReason, "handoff");
+    eq("nothing unimplemented was hit", m.cpu.unimplementedCount, 0);
+    eq("CPACR unblocks cp10 and cp11", m.cpu.cp15Read(0, 1, 0, 2) & 0x00F00000, 0x00F00000);
+    eq("FPEXC.EN is set in the VFP shadow", m.cpu.vfp["vfp:8,0,0"] >>> 0, 0x40000000);
+    eq("vmrs read FPEXC back into r4", m.cpu.r[4] >>> 0, 0x40000000);
+    const kinds = m.cpu.vfpLog.map(e => e.kind);
+    eq("two VFP system register accesses", kinds.length, 2);
+    eq("the write came first", kinds[0], "fmxr");
+    eq("then the read", kinds[1], "vmrs");
+    eq("both targeted FPEXC at CRn 8", m.cpu.vfpLog[0].crn + "," + m.cpu.vfpLog[1].crn, "8,8");
+    eq("the ISB between them was decoded", m.cpu.barrierCount, 1);
+}
+
+
+// ---------------------------------------------------------------- Mach-O loader
+console.log("\nMach-O segment loading (synthetic fixtures, no firmware)");
+{
+    const mk = (n, fill) => { const a = new Uint8Array(n); a.fill(fill); return a; };
+    const text = mk(64, 0x11);
+    const data = mk(256, 0x22);
+    const linkedit = mk(128, 0xEE);
+    const img = A5.buildFakeMacho([
+        { segname: "__TEXT",     vmaddr: 0x80001000, vmsize: 0x1000, bytes: text },
+        { segname: "__DATA",     vmaddr: 0x80002000, vmsize: 0x2000, bytes: data },
+        { segname: "__LINKEDIT", vmaddr: 0x80004000, vmsize: 0x1000, bytes: linkedit }
+    ]);
+
+    eq("magic is the little-endian 32-bit value", A5.loadMachoSegments(img).length, 3);
+    const segs = A5.loadMachoSegments(img);
+    eq("segments keep their order", segs.map(s => s.segname).join(","),
+       "__TEXT,__DATA,__LINKEDIT");
+    eq("__TEXT vmaddr is the kernel VA", segs[0].vmaddr, 0x80001000);
+    eq("__DATA vmsize exceeds filesize (the rest is __bss)",
+       segs[1].vmsize > segs[1].filesize, true);
+
+    const m = new A5.A5Machine();
+    const loaded = A5.loadMacho(m, img, { virtBase: 0x80000000, physBase: 0x40000000 });
+    eq("three segments placed", loaded.length, 3);
+    eq("__TEXT PA = VA - virtBase + physBase", loaded[0].pa, 0x40001000);
+    eq("__DATA PA", loaded[1].pa, 0x40002000);
+    eq("__LINKEDIT PA", loaded[2].pa, 0x40004000);
+    eq("__TEXT content is in place", m.bus.read8(0x40001000), 0x11);
+    eq("__TEXT last byte is in place", m.bus.read8(0x40001000 + 63), 0x11);
+    eq("__DATA file-backed part is in place", m.bus.read8(0x40002000 + 255), 0x22);
+    // The reason segments must be loaded individually: __DATA declares 0x2000 of
+    // VM but carries 0x100 of file. Copying the whole image to one address puts
+    // __LINKEDIT's symbol tables over that gap and every zero-initialised global
+    // turns into garbage.
+    eq("__bss past filesize stayed zero", m.bus.read8(0x40002000 + 256), 0x00);
+    eq("__bss last byte stayed zero", m.bus.read8(0x40002000 + 0x1FFF), 0x00);
+    eq("__LINKEDIT did not land inside __DATA", m.bus.read8(0x40002000 + 256), 0x00);
+    eq("__LINKEDIT is where its own vmaddr says", m.bus.read8(0x40004000), 0xEE);
+
+    // Rejection fixtures.
+    function throws(fn, label) {
+        try { fn(); return null; }
+        catch (e) { return e.name === "MachOLoadError" ? e.message : ("wrong error: " + e); }
+    }
+    const swapped = img.slice();
+    new DataView(swapped.buffer).setUint32(0, A5.MH_CIGAM, true);
+    check("byte-swapped magic 0xCEFAEDFE is rejected",
+          /byte-swapped/.test(throws(() => A5.loadMachoSegments(swapped)) || ""),
+          String(throws(() => A5.loadMachoSegments(swapped))));
+    const junk = new Uint8Array(64); junk.fill(0x41);
+    check("non-Mach-O bytes are rejected",
+          /bad Mach-O magic/.test(throws(() => A5.loadMachoSegments(junk)) || ""),
+          String(throws(() => A5.loadMachoSegments(junk))));
+    check("a 4-byte file is rejected as too short",
+          /too short/.test(throws(() => A5.loadMachoSegments(new Uint8Array(4))) || ""),
+          String(throws(() => A5.loadMachoSegments(new Uint8Array(4)))));
+
+    // The 64-bit magic parses too, with the header being four bytes longer.
+    const img64 = img.slice();
+    new DataView(img64.buffer).setUint32(0, A5.MH_MAGIC_64, true);
+    let ok64 = true;
+    try { A5.loadMachoSegments(img64); } catch (e) { ok64 = false; }
+    check("64-bit magic is accepted without throwing", ok64);
+    eq("mach_header_32 is 28 bytes", A5.MACH_HEADER_32_SIZE, 28);
+    eq("mach_header_64 is 32 bytes", A5.MACH_HEADER_64_SIZE, 32);
 }
 
 console.log("\n%d passed, %d failed", pass, fail);

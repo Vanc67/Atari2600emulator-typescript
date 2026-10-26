@@ -345,6 +345,8 @@ var A5 = __g.A5 || (__g.A5 = {});
         this.aborts = { prefetch: 0, data: 0 };
         this._curPc = 0;                    // address of the instruction in flight
         this.barrierCount = 0;
+        this.vfp = {};                // VFP system register shadow (cp10)
+        this.vfpLog = [];
         this.haltOnUndefined = opts.haltOnUndefined !== false;
         this.mmu = opts.mmu || null;
         this.mem = new CpuMem(this);
@@ -623,6 +625,12 @@ var A5 = __g.A5 || (__g.A5 = {});
         if ((insn & 0x0F000010) === 0x0E000010) {
             var coproc = (insn >>> 8) & 0xF;
             if (coproc === 15) return this.execMcrMrc(insn, pc);
+            // Coprocessor 10 is VFP, and `vmrs Rt, fpexc` / `fmxr fpexc, Rt`
+            // arrive here as MRC/MCR p10, #7. Bringing the FPU up needs exactly
+            // this path: CPACR gets cp10/cp11 unblocked, then FPEXC.EN is set.
+            if (coproc === 10 && ((insn >>> 21) & 7) === 7) {
+                return this.execVfpSysreg(insn, pc);
+            }
             this.unimplementedCount++;
             this.halt("unimplemented-coproc-" + coproc, pc);
             return false;
@@ -723,6 +731,14 @@ var A5 = __g.A5 || (__g.A5 = {});
             return this.execMultiply(insn, pc);
         }
 
+        // SWP / SWPB: cond 0001 0 B 00 Rn Rt 0000 1001 Rt2.
+        // Shares bits[7:4] == 1001 with the multiply space but has bit 24 set,
+        // so the multiply test above does not catch it. Left unhandled it fell
+        // through to the data-processing decoder, where bits[24:21] == 0b0000
+        // made `swp r0, r2, [r1]` execute as an AND: no memory was touched and
+        // nothing signalled that anything was wrong.
+        if ((insn & 0x0FB00FF0) === 0x01000090) return this.execSwap(insn, pc);
+
         // LDM / STM
         if ((insn & 0x0E000000) === 0x08000000) {
             return this.execLdmStm(insn, pc);
@@ -793,6 +809,35 @@ var A5 = __g.A5 || (__g.A5 = {});
         } else {
             var src = (rt === 15) ? ((pc + 8) | 0) : this.r[rt];
             this.cp15Write(opc1, crn, crm, opc2, src);
+        }
+        return true;
+    };
+
+    /**
+     * VFP system register access (vmrs / fmxr). Values round-trip through a
+     * shadow keyed the same way as cp15's, so an enable sequence written by
+     * guest code is observable. The read-only identification registers (FPSID,
+     * MVFR0/MVFR1) return whatever the guest last wrote and zero otherwise:
+     * the A5's exact VFP identification values are not in any source consulted
+     * here, and inventing a part number would be worse than returning zero.
+     */
+    ArmCpu.prototype.execVfpSysreg = function (insn, pc) {
+        var isRead = (insn >>> 20) & 1;
+        var crn = (insn >>> 16) & 0xF;
+        var rt = (insn >>> 12) & 0xF;
+        var opc2 = (insn >>> 5) & 7;
+        var crm = insn & 0xF;
+        var key = "vfp:" + crn + "," + crm + "," + opc2;
+        if (!this.vfpLog) this.vfpLog = [];
+        if (this.vfpLog.length < 4096) {
+            this.vfpLog.push({ kind: isRead ? "vmrs" : "fmxr", pc: pc, crn: crn, crm: crm, opc2: opc2, rt: rt });
+        }
+        if (isRead) {
+            var v = this.vfp[key];
+            this.r[rt] = (v === undefined ? 0 : v) | 0;
+        } else {
+            if (!this.vfp) this.vfp = {};
+            this.vfp[key] = this.r[rt] | 0;
         }
         return true;
     };
@@ -1066,18 +1111,74 @@ var A5 = __g.A5 || (__g.A5 = {});
         var base = this.get(rn) >>> 0;
         var addr = (base + (U ? offset : (-offset | 0))) >>> 0;
 
+        // bits[6:5] selects the size, bit 20 the direction, and the pairing is
+        // not what the size field alone suggests -- confirmed by assembling each
+        // form with keystone and reading it back with capstone:
+        //   sh=1 (bits[7:4]=0xB)  L=1 LDRH    L=0 STRH
+        //   sh=2 (bits[7:4]=0xD)  L=1 LDRSB   L=0 LDRD
+        //   sh=3 (bits[7:4]=0xF)  L=1 LDRSH   L=0 STRD
+        // Treating L as "load" throughout makes LDRD a load and STRD a store,
+        // but the doubleword forms sit on the L=0 side of sh=2 and the L=0 side
+        // of sh=3 respectively.
+        if (sh === 2 && !L) return this.execDoubleword(insn, pc, addr, true);
+        if (sh === 3 && !L) return this.execDoubleword(insn, pc, addr, false);
+
         var value;
         if (L) {
             if (sh === 1) value = this.mem.read16(addr) >>> 0;
             else if (sh === 2) value = this.mem.read8(addr) | 0;
             else { value = this.mem.read16(addr); if (value & 0x8000) value |= 0xFFFF0000; value |= 0; }
             if (rt === 15) this.branchTo(value >>> 0); else this.r[rt] = value | 0;
+        } else if (sh === 1) {
+            this.mem.write16(addr, this.r[rt]);
         } else {
-            if (sh === 1) this.mem.write16(addr, this.r[rt]);
-            else this.unimplementedCount++;
+            this.unimplementedCount++;
         }
         if (P && W && rn !== 15) this.r[rn] = addr | 0;
         if (!P && rn !== 15) this.r[rn] = addr | 0;
+        return true;
+    };
+
+    /**
+     * LDRD / STRD. Rt2 is *implicit* in the immediate form (bit 22 set): the
+     * architecture takes it as Rt+1 and bits[11:8] are the high half of the
+     * offset. Only the register form (bit 22 clear) puts Rt2 in bits[11:8].
+     * keystone confirms this: `ldrd r0, r1, [r2, #8]` is 0xE1C200D8, where
+     * bits[3:0] == 8 is the offset's low half, not a register number.
+     */
+    ArmCpu.prototype.execDoubleword = function (insn, pc, addr, isLoad) {
+        var rt = (insn >>> 12) & 0xF;
+        var rt2 = (insn & (1 << 22)) ? ((rt + 1) & 0xF) : ((insn >>> 8) & 0xF);
+        if (rt === 15 || rt2 === 15 || rt === rt2) {
+            this.unimplementedCount++;
+            this.halt("ldrstrd-unpredictable-r" + rt + "-r" + rt2, pc);
+            return false;
+        }
+        if (isLoad) {
+            this.r[rt] = this.mem.read32(addr) | 0;
+            this.r[rt2] = this.mem.read32((addr + 4) >>> 0) | 0;
+        } else {
+            this.mem.write32(addr, this.r[rt]);
+            this.mem.write32((addr + 4) >>> 0, this.r[rt2]);
+        }
+        var rn = (insn >>> 16) & 0xF;
+        var W = (insn >>> 21) & 1, P = (insn >>> 24) & 1;
+        if (P && W && rn !== 15) this.r[rn] = addr | 0;         // pre-indexed writeback
+        if (!P && rn !== 15) this.r[rn] = addr | 0;             // post-indexed
+        return true;
+    };
+
+    /** SWP / SWPB: Rt = [Rn]; [Rn] = Rt2. Single-copy atomic on real hardware. */
+    ArmCpu.prototype.execSwap = function (insn, pc) {
+        var rn = (insn >>> 16) & 0xF;
+        var rt = (insn >>> 12) & 0xF;
+        var rt2 = insn & 0xF;
+        var byte = (insn >>> 22) & 1;
+        var addr = this.get(rn) >>> 0;
+        var loaded = byte ? (this.mem.read8(addr) & 0xFF) : (this.mem.read32(addr) >>> 0);
+        if (byte) this.mem.write8(addr, this.r[rt2]);
+        else this.mem.write32(addr, this.r[rt2]);
+        this.r[rt] = loaded | 0;
         return true;
     };
 

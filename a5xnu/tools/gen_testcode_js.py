@@ -143,6 +143,45 @@ PROGRAMS = {
         bx   r8
     """,
 
+    # LDRD/STRD and SWP/SWPB. keystone only accepts the implicit Rt2 = Rt+1
+    # form (it rejects `ldrd r0, r2, [r1]`), which is itself the confirmation
+    # that bits[11:8] are the offset's high half here, not a register number.
+    "doubleword_swap": """
+        movw r1, #0x0000
+        movt r1, #0x4006        // 0x40060000, scratch inside RAM
+        movw r8, #0xBEEF
+        str  r8, [r1, #0]       // [0x40060000] = 0x0000BEEF
+        movw r2, #0x1234
+        movt r2, #0x9ABC        // r2 = 0x9ABC1234
+        movw r3, #0x5678
+        movt r3, #0xDEF0        // r3 = 0xDEF05678
+        strd r2, [r1, #16]      // [0x40060010] = r2, [0x40060014] = r3
+        mov  r2, #0
+        mov  r3, #0
+        ldrd r2, [r1, #16]      // r2/r3 restored
+        movw r4, #0xAAAA
+        movt r4, #0x5555        // r4 = 0x5555AAAA
+        swp  r5, r4, [r1]       // r5 = 0x0000BEEF, [0x40060000] = 0x5555AAAA
+        movw r6, #0x00FF
+        swpb r7, r6, [r1]       // r7 = 0xAA, and byte 0 becomes 0xFF
+    """,
+
+    # The documented VFP bring-up sequence: unblock cp10/cp11 in CPACR, then
+    # set FPEXC.EN. `fmxr`/`vmrs` are MCR/MRC p10, #7 with FPEXC at CRn 8 --
+    # confirmed by assembling both and reading them back with capstone.
+    "vfp_enable": """
+        mrc  p15, 0, r1, c1, c0, 2      // CPACR
+        movw r2, #0x0000
+        movt r2, #0x00F0                // r2 = 0x00F00000
+        orr  r1, r1, r2
+        mcr  p15, 0, r1, c1, c0, 2      // cp10 and cp11 at full access
+        isb
+        movw r3, #0x0000
+        movt r3, #0x4000                // r3 = 0x40000000
+        fmxr fpexc, r3                  // FPEXC.EN = 1
+        vmrs r4, fpexc                  // and read it back
+    """,
+
     "thumb_smoke": """
         movs r0, #7
         lsls r1, r0, #4

@@ -13,10 +13,14 @@
     * configChanges is wide so a rotation or a dark-mode flip does not recreate
       the Activity and throw away the WebView's state.
 -->
+<!--
+  versionCode and versionName are deliberately absent: aapt2 link is given
+  -\-version-code / -\-version-name by build-apk.sh, and an attribute written
+  here silently wins over the flag, so the built package kept reporting 1/1.0
+  no matter what was passed on the command line.
+-->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.arena.apkshell"
-    android:versionCode="1"
-    android:versionName="1.0">
+    package="com.arena.apkshell">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="33" />
 
