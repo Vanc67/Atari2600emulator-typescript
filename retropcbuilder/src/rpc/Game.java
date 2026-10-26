@@ -4367,7 +4367,7 @@ public class Game {
         this.g.setColor(Theme.PANEL);
         this.g.fillRect(6, barY, w - 12, this.FH0 + 3);
         Text.draw(this.g, Text.fit(prog, 0, w - 16), 10, barY + 2, 0, Theme.MUTED);
-        this.footer("\u2191\u2193 \u0432\u044b\u0431\u043e\u0440", "OK");
+        this.footer("\u2191\u2193 \u0432\u044b\u0431\u043e\u0440  1-8 \u0431\u044b\u0441\u0442\u0440\u043e", "OK");
     }
 
     
@@ -6364,7 +6364,7 @@ public class Game {
                 this.g.drawText(this.fit(new StringBuffer("\u0441\u0438\u0441\u0442\u0435\u043c\u0430: ").append((this.osIndex < 0) ? rpc.Os.name(this.levelYear()) : rpc.Inst.all()[this.osIndex].name).toString(), this.W - 16, 0), 10, this.H - this.FH0 * 3 - 34, 0);
                 this.g.drawText(this.fit(new StringBuffer(String.valueOf((Object)String.valueOf((Object)rpc.Langs.t(this.osLang, 12)))).append(": ").append(rpc.Langs.NAME[this.osLang]).append(" \u2022 ").append(rpc.Langs.CODE[this.osLang]).toString(), this.W - 16, 0), 10, this.H - this.FH0 * 2 - 30, 0);
                 this.g.drawText(this.fit(new StringBuffer("\u0441\u0435\u0442\u044c: ").append(this.netKind()).toString(), this.W - 16, 0), 10, this.H - this.FH0 * 2 - 18, 0);
-                this.footer("\u2191\u2193 \u0432\u044b\u0431\u043e\u0440", "OK");
+                this.footer("\u2191\u2193 \u0432\u044b\u0431\u043e\u0440  1-8 \u0431\u044b\u0441\u0442\u0440\u043e", "OK");
                 return;
             }
         } else {

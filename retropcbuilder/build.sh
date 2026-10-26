@@ -107,6 +107,8 @@ if [ "$WANT_HARNESS" = "1" ]; then
             docs/screens
         "$JAVA_BIN" -cp "$CLASSES:$HARNESS_CLASSES" rpc.harness.FontTest \
             docs/screens/font.bmp
+        $PY tools/bmp2png.py docs/screens
+        $PY tools/frames_to_gif.py 'docs/screens/*.png' docs/screens/tour.gif
     fi
 fi
 
