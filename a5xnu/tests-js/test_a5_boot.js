@@ -9,6 +9,7 @@
 const path = require("path");
 require(path.join(__dirname, "..", "web", "arm.js"));       // Bus, ArmCpu
 require(path.join(__dirname, "..", "web", "mmu.js"));       // ARMv7 translation
+require(path.join(__dirname, "..", "web", "aic.js"));       // AIC v1 + private timer
 require(path.join(__dirname, "..", "web", "firmware.js"));  // Mach-O segment loading
 const A5 = require(path.join(__dirname, "..", "web", "a5.js")); // machine model
 const ENTRY = require(path.join(__dirname, "..", "web", "entrycode.js"));
@@ -507,6 +508,150 @@ console.log("\nMach-O segment loading (synthetic fixtures, no firmware)");
     check("64-bit magic is accepted without throwing", ok64);
     eq("mach_header_32 is 28 bytes", A5.MACH_HEADER_32_SIZE, 28);
     eq("mach_header_64 is 32 bytes", A5.MACH_HEADER_64_SIZE, 32);
+}
+
+
+// ------------------------------------------------- AIC v1 register semantics
+// Offsets are derived, not guessed: Linux's aic_init() case 1 starts at
+// TARGET_CPU (0x3000), adds 4 * MAX_IRQ (0x400) to reach SW_SET, then walks
+// four 128-byte blocks. The one inferred semantic is that reading AIC_EVENT
+// consumes the event, because aic_handle_irq() loops `while (event)`.
+console.log("\nAIC v1 register map");
+{
+    const R = A5.AIC;
+    const aic = new A5.Aic();
+    eq("SW_SET = TARGET_CPU + 4*MAX_IRQ", R.SW_SET, 0x4000);
+    eq("SW_CLR is one 128-byte block later", R.SW_CLR, 0x4080);
+    eq("MASK_SET", R.MASK_SET, 0x4100);
+    eq("MASK_CLR", R.MASK_CLR, 0x4180);
+    eq("HW_STATE", R.HW_STATE, 0x4200);
+    eq("the whole map fits k93ap's 0x10000 window", R.HW_STATE + R.BLOCK_BYTES <= 0x10000, true);
+    eq("AIC_INFO reports the implemented line count", aic.read(R.INFO, 4), 32);
+
+    aic.write(R.SW_SET, 4, 1 << 5);
+    eq("a masked interrupt is not pending", aic.irqPending(), false);
+    eq("EVENT reports 0 while masked", aic.read(R.EVENT, 4), 0);
+    aic.write(R.MASK_CLR, 4, 1 << 5);
+    eq("unmasked: now pending", aic.irqPending(), true);
+    eq("EVENT reports type IRQ, number 5", aic.read(R.EVENT, 4), ((R.EVENT_TYPE_IRQ << 16) | 5) >>> 0);
+    eq("reading EVENT consumed it", aic.irqPending(), false);
+    eq("so the driver's read-until-zero loop terminates", aic.read(R.EVENT, 4), 0);
+
+    aic.write(R.MASK_CLR, 4, (1 << 9) | (1 << 3));
+    aic.write(R.SW_SET, 4, (1 << 9) | (1 << 3));
+    eq("lowest-numbered pending IRQ first", aic.read(R.EVENT, 4) & 0xFFFF, 3);
+    eq("then the next", aic.read(R.EVENT, 4) & 0xFFFF, 9);
+
+    aic.write(R.MASK_CLR, 4, 1 << 7);
+    aic.raise(7);
+    eq("HW_STATE reflects a raised device line", aic.read(R.HW_STATE, 4) & (1 << 7), (1 << 7) | 0);
+    eq("a hardware line is reported as type IRQ too", aic.read(R.EVENT, 4), ((1 << 16) | 7) >>> 0);
+    aic.write(R.TARGET_CPU + 7 * 4, 4, 1);
+    eq("TARGET_CPU is per-IRQ", aic.read(R.TARGET_CPU + 7 * 4, 4), 1);
+
+    aic.write(R.IPI_SEND, 4, 1);
+    eq("IPI_SEND asserts", aic.irqPending(), true);
+    eq("an IPI is reported as type 4", (aic.read(R.EVENT, 4) >>> 16) & 0xFF, R.EVENT_TYPE_IPI);
+    eq("and consumed by the read", aic.irqPending(), false);
+
+    eq("an offset nobody has reverse-engineered reads as null", aic.read(0x20, 4), null);
+    eq("and is not silently accepted for writing", aic.write(0x20, 4, 1), false);
+}
+
+// ------------------------------------------- Cortex-A9 private timer semantics
+console.log("\nCortex-A9 private timer / watchdog");
+{
+    const T = A5.PRIVTIMER;
+    const aic = new A5.Aic();
+    const t = new A5.A9PrivateTimer({ intc: aic, irq: 7 });
+    t.write(T.LOAD, 4, 50);
+    eq("writing LOAD also loads COUNTER", t.counter, 50);
+    eq("the line is not asserted before CONTROL enables it", aic.hw[0] & (1 << 7), 0);
+    t.write(T.CONTROL, 4, 0x07);                 // enable | auto-reload | irq
+    t.tick(49);
+    eq("49 ticks: not expired yet", t.intStatus, 0);
+    t.tick(1);
+    eq("50 ticks: expired", t.intStatus, 1);
+    eq("the AIC line is asserted", aic.hw[0] & (1 << 7), (1 << 7) | 0);
+    eq("auto-reload restarted the counter from LOAD", t.counter, 50);
+    t.write(T.INT_STATUS, 4, 1);
+    eq("write-1-to-clear drops INT_STATUS", t.intStatus, 0);
+    eq("and deasserts the AIC line", aic.hw[0] & (1 << 7), 0);
+
+    const t2 = new A5.A9PrivateTimer({ intc: aic, irq: 8 });
+    t2.write(T.LOAD, 4, 10);
+    t2.write(T.CONTROL, 4, 0x05);                // enable | irq, no reload
+    t2.tick(10);
+    eq("expired once", t2.expiries, 1);
+    t2.write(T.INT_STATUS, 4, 1);
+    t2.tick(1000);
+    eq("without auto-reload it cannot expire again", t2.expiries, 1);
+
+    t2.write(T.WDOG_LOAD, 4, 4);
+    t2.write(T.WDOG_CONTROL, 4, 0x09);           // enable | reset-enable
+    t2.tick(4);
+    eq("the watchdog expired", t2.wdogExpiries, 1);
+    eq("it recorded a reset request rather than resetting", t2.wdogResetRequests, 1);
+    t2.write(T.WDOG_CONTROL, 4, 0x01);
+    t2.write(T.WDOG_DISABLE, 4, 0x1);
+    eq("a stray write does not disable the watchdog", t2.wdogControl & 1, 1);
+    t2.write(T.WDOG_DISABLE, 4, 0x12345678);
+    eq("the magic sequence does", t2.wdogControl, 0);
+}
+
+// ------------------------------------------------------ IRQ taken by the CPU
+console.log("\nIRQ delivery: software interrupt through the AIC");
+{
+    const m = new A5.A5Machine();
+    const probe = TC.arm_irq_probe.bytes;
+    const handler = TC.arm_irq_handler.bytes;
+    const base = 0x40080000, SCRATCH = 0x40060000;
+    m.write(base, probe);
+    // SCTLR.V is clear on a fresh machine, so the vector base is 0 and the IRQ
+    // vector is at 0x18.
+    m.write(0x18, handler);
+    m.cpu.r[15] = base;
+    const reason = m.run({ count: 4000, stopAt: (base + probe.length) >>> 0 });
+
+    eq("the probe ran to completion", reason, "handoff");
+    eq("execution resumed after the handler returned", m.cpu.r[0] & 0xFF, 0x5A);
+    eq("exactly one IRQ was taken", m.cpu.irqCount, 1);
+    eq("no FIQ", m.cpu.fiqCount, 0);
+    eq("SPSR_irq holds the interrupted CPSR, in SVC mode",
+       m.read32(SCRATCH + 4) & 0x1F, 0x13);
+    eq("...with CPSR.I already cleared by the probe", m.read32(SCRATCH + 4) & 0x80, 0);
+    eq("LR_irq = interrupted instruction + 4", m.read32(SCRATCH + 8), (base + 0x28 + 4) >>> 0);
+    eq("the handler ran in IRQ mode", m.read32(SCRATCH + 12) & 0x1F, 0x12);
+    eq("AIC_EVENT named IRQ 5 as type IRQ", m.read32(SCRATCH + 20), ((1 << 16) | 5) >>> 0);
+    eq("subs pc, lr, #4 restored CPSR from SPSR_irq", m.cpu.mode(), 0x13);
+    eq("and left CPSR.I clear, as it was when interrupted", m.cpu.cpsr & 0x80, 0);
+    eq("reading EVENT consumed the software interrupt", m.aic.swSet[0], 0);
+    eq("the instruction after the interrupt point then executed",
+       m.read32(SCRATCH + 24), 0x20);
+}
+
+console.log("\nIRQ delivery: Cortex-A9 private timer");
+{
+    const m = new A5.A5Machine();
+    const probe = TC.arm_timer_probe.bytes;
+    const handler = TC.arm_timer_irq_handler.bytes;
+    const base = 0x40080000, SCRATCH = 0x40060000;
+    const timer = m.attachTimer(0x0F300000, 0x100, 7);
+    m.write(base, probe);
+    m.write(0x18, handler);
+    m.cpu.r[15] = base;
+    const reason = m.run({ count: 4000, stopAt: (base + probe.length) >>> 0 });
+
+    eq("the probe ran to completion", reason, "handoff");
+    eq("LOAD reached the timer through MMIO", timer.load, 20);
+    eq("CONTROL = enable | irq-enable", timer.control, 0x05);
+    eq("the timer expired exactly once", timer.expiries, 1);
+    eq("exactly one IRQ was taken", m.cpu.irqCount, 1);
+    eq("AIC_EVENT named IRQ 7", m.read32(SCRATCH + 20), ((1 << 16) | 7) >>> 0);
+    eq("the handler cleared INT_STATUS", timer.intStatus, 0);
+    eq("so the AIC line is deasserted", m.aic.hw[0] & (1 << 7), 0);
+    eq("execution resumed after the handler", m.cpu.r[8] & 0xFF, 0xA5);
+    eq("back in SVC mode", m.cpu.mode(), 0x13);
 }
 
 console.log("\n%d passed, %d failed", pass, fail);

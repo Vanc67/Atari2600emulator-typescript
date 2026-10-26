@@ -199,6 +199,15 @@ var A5 = __g.A5 || (__g.A5 = {});
         };
 
         this.uarts = {};
+        // Declared before the MMIO loop, which assigns it in _wireAic. Declaring
+        // it afterwards instead silently replaced the wired controller with null,
+        // so the CPU never saw an interrupt source: the probe ran to completion,
+        // every IRQ assertion read an untouched zero, and nothing reported that
+        // the device had been dropped.
+        this.aic = null;
+        this.aicReads = 0;
+        this.aicWrites = 0;
+        this.timer = null;
         this.unimplemented = [];
         this.unimplementedTotal = 0;
         this.unimpDevices = {};
@@ -214,6 +223,8 @@ var A5 = __g.A5 || (__g.A5 = {});
                 this._wire(name, base, size,
                     function (u) { return function (off, sz) { return u.read(off); }; }(uart),
                     function (u) { return function (off, sz, v) { u.write(off, v); }; }(uart));
+            } else if (name === "aic") {
+                this._wireAic(name, base, size);
             } else {
                 this._wireUnimplemented(name, base, size);
             }
@@ -238,6 +249,65 @@ var A5 = __g.A5 || (__g.A5 = {});
     // A mapped-but-unmodelled block would silently absorb accesses into inert
     // RAM. Logging them is what makes the next step possible: the AIC's
     // register semantics have to be recovered from exactly this trail.
+    /**
+     * The AIC is modelled (see aic.js for the register map and its sources), but
+     * only for the offsets Linux's version-1 branch actually defines. Anything
+     * else still goes to the unimplemented log under the same "aic" name, so an
+     * access to an offset nobody has reverse-engineered is visible rather than
+     * silently answered with zero.
+     */
+    A5Machine.prototype._wireAic = function (name, base, size) {
+        var self = this;
+        var aic = new A5.Aic();
+        this.aic = aic;
+        this.bus.addMMIO(name, base, size,
+            function (off, sz) {
+                var v = aic.read(off, sz);
+                if (v === null) {
+                    self._log({ kind: "unimp-read:" + name, addr: off, size: sz, value: 0 });
+                    self.unimpDevices[name] = (self.unimpDevices[name] || 0) + 1;
+                    return 0;
+                }
+                self.aicReads = (self.aicReads || 0) + 1;
+                return v;
+            },
+            function (off, sz, v) {
+                if (!aic.write(off, sz, v)) {
+                    self._log({ kind: "unimp-write:" + name, addr: off, size: sz, value: v >>> 0 });
+                    self.unimpDevices[name] = (self.unimpDevices[name] || 0) + 1;
+                    return;
+                }
+                self.aicWrites = (self.aicWrites || 0) + 1;
+            });
+    };
+
+    /**
+     * Attach the Cortex-A9 private timer. It is not part of the board map by
+     * default: k93ap declares no timer block at all, so putting one at a
+     * specific address would be inventing hardware. Tests attach it explicitly.
+     */
+    A5Machine.prototype.attachTimer = function (base, size, irq) {
+        var self = this;
+        var t = new A5.A9PrivateTimer({ intc: this.aic, irq: irq });
+        this.timer = t;
+        this.timerBase = base >>> 0;
+        this.bus.addMMIO("privtimer", base >>> 0, size,
+            function (off, sz) {
+                var v = t.read(off, sz);
+                if (v === null) {
+                    self._log({ kind: "unimp-read:privtimer", addr: off, size: sz, value: 0 });
+                    return 0;
+                }
+                return v;
+            },
+            function (off, sz, v) {
+                if (!t.write(off, sz, v)) {
+                    self._log({ kind: "unimp-write:privtimer", addr: off, size: sz, value: v >>> 0 });
+                }
+            });
+        return t;
+    };
+
     A5Machine.prototype._wireUnimplemented = function (name, base, size) {
         var self = this;
         this.bus.addMMIO(name, base, size,
@@ -291,6 +361,14 @@ var A5 = __g.A5 || (__g.A5 = {});
     //   handoff                -> reached the target address (success)
     //   insn-invalid           -> UDF or an encoding Unicorn would reject too
     //   unimplemented-*        -> the model ran out of ARM; the address is the lead
+    A5Machine.prototype._bindIntc = function () {
+        // Done lazily because the AIC is created during MMIO wiring, which runs
+        // before the CPU exists.
+        if (this.aic && this.cpu && this.cpu.interruptController !== this.aic) {
+            this.cpu.interruptController = this.aic;
+        }
+    };
+
     A5Machine.prototype.resume = function (opts) {
         opts = opts || {};
         this.stalled = null;
@@ -302,8 +380,10 @@ var A5 = __g.A5 || (__g.A5 = {});
         if (opts.stopAt !== undefined && opts.stopAt !== null) this.cpu.stopAt = opts.stopAt >>> 0;
         var limit = opts.count || 1000000;
         var lastExcPc = -1, repeats = 0;
+        this._bindIntc();
         while (!this.cpu.halted) {
             var before = this.cpu.r[15] >>> 0;
+            if (this.timer) this.timer.tick(1);
             this.cpu.step();
             var after = this.cpu.r[15] >>> 0;
             if (after === before && !this.cpu.halted) {

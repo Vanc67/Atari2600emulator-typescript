@@ -182,6 +182,121 @@ PROGRAMS = {
         vmrs r4, fpexc                  // and read it back
     """,
 
+    # IRQ handler, written at the vector (0x00000018 with SCTLR.V clear).
+    # Records everything the architecture guarantees an IRQ entry provides,
+    # then pops the AIC event -- which is what stops it recursing, since the
+    # model asserts the line again on the next tick while an event is pending.
+    #
+    # `subs pc, lr, #4` restores CPSR from SPSR_irq, which is how the I mask
+    # gets put back without the handler touching it explicitly.
+    "arm_irq_handler": """
+        mrs  r6, spsr                   // CPSR at the moment of the interrupt
+        mov  r7, r14                    // LR_irq = interrupted instruction + 4
+        movw r8, #0x0000
+        movt r8, #0x4006                // 0x40060000 scratch
+        str  r6, [r8, #4]
+        str  r7, [r8, #8]
+        mrs  r9, cpsr                   // now in IRQ mode
+        str  r9, [r8, #12]
+        mov  r10, r13                   // r13_irq, banked separately
+        str  r10, [r8, #16]
+        movw r11, #0x2004
+        movt r11, #0x0F20               // 0x0F202004 = AIC_EVENT
+        ldr  r12, [r11]
+        str  r12, [r8, #20]             // [23:16] type, [15:0] irq number
+        subs pc, lr, #4                 // return, restoring CPSR from SPSR
+    """,
+
+    # Raises a software IRQ through the AIC and then unmasks CPSR.I so it is
+    # actually taken. AIC v1 offsets come from Linux's version-1 branch:
+    # SW_SET = TARGET_CPU(0x3000) + 4*MAX_IRQ(0x400) = 0x4000, MASK_CLR = 0x4180.
+    # A 12-bit load/store immediate cannot reach 0x4180, so the addresses are
+    # built with movw/movt into their own registers.
+    "arm_irq_probe": """
+        movw r3, #0x4180
+        movt r3, #0x0F20        // 0x0F204180 = AIC_MASK_CLR
+        movw r2, #0x0020        // bit 5
+        str  r2, [r3]           // unmask IRQ 5
+        movw r3, #0x4000
+        movt r3, #0x0F20        // 0x0F204000 = AIC_SW_SET
+        str  r2, [r3]           // raise IRQ 5 in software
+        mrs  r4, cpsr
+        bic  r4, r4, #0x80      // clear CPSR.I
+        msr  cpsr_c, r4         // the interrupt is taken before the next insn
+        movw r5, #0x0000
+        movt r5, #0x4006
+        str  r2, [r5, #24]      // reached only after the handler returns
+        mov  r0, #0x5A          // "we came back"
+    """,
+
+    # Like arm_irq_handler but also clears the timer's INT_STATUS. A driver has
+    # to: the private timer keeps its line asserted until that write-1-to-clear
+    # happens, so a handler that only pops the AIC event gets re-interrupted on
+    # the very next tick.
+    "arm_timer_irq_handler": """
+        mrs  r6, spsr
+        mov  r7, r14
+        movw r8, #0x0000
+        movt r8, #0x4006
+        str  r6, [r8, #4]
+        str  r7, [r8, #8]
+        mrs  r9, cpsr
+        str  r9, [r8, #12]
+        movw r11, #0x2004
+        movt r11, #0x0F20               // AIC_EVENT
+        ldr  r12, [r11]
+        str  r12, [r8, #20]
+        movw r10, #0x0000
+        movt r10, #0x0F30               // 0x0F300000 = private timer
+        mov  r9, #1
+        str  r9, [r10, #0x0C]           // INT_STATUS, write 1 to clear
+        subs pc, lr, #4
+    """,
+
+    # Same, but the interrupt source is the Cortex-A9 private timer: LOAD 20,
+    # CONTROL = enable|auto-reload|irq-enable. The model ticks once per
+    # instruction, so 20 instructions after CONTROL is written IRQ 7 asserts.
+    "arm_timer_probe": """
+        movw r3, #0x4180
+        movt r3, #0x0F20
+        movw r2, #0x0080        // bit 7
+        str  r2, [r3]           // unmask IRQ 7
+        movw r1, #0x0000
+        movt r1, #0x0F30        // 0x0F300000 = where the test attaches the timer
+        movw r6, #0x0014        // 20
+        str  r6, [r1, #0x00]    // LOAD, which also loads COUNTER
+        mov  r7, #0x05          // enable | irq-enable, no auto-reload: with
+        str  r7, [r1, #0x08]    // reload the counter would expire a second time
+                                // during this listing, and the test would be
+                                // asserting on an arbitrary interrupt count.
+                                // CONTROL
+        mrs  r4, cpsr
+        bic  r4, r4, #0x80
+        msr  cpsr_c, r4
+        mov  r0, #0x00
+        add  r0, r0, #1         // burn instructions so the counter can expire
+        add  r0, r0, #1         // within this listing rather than after it
+        add  r0, r0, #1
+        add  r0, r0, #1
+        add  r0, r0, #1
+        add  r0, r0, #1
+        add  r0, r0, #1
+        add  r0, r0, #1
+        add  r0, r0, #1
+        add  r0, r0, #1
+        add  r0, r0, #1
+        add  r0, r0, #1
+        add  r0, r0, #1
+        add  r0, r0, #1
+        add  r0, r0, #1
+        add  r0, r0, #1
+        add  r0, r0, #1
+        add  r0, r0, #1
+        add  r0, r0, #1
+        add  r0, r0, #1
+        mov  r8, #0xA5          // reached once the handler has returned
+    """,
+
     "thumb_smoke": """
         movs r0, #7
         lsls r1, r0, #4

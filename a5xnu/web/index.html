@@ -23,6 +23,7 @@
   <button id="btn-run" class="btn primary">Запустить</button>
   <button id="btn-stage2" class="btn">Фаза 2: MMU</button>
   <button id="btn-stage3" class="btn">Фаза 3: исключение</button>
+  <button id="btn-stage4" class="btn">Фаза 4: IRQ через AIC</button>
   <label class="chk"><input type="checkbox" id="cb-trace" checked> трассировка</label>
   <span class="sep"></span>
   <span class="kv">инструкций <b id="k-instr">0</b></span>
@@ -88,6 +89,12 @@
       <div class="kvlist small" id="pagetable"></div>
     </div>
 
+    <div class="panel" id="aic-panel">
+      <h2>Контроллер прерываний <span class="hint">AIC v1</span></h2>
+      <div class="kvlist small" id="aic"></div>
+      <div class="log" id="aiclog"></div>
+    </div>
+
     <div class="panel">
       <h2>cp15 <span class="hint">теневой банк</span></h2>
       <div class="kvlist small" id="cp15"></div>
@@ -116,6 +123,7 @@
 <script src="arm.js"></script>
 <script src="mmu.js"></script>
 <script src="a5.js"></script>
+<script src="aic.js"></script>
 <script src="firmware.js"></script>
 <script src="disasm.js"></script>
 <script src="entrycode.js"></script>

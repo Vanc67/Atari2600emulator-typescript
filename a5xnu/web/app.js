@@ -153,6 +153,38 @@
         afterRun(m.cpu.stopReason);
     }
 
+    // Stage 4 is not layered on the boot. An interrupt test wants a machine whose
+    // only job is to take one IRQ, with the MMU off and the vectors at 0, so it is
+    // built directly -- booting first would only add 45k instructions of noise
+    // between the button and the thing being demonstrated.
+    function runStage4() {
+        var TC = A5.TESTCODE;
+        var m = new A5.A5Machine();
+        state.m = m;
+        state.stage = 4;
+        clearRunState();
+        m.args = A5.buildBootArgs({
+            virtBase: 0x80000000, physBase: 0x40000000, memSize: 0x20000000,
+            topOfKernelData: A5.TOPOFKERNELDATA, deviceTreeP: A5.DT_VA,
+            deviceTreeLength: A5.DT_LEN, commandLine: "-v"
+        });
+        m.argsPa = m.writeBootArgs(m.args);
+        m.cpu.onStep = function (pc, thumb) { recordStep(pc, thumb); };
+        var probe = TC.arm_irq_probe.bytes;
+        var handler = TC.arm_irq_handler.bytes;
+        var base = 0x40080000;
+        m.write(base, probe);
+        // SCTLR.V is clear on a fresh machine, so the vector base is 0 and the IRQ
+        // vector is at 0x18.
+        m.write(0x18, handler);
+        m.cpu.r[15] = base;
+        var t0 = Date.now();
+        m.run({ count: 4000, stopAt: (base + probe.length) >>> 0 });
+        state.elapsedMs += (Date.now() - t0);
+        state.ran = true;
+        afterRun(m.cpu.stopReason);
+    }
+
     function recordStep(pc, thumb) {
         if (!$("cb-trace").checked) return;
         var bus = state.m.bus;
@@ -250,6 +282,31 @@
 
         add("останов на точке передачи управления", cpu.stopReason === "handoff",
             "reason = " + (cpu.stopReason || "—"));
+
+        if (state.stage === 4) {
+            // Everything below this point describes the boot. Stage 4 has no boot,
+            // so the checks are about the vector entry and the AIC instead.
+            var S4 = 0x40060000, B4 = 0x40080000;
+            add("AIC смоделирован, а не заглушка", !!m.aic, m.aic ? "AIC v1" : "null");
+            add("MASK_CLR снял маску с IRQ 5", (m.aic.mask[0] & 0x20) === 0, hex(m.aic.mask[0] >>> 0));
+            add("ровно один IRQ принят", cpu.irqCount === 1, "irqCount = " + cpu.irqCount);
+            add("FIQ не было", cpu.fiqCount === 0, "fiqCount = " + cpu.fiqCount);
+            add("обработчик исполнился в режиме IRQ", (m.read32(S4 + 12) & 0x1F) === 0x12,
+                hex(m.read32(S4 + 12) & 0x1F));
+            add("SPSR_irq хранит прерванный режим SVC", (m.read32(S4 + 4) & 0x1F) === 0x13,
+                hex(m.read32(S4 + 4) & 0x1F));
+            add("LR_irq = прерванная инструкция + 4",
+                (m.read32(S4 + 8) >>> 0) === ((B4 + 0x2C) >>> 0), hex(m.read32(S4 + 8)));
+            add("AIC_EVENT назвал IRQ 5 типа IRQ", (m.read32(S4 + 20) >>> 0) === 0x10005,
+                hex(m.read32(S4 + 20)));
+            add("subs pc, lr, #4 вернул CPSR из SPSR_irq", cpu.mode() === 0x13,
+                MODE_NAMES[cpu.mode()] || hex(cpu.mode(), 2));
+            add("чтение EVENT сняло программное прерывание", m.aic.swSet[0] === 0,
+                hex(m.aic.swSet[0] >>> 0));
+            add("исполнение продолжилось после обработчика", (cpu.r[0] & 0xFF) === 0x5A,
+                hex(cpu.r[0] & 0xFF));
+            return out;
+        }
         // These five describe the machine *at* the handoff. Stages 2 and 3 run
         // past it, so the registers and the instruction count legitimately move
         // on; asserting the handoff values there would only produce red rows
@@ -535,6 +592,38 @@
         });
     }
 
+    function renderInterrupts() {
+        var m = state.m;
+        var panel = $("aic-panel");
+        if (!m || !m.aic) { if (panel) panel.style.display = "none"; return; }
+        if (panel) panel.style.display = "";
+        var aic = m.aic;
+        var pend = aic.highestPriority();
+        var box = $("aic");
+        clear(box);
+        [["INFO (nr_irq)", hex(aic.read(A5.AIC.INFO, 4))],
+         ["MASK[31:0]", hex(aic.mask[0] >>> 0)],
+         ["SW_SET[31:0]", hex(aic.swSet[0] >>> 0)],
+         ["HW_STATE[31:0]", hex(aic.hw[0] >>> 0)],
+         ["приоритетное прерывание", pend < 0 ? "нет" : String(pend)],
+         ["чтений EVENT", aic.eventReads],
+         ["IRQ принято", m.cpu.irqCount],
+         ["FIQ принято", m.cpu.fiqCount]]
+            .forEach(function (r) {
+                box.appendChild(el("span", "k", r[0]));
+                box.appendChild(el("span", "v", String(r[1])));
+            });
+        var log = $("aiclog");
+        clear(log);
+        if (!aic.eventsDelivered.length) {
+            log.appendChild(el("div", "lrow", "(события не доставлялись на этой фазе)"));
+            return;
+        }
+        aic.eventsDelivered.slice(-24).forEach(function (n) {
+            log.appendChild(el("div", "lrow", "EVENT → тип IRQ, номер " + n));
+        });
+    }
+
     function renderMmio() {
         var m = state.m;
         $("mmio-count").textContent = m.unimplementedTotal
@@ -621,6 +710,7 @@
         renderPageTable();
         renderMmu();
         renderExceptions();
+        renderInterrupts();
         renderCp15();
         renderMmio();
         renderConsole();
@@ -637,6 +727,7 @@
         $("btn-run").addEventListener("click", runAll);
         $("btn-stage2").addEventListener("click", runStage2);
         $("btn-stage3").addEventListener("click", runStage3);
+        $("btn-stage4").addEventListener("click", runStage4);
         $("btn-tl").addEventListener("click", probeTranslation);
         $("va-addr").addEventListener("keydown", function (ev) {
             if (ev.key === "Enter") probeTranslation();
@@ -658,5 +749,6 @@
     else init();
 
     g.A5APP = { state: state, reset: reset, step: step, runAll: runAll,
-                runStage2: runStage2, runStage3: runStage3, checks: computeChecks };
+                runStage2: runStage2, runStage3: runStage3, runStage4: runStage4,
+                checks: computeChecks };
 })();

@@ -347,6 +347,9 @@ var A5 = __g.A5 || (__g.A5 = {});
         this.barrierCount = 0;
         this.vfp = {};                // VFP system register shadow (cp10)
         this.vfpLog = [];
+        this.interruptController = null;   // set by the machine (an A5.Aic)
+        this.irqCount = 0;
+        this.fiqCount = 0;
         this.haltOnUndefined = opts.haltOnUndefined !== false;
         this.mmu = opts.mmu || null;
         this.mem = new CpuMem(this);
@@ -408,6 +411,35 @@ var A5 = __g.A5 || (__g.A5 = {});
             case 0xE: return true;                          // AL
             default: return true;                           // NV treated as AL on ARMv7
         }
+    };
+
+    /**
+     * Take a pending IRQ or FIQ before executing the instruction at pc.
+     * Returns true if an exception was taken, in which case PC already points at
+     * the vector and the instruction at pc must not run.
+     *
+     * FIQ has priority and additionally masks FIQ on entry. The only gate is the
+     * CPSR mask bit: real hardware takes an IRQ in IRQ mode too if the handler
+     * re-enabled them, so there is no mode check here. A handler that fails to
+     * clear its source recurses, and the machine's stall guard is what catches
+     * that -- which is the honest outcome, since infinite recursion is what the
+     * hardware would do too.
+     */
+    ArmCpu.prototype.checkInterrupts = function (pc) {
+        var ic = this.interruptController;
+        if (!ic) return false;
+        var cpsr = this.cpsr >>> 0;
+        if (ic.fiqPending() && !(cpsr & 0x40)) {
+            this.fiqCount++;
+            this.takeException(VEC_FIQ, MODE_FIQ, (pc + 4) >>> 0, true);
+            return true;
+        }
+        if (ic.irqPending() && !(cpsr & 0x80)) {
+            this.irqCount++;
+            this.takeException(VEC_IRQ, MODE_IRQ, (pc + 4) >>> 0, false);
+            return true;
+        }
+        return false;
     };
 
     // -- modes, banked registers and exceptions -------------------------
@@ -506,6 +538,28 @@ var A5 = __g.A5 || (__g.A5 = {});
     };
 
     // Publish DFSR/IFSR + FAR and vector, exactly as the architecture requires.
+    /**
+     * Exception return: a write of r15 with the S bit set. CPSR is restored from
+     * SPSR_<current mode>, which is how a handler puts back the mode it
+     * interrupted, the Thumb state and the interrupt masks it inherited -- this
+     * is what `subs pc, lr, #4` at the end of an IRQ handler actually does, and
+     * what `ldmfd sp!, {..., pc}^` does at the end of an abort handler.
+     *
+     * The bank swap has to happen before CPSR is overwritten, because switchMode
+     * finds the old mode by reading the current CPSR.
+     *
+     * In USR/SYS there is no SPSR to restore from; that case is UNPREDICTABLE in
+     * the architecture, so the branch is still taken and CPSR is left alone.
+     */
+    ArmCpu.prototype.exceptionReturn = function (target) {
+        var spsr = this.spsr[this.mode()];
+        if (spsr === undefined) { this.branchTo(target); return; }
+        this.switchMode(spsr & 0x1F);
+        this.cpsr = spsr | 0;
+        this.r[15] = target | 0;
+        this._branched = true;
+    };
+
     ArmCpu.prototype.takeMemFault = function (kind, va, fsr, level, domain) {
         if (kind === "exec") {
             this.cp15Write(0, 5, 0, 1, fsr);      // IFSR
@@ -563,6 +617,10 @@ var A5 = __g.A5 || (__g.A5 = {});
         this._aborted = false;
         this.instrCount++;
         this._curPc = pc;
+        // Checked before the fetch: the interrupted instruction must not execute,
+        // and LR_irq is its address + 4, which is only true if we vector from
+        // here rather than after decoding.
+        if (this.checkInterrupts(pc)) return !this.halted;
         var wasThumb = this.isThumb();
         if (this.onStep) this.onStep(pc, wasThumb);
 
@@ -1032,10 +1090,7 @@ var A5 = __g.A5 || (__g.A5 = {});
 
         if (S) {
             if (rd === 15) {
-                // Writing r15 with S=1 is the "exception return" form: flags come
-                // from the SPSR. Banked SPSR is not modelled, so branch and leave
-                // the flags alone rather than corrupting them.
-                this.branchTo(result);
+                this.exceptionReturn(result);
             } else {
                 this.setFlagsNZ(result);
                 this.setC(logical ? shifterC : cout);
@@ -1188,6 +1243,7 @@ var A5 = __g.A5 || (__g.A5 = {});
         var W = (insn >>> 21) & 1;
         var U = (insn >>> 23) & 1;
         var P = (insn >>> 24) & 1;
+        var S = (insn >>> 22) & 1;
         var list = insn & 0xFFFF;
         var n = 0;
         for (var i = 0; i < 16; i++) if (list & (1 << i)) n++;
@@ -1211,7 +1267,19 @@ var A5 = __g.A5 || (__g.A5 = {});
             if (!(list & (1 << j))) continue;
             if (L) {
                 var v = this.mem.read32(cur >>> 0);
-                if (j === 15) { this.r[15] = v & ~1; if (v & 1) this.cpsr |= 0x20; else this.cpsr &= ~0x20; this._branched = true; loaded15 = true; }
+                if (j === 15) {
+                    loaded15 = true;
+                    if (L && S) {
+                        // `ldm..., {..., pc}^` -- the exception return form. CPSR
+                        // comes from SPSR, not from bit 0 of the loaded value, so
+                        // the Thumb-bit juggling below must not run.
+                        this.exceptionReturn(v & ~1);
+                    } else {
+                        this.r[15] = v & ~1;
+                        if (v & 1) this.cpsr |= 0x20; else this.cpsr &= ~0x20;
+                        this._branched = true;
+                    }
+                }
                 else this.r[j] = v | 0;
             } else {
                 this.mem.write32(cur >>> 0, j === 15 ? (pc + 8) : this.r[j]);
