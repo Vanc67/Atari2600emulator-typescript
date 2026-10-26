@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A5 Boot Lab — S5L8940x / k93ap</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="title">
+    <h1>A5 Boot Lab</h1>
+    <div class="sub">Apple A5 · S5L8940x · k93ap · XNU arm <code>start()</code></div>
+  </div>
+  <div class="status" id="status">готов</div>
+</header>
+
+<section class="controls">
+  <button id="btn-reset" class="btn">Сброс</button>
+  <button id="btn-step" class="btn">Шаг</button>
+  <button id="btn-step1k" class="btn">1 000</button>
+  <button id="btn-run" class="btn primary">Запустить</button>
+  <label class="chk"><input type="checkbox" id="cb-trace" checked> трассировка</label>
+  <span class="sep"></span>
+  <span class="kv">инструкций <b id="k-instr">0</b></span>
+  <span class="kv">время <b id="k-time">0</b> мс</span>
+  <span class="kv">останов <b id="k-reason">—</b></span>
+</section>
+
+<main>
+
+  <div class="col">
+    <div class="panel">
+      <h2>Регистры</h2>
+      <div class="regs" id="regs"></div>
+      <div class="flags" id="flags"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Проверки <span class="hint" id="checks-count"></span></h2>
+      <div class="checks" id="checks"></div>
+    </div>
+
+    <div class="panel">
+      <h2>boot_args <span class="hint">PA 0x4FF01000</span></h2>
+      <div class="kvlist" id="bootargs"></div>
+    </div>
+  </div>
+
+  <div class="col wide">
+    <div class="panel grow">
+      <h2>Трасса исполнения <span class="hint" id="trace-hint"></span></h2>
+      <div class="trace" id="trace"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Память</h2>
+      <div class="memctl">
+        <input id="mem-addr" value="0x40DA2000" spellcheck="false">
+        <button id="btn-mem" class="btn">показать</button>
+        <span class="hint" id="mem-note"></span>
+      </div>
+      <pre class="hex" id="mem"></pre>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="panel">
+      <h2>Консоль UART0 <span class="hint">0x02500000</span></h2>
+      <pre class="console" id="console"></pre>
+    </div>
+
+    <div class="panel">
+      <h2>Таблица страниц L1 <span class="hint" id="ttb-hint"></span></h2>
+      <div class="kvlist small" id="pagetable"></div>
+    </div>
+
+    <div class="panel">
+      <h2>cp15 <span class="hint">теневой банк</span></h2>
+      <div class="kvlist small" id="cp15"></div>
+      <div class="log" id="cp15log"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Доступы к MMIO <span class="hint" id="mmio-count"></span></h2>
+      <div class="log" id="mmiolog"></div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <span>Эмулятор ARMv7 написан с нуля на JavaScript — без Unicorn и без прошивки Apple.</span>
+  <span>Код ядра собран keystone из опубликованного протокола загрузки; тот же байтовый поток сверен с Unicorn.</span>
+</footer>
+
+<script src="arm.js"></script>
+<script src="a5.js"></script>
+<script src="disasm.js"></script>
+<script src="entrycode.js"></script>
+<script src="testcode.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

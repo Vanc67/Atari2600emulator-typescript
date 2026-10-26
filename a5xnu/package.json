@@ -1,0 +1,10 @@
+{
+  "name": "a5xnu-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "JavaScript port of the A5 (S5L8940x/k93ap) machine model. The web/ files are classic scripts for the WebView (no ES modules - WebView blocks them on file://); this package.json only exists so Node treats them, and tests-js/, as CommonJS. The repository root sets \"type\": \"module\".",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node tests-js/test_a5_boot.js"
+  }
+}
