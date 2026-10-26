@@ -62,28 +62,114 @@ def read_png(path):
 
 
 def quantize(pixels, w, h):
-    """Median-cut-ish palette from a fixed 6x7x6 colour cube (<=256 entries)."""
-    palette = []
-    index = {}
-    for r in range(0, 256, 51):
-        for g in range(0, 256, 43):
-            for b in range(0, 256, 51):
-                palette.append((r, g, b))
-    for i, c in enumerate(palette):
-        index[c] = i
-    out = bytearray()
+    """Palette built from the frame's own colours.
+
+    The game draws with a small fixed palette, so the exact set of colours in
+    a frame is usually well under 256 entries; in that case the image is
+    reproduced losslessly.  Only busier frames fall back to a 3-3-2 cube.
+    """
+    counts = {}
     for y in range(h):
+        row = pixels[y]
         for x in range(w):
-            r, g, b = pixels[y][x * 3:x * 3 + 3]
-            key = ((r + 25) // 51 * 51, (g + 21) // 43 * 43, (b + 25) // 51 * 51)
-            key = (min(key[0], 255), min(key[1], 255), min(key[2], 255))
-            if key not in index:
-                best = min(palette, key=lambda p: (p[0] - r) ** 2 + (p[1] - g) ** 2 + (p[2] - b) ** 2)
-                key = best
-            out.append(index[key])
+            c = (row[x * 3], row[x * 3 + 1], row[x * 3 + 2])
+            counts[c] = counts.get(c, 0) + 1
+    if len(counts) <= 256:
+        palette = sorted(counts.keys(), key=lambda c: -counts[c])
+        index = {}
+        for i, c in enumerate(palette):
+            index[c] = i
+        out = bytearray()
+        for y in range(h):
+            row = pixels[y]
+            for x in range(w):
+                out.append(index[(row[x * 3], row[x * 3 + 1], row[x * 3 + 2])])
+    else:
+        palette = []
+        seen = {}
+        for y in range(h):
+            row = pixels[y]
+            for x in range(w):
+                r, g, b = row[x * 3], row[x * 3 + 1], row[x * 3 + 2]
+                key = (r >> 3, g >> 3, b >> 2)
+                if key not in seen and len(palette) < 256:
+                    seen[key] = len(palette)
+                    palette.append(((r >> 3) << 3 | 4, (g >> 3) << 3 | 4,
+                                    (b >> 2) << 2 | 2))
+        for y in range(h):
+            row = pixels[y]
+            for x in range(w):
+                r, g, b = row[x * 3], row[x * 3 + 1], row[x * 3 + 2]
+                key = (r >> 3, g >> 3, b >> 2)
+                if key not in seen:
+                    best = min(palette, key=lambda p: (p[0] - r) ** 2
+                               + (p[1] - g) ** 2 + (p[2] - b) ** 2)
+                    seen[key] = palette.index(best)
+        out = bytearray()
+        for y in range(h):
+            row = pixels[y]
+            for x in range(w):
+                r, g, b = row[x * 3], row[x * 3 + 1], row[x * 3 + 2]
+                out.append(seen[(r >> 3, g >> 3, b >> 2)])
+    while len(palette) < 256:
+        palette.append((0, 0, 0))
     flat = b''.join(bytes(c) for c in palette)
     return bytes(out), flat
 
+
+def lzw_encode(indices, min_code_size=8):
+    """GIF LZW compression (variable width codes, little-endian packing)."""
+    clear = 1 << min_code_size
+    end = clear + 1
+    code_size = min_code_size + 1
+    next_code = end + 1
+    table = {}
+    out = bytearray()
+    bitbuf = 0
+    bitcount = 0
+
+    def emit(code):
+        nonlocal bitbuf, bitcount
+        bitbuf |= code << bitcount
+        bitcount += code_size
+        while bitcount >= 8:
+            out.append(bitbuf & 0xFF)
+            bitbuf >>= 8
+            bitcount -= 8
+
+    emit(clear)
+    prefix = indices[0]
+    for b in indices[1:]:
+        key = (prefix << 8) | b
+        if key in table:
+            prefix = table[key]
+            continue
+        emit(prefix)
+        if next_code < 4096:
+            table[key] = next_code
+            next_code += 1
+            if next_code > (1 << code_size) and code_size < 12:
+                code_size += 1
+        else:
+            emit(clear)
+            table = {}
+            code_size = min_code_size + 1
+            next_code = end + 1
+        prefix = b
+    emit(prefix)
+    emit(end)
+    if bitcount > 0:
+        out.append(bitbuf & 0xFF)
+    return bytes(out)
+
+
+def write_sub_blocks(out, data):
+    pos = 0
+    while pos < len(data):
+        chunk = data[pos:pos + 255]
+        out += bytes((len(chunk),)) + chunk
+        pos += 255
+    out += b'\x00'
 
 def write_gif(path, frames, w, h, delay_cs=120):
     pal = None
@@ -91,24 +177,20 @@ def write_gif(path, frames, w, h, delay_cs=120):
     for (fw, fh, rows) in frames:
         assert (fw, fh) == (w, h)
         data, pal = quantize(rows, w, h)
-        packed.append(data)
+        packed.append((data, pal))
 
     out = bytearray(b'GIF89a')
     out += struct.pack('<HH', w, h)
-    out += bytes((0xF7, 0, 0))
-    out += pal[:768].ljust(768, b'\x00')
+    out += bytes((0x70, 0, 0))          # no global colour table
     # loop forever
     out += b'\x21\xFF\x0BNETSCAPE2.0\x03\x01\x00\x00\x00'
-    for data in packed:
+    for data, local_pal in packed:
         out += b'\x21\xF9\x04\x04' + struct.pack('<H', delay_cs) + b'\x00\x00'
-        out += b'\x2C' + struct.pack('<HHHH', 0, 0, w, h) + b'\x00'
+        # local colour table: 256 entries, present
+        out += b'\x2C' + struct.pack('<HHHH', 0, 0, w, h) + bytes((0x87,))
+        out += local_pal[:768].ljust(768, b'\x00')
         out += bytes((8,))
-        pos = 0
-        while pos < len(data):
-            chunk = data[pos:pos + 255]
-            out += bytes((len(chunk),)) + chunk
-            pos += 255
-        out += b'\x00'
+        write_sub_blocks(out, lzw_encode(data))
     out += b'\x3B'
     open(path, 'wb').write(bytes(out))
 
