@@ -10,14 +10,26 @@
 `Exp`, `SoftSim`, `AudioEngine`, `Assets`, `Scene`, …).
 
 ```
-RetroPcBuilder-5.0.jar   готовый MIDlet (90 записей, 2540 KiB)
+RetroPcBuilder-5.0.jar   готовый MIDlet (90 записей, ~2540 KiB)
 RetroPcBuilder-5.0.jad   дескриптор для телефона/эмулятора
 build.sh                 сборка без J2ME SDK (см. ниже)
 src/rpc/**               исходники игры
 src/rpc/j2me/**          тонкий слой MIDlet (Canvas, Gfx, Host, Keys)
 harness/rpc/harness/**   десктопный прогон: рендер в BMP/PNG, звук в WAV, смоук-тест
 stubs/**                 заглушки CLDC 1.1 / MIDP 2.0 (boot classpath)
-docs/screens/**          кадры экранов, собранные харнессом
+docs/screens/**          кадры экранов + tour.gif, собранные харнессом
+```
+
+Новые классы (всё остальное — восстановленные классы 4.8):
+
+```
+src/rpc/Room.java        комната: окно, погода, монитор, корпус, кот, кровать
+src/rpc/Icons.java       16 пиксель-арт иконок 16x16
+src/rpc/BuildView.java   верстак сборки: плата, сокет, ОЗУ, карты, БП
+src/rpc/Workshop.java    приборы мастерской + прогресс ремонта
+src/rpc/Text.java        метрики шрифта, перенос/обрезка, фильтр глифов
+src/rpc/Gfx.java         контракт рисования (2D API игры)
+src/rpc/j2me/**          MIDlet-слой: RetroPcMIDlet, AppCanvas, GfxImpl, HostImpl, Keys
 ```
 
 ## Сборка
@@ -135,9 +147,14 @@ major 47 (его понимают старые телефоны).
 
 ## Кадры
 
-`docs/screens/*.png` — реальные кадры, снятые харнессом с настоящего
-`Game.paint()` (не макеты): меню, комната, чай, сон, сборка, магазин,
-лаборатория, город, мастерская (3 инструмента), каталог, календарь, «об игре».
+`docs/screens/tour.gif` — анимированный прогон экранов, `docs/screens/*.png` —
+отдельные кадры. Все сняты харнессом с настоящего `Game.paint()` (это не
+макеты): меню, комната, чай, сон, сборка, магазин, лаборатория, город,
+мастерская (3 инструмента), каталог, календарь, «об игре».
+
+```sh
+./build.sh --harness --shots     # BMP -> PNG -> tour.gif
+```
 
 ## Лицензия / происхождение
 
