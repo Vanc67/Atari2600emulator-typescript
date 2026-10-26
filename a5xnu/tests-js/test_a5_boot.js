@@ -10,6 +10,7 @@ const path = require("path");
 require(path.join(__dirname, "..", "web", "arm.js"));       // Bus, ArmCpu
 require(path.join(__dirname, "..", "web", "mmu.js"));       // ARMv7 translation
 require(path.join(__dirname, "..", "web", "aic.js"));       // AIC v1 + private timer
+require(path.join(__dirname, "..", "web", "img3.js"));      // IMG3 + complzss
 require(path.join(__dirname, "..", "web", "firmware.js"));  // Mach-O segment loading
 const A5 = require(path.join(__dirname, "..", "web", "a5.js")); // machine model
 const ENTRY = require(path.join(__dirname, "..", "web", "entrycode.js"));
@@ -652,6 +653,151 @@ console.log("\nIRQ delivery: Cortex-A9 private timer");
     eq("so the AIC line is deasserted", m.aic.hw[0] & (1 << 7), 0);
     eq("execution resumed after the handler", m.cpu.r[8] & 0xFF, 0xA5);
     eq("back in SVC mode", m.cpu.mode(), 0x13);
+}
+
+
+// ----------------------------------------------------------------- IMG3 image
+// The layout is unambiguous: a 20-byte header then a chain of 12-byte-header
+// tags. Every size is cross-checked against the buffer, so a truncated or
+// self-inconsistent file is rejected instead of being read past its end. No key
+// material is used anywhere here -- a KBAG is reported, never acted on.
+console.log("\nIMG3 container");
+{
+    const I = A5.IMG3;
+    eq("IMG3 magic on disk reads '3gmI'", A5.Img3.fourcc(I.MAGIC), "3gmI");
+    eq("the header is 20 bytes", I.HEADER_SIZE, 20);
+    eq("a tag header is 12 bytes", I.TAG_HEADER_SIZE, 12);
+
+    const payload = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
+    const img = A5.Img3.build({ imgType: "krnl", tags: [
+        { magic: "DATA", data: payload },
+        { magic: "SHSH", data: new Uint8Array([0xAA, 0xBB]) },
+        { magic: "CERT", data: new Uint8Array([9]) }
+    ]});
+    const p = A5.Img3.parse(img);
+    eq("a built image parses", p.ok, true);
+    eq("imgType survives", p.imgTypeName, "krnl");
+    eq("three tags", p.tags.length, 3);
+    eq("tag names in order", p.tags.map(function (t) { return t.name; }).join(","),
+       "DATA,SHSH,CERT");
+    eq("the DATA payload survives byte for byte",
+       Array.from(p.data).join(","), Array.from(payload).join(","));
+    eq("totalSize covers the header and every tag",
+       p.totalSize, 20 + (12 + 8) + (12 + 2) + (12 + 1));
+    eq("shshOffset is measured from the start of the header",
+       p.shshOffset, 12 + 8);
+    eq("an image without a KBAG is not encrypted", p.encrypted, false);
+
+    const enc = A5.Img3.build({ imgType: "illb", tags: [
+        { magic: "DATA", data: new Uint8Array(4) },
+        { magic: "KBAG", data: new Uint8Array(4 + 16 + 16) }
+    ]});
+    eq("a KBAG marks the image encrypted", A5.Img3.parse(enc).encrypted, true);
+    eq("and the KBAG is found", A5.Img3.parse(enc).kbagTags.length, 1);
+
+    function corrupt(fn) {
+        const b = new Uint8Array(img);
+        fn(b);
+        return A5.Img3.parse(b);
+    }
+    const swapped = new Uint8Array(img);
+    swapped[0] = "I".charCodeAt(0); swapped[1] = "m".charCodeAt(0);
+    swapped[2] = "g".charCodeAt(0); swapped[3] = "3".charCodeAt(0);
+    const sp = A5.Img3.parse(swapped);
+    eq("a byte-swapped magic is named as such", sp.ok, false);
+    eq("...and says why", sp.error.indexOf("byte-swapped") >= 0, true);
+    eq("a truncated header is rejected", A5.Img3.parse(img.slice(0, 12)).ok, false);
+    eq("a totalSize beyond the buffer is rejected",
+       corrupt(function (b) { b[4] = 0xFF; b[5] = 0xFF; }).ok, false);
+    eq("a dataSize larger than the tag area is rejected",
+       corrupt(function (b) { b[8] = 0xFF; b[9] = 0x00; }).ok, false);
+    // The tag header begins at byte 20: magic 20..23, totalSize 24..27,
+    // dataSize 28..31. Corrupting byte 20 renames the tag rather than breaking
+    // its size, which parses fine and says nothing about the check under test.
+    eq("a tag whose totalSize is below its own header is rejected",
+       corrupt(function (b) { b[24] = 4; b[25] = 0; b[26] = 0; b[27] = 0; }).ok, false);
+    eq("a tag that runs past the end of the image is rejected",
+       corrupt(function (b) { b[24] = 0xFF; b[25] = 0; b[26] = 0; b[27] = 0; }).ok, false);
+    eq("a tag whose dataSize exceeds its payload is rejected",
+       corrupt(function (b) { b[28] = 0x40; }).ok, false);
+}
+
+// --------------------------------------------------------------- complzss
+// The header and the ring parameters are exact. The two-byte match encoding is
+// not: implementations disagree on byte order and on whether the position field
+// is an absolute ring index or a distance back. Both conventions are therefore
+// implemented and both are round-tripped, and neither is claimed to match
+// Apple's encoder -- that would need a real compressed image, which is not
+// obtainable here.
+console.log("\ncomplzss container and LZSS codec");
+{
+    const C = A5.COMPLZSS, K = A5.Complzss;
+    function same(a, b) {
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+        return true;
+    }
+    eq("the header is 0x180 bytes", C.HEADER_SIZE, 0x180);
+    eq("the ring is 4096 bytes", C.N, 4096);
+    eq("F is 18", C.F, 18);
+    eq("THRESHOLD is 2", C.THRESHOLD, 2);
+    eq("the documented dictptr 4078 is exactly N - F", C.DICT_START, C.N - C.F);
+    eq("the ring is filled with spaces", C.FILL, 0x20);
+
+    const hdr = K.parseHeader(K.buildHeader(1234, 567, 0xDEADBEEF));
+    eq("header magic", hdr.ok && hdr.magic, "complzss");
+    eq("header round-trips uncompressedSize", hdr.uncompressedSize, 1234);
+    eq("header round-trips compressedSize", hdr.compressedSize, 567);
+    eq("header round-trips the checksum", hdr.checksum, 0xDEADBEEF);
+    eq("a zero-filled buffer of header size has the wrong magic",
+       K.parseHeader(new Uint8Array(C.HEADER_SIZE)).ok, false);
+    eq("a file shorter than the header is rejected",
+       K.parseHeader(new Uint8Array(16)).ok, false);
+
+    const text = new TextEncoder().encode(
+        "Darwin Kernel Version 13.0.0 Darwin Kernel Version 13.0.0 aaabbbccc");
+    const rep = new Uint8Array(3000); rep.fill(0x5A);
+    const wrap = new Uint8Array(9000);
+    for (let i = 0; i < wrap.length; i++) wrap[i] = i % 97;
+    const prng = new Uint8Array(4096);
+    let st = 12345;
+    for (let i = 0; i < prng.length; i++) { st = (st * 1103515245 + 12345) >>> 0; prng[i] = (st >>> 16) & 0xFF; }
+    const cases = [
+        ["one byte", new Uint8Array([0x41])],
+        ["highly repetitive", rep],
+        ["text with spaces and repeats", text],
+        ["pseudo-random", prng],
+        ["crossing the ring wrap", wrap]
+    ];
+
+    for (const opts of [{}, { absolutePosition: true }]) {
+        const label = opts.absolutePosition ? "absolute position" : "distance back";
+        for (const [name, src] of cases) {
+            const packed = K.pack(src, opts);
+            eq(label + ": " + name + " header is valid", K.parseHeader(packed).ok, true);
+            eq(label + ": " + name + " header records the real size",
+               K.parseHeader(packed).uncompressedSize, src.length);
+            const un = K.unpack(packed, opts);
+            eq(label + ": " + name + " round-trips exactly", un.ok && same(un.data, src), true);
+        }
+        // The regression that the bounded search fixes: text containing ".0 "
+        // used to find a 3-byte match two bytes back whose third byte was an
+        // unwritten space slot, and the decoder -- which had by then written the
+        // real byte there -- returned ".0." instead.
+        eq(label + ": the space padding is not matched against",
+           same(K.unpack(K.pack(text, opts), opts).data, text), true);
+    }
+    eq("repetitive input shrinks well below its own size",
+       K.parseHeader(K.pack(rep, {})).compressedSize < 1000, true);
+    eq("input crossing the ring wrap still shrinks",
+       K.parseHeader(K.pack(wrap, {})).compressedSize < wrap.length, true);
+    // LZSS expands incompressible input, and occasionally finds a repeat inside
+    // pseudo-random data. Requiring a fixed expansion would assert something the
+    // algorithm does not promise, so only the round-trip is required there.
+    eq("pseudo-random input still round-trips through a real file",
+       same(K.unpack(K.pack(prng, {}), {}).data, prng), true);
+    eq("unpacking a file with a bad header reports the header error",
+       K.unpack(new Uint8Array(C.HEADER_SIZE), {}).ok, false);
 }
 
 console.log("\n%d passed, %d failed", pass, fail);

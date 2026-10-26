@@ -592,6 +592,55 @@
         });
     }
 
+    // Builds, parses, packs and unpacks on every render instead of showing a
+    // fixture: what is being demonstrated is that the container logic survives a
+    // round trip, and no firmware image is shipped or fetched anywhere.
+    function renderFirmware() {
+        var box = $("fw");
+        if (!box || !A5.Img3 || !A5.Complzss) {
+            var pn = $("fw-panel"); if (pn) pn.style.display = "none";
+            return;
+        }
+        $("fw-panel").style.display = "";
+        clear(box);
+        var C = A5.COMPLZSS;
+        var payload = new TextEncoder().encode(
+            "Darwin Kernel Version 13.0.0 Darwin Kernel Version 13.0.0\n");
+        var img = A5.Img3.build({ imgType: "krnl", tags: [
+            { magic: "DATA", data: payload },
+            { magic: "SHSH", data: new Uint8Array(20) }
+        ]});
+        var p = A5.Img3.parse(img);
+        var packed = A5.Complzss.pack(payload, {});
+        var ph = A5.Complzss.parseHeader(packed);
+        var un = A5.Complzss.unpack(packed, {});
+        var exact = un.ok && un.data.length === payload.length;
+        if (exact) {
+            for (var i = 0; i < payload.length; i++) {
+                if (un.data[i] !== payload[i]) { exact = false; break; }
+            }
+        }
+        [["IMG3 разобран", p.ok ? ("да, тип " + p.imgTypeName) : ("нет: " + p.error)],
+         ["тегов в образе", p.ok ? p.tags.length : "—"],
+         ["shshOffset", p.ok ? hex(p.shshOffset) : "—"],
+         ["зашифрован (есть KBAG)", p.ok ? (p.encrypted ? "да" : "нет") : "—"],
+         ["complzss заголовок", hex(C.HEADER_SIZE) + " (" + C.HEADER_SIZE + " байт)"],
+         ["кольцо / F / dictptr", C.N + " / " + C.F + " / " + C.DICT_START],
+         ["сжатие", payload.length + " → " + ph.compressedSize + " байт"],
+         ["распаковка", exact ? "точная" : "РАСХОЖДЕНИЕ"]]
+            .forEach(function (r) {
+                box.appendChild(el("span", "k", r[0]));
+                box.appendChild(el("span", "v", String(r[1])));
+            });
+        var log = $("fwlog");
+        clear(log);
+        log.appendChild(el("div", "lrow",
+            "Образ собран и разобран на месте из синтетических данных. " +
+            "Расшифровка не выполняется: KBAG разбирается и сообщается, но " +
+            "ключи принадлежат Apple, и ни одна прошивка здесь не хранится " +
+            "и не загружается."));
+    }
+
     function renderInterrupts() {
         var m = state.m;
         var panel = $("aic-panel");
@@ -711,6 +760,7 @@
         renderMmu();
         renderExceptions();
         renderInterrupts();
+        renderFirmware();
         renderCp15();
         renderMmio();
         renderConsole();
