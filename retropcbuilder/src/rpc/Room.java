@@ -98,36 +98,47 @@ public final class Room {
         g.fillRect(w * 4 / 100, deskY + deskH, 6, h * 14 / 100);
         g.fillRect(w * 66 / 100, deskY + deskH, 6, h * 14 / 100);
         g.setColor(night == 1 ? 0x352A1E : 0x5A4630);
-        g.fillRect(0, deskY, w * 72 / 100, deskH);
+        g.fillRect(0, deskY, w * 86 / 100, deskH);
         g.setColor(night == 1 ? 0x4A3A28 : 0x7A5F42);
-        g.fillRect(0, deskY, w * 72 / 100, 3);
+        g.fillRect(0, deskY, w * 86 / 100, 3);
+
+        /* lamp beam goes down first: it is light, not an object */
+        int lampX = w * 77 / 100;
+        int lampY = deskY - h * 17 / 100;
+        int lampH = h * 17 / 100;
+        drawLampBeam(g, lampX, lampY, lampH, life, night);
 
         /* monitor on the desk, facing the player */
-        int monW = w * 34 / 100;
+        int monW = w * 32 / 100;
         int monH = monW * 72 / 100;
-        int monX = w * 8 / 100;
+        int monX = w * 6 / 100;
         int monY = deskY - monH - 2;
         drawMonitor(g, monX, monY, monW, monH, life, frame, pcOn);
 
         /* tower case next to it */
-        int caseW = w * 16 / 100;
+        int caseW = w * 15 / 100;
         int caseH = monH + h * 5 / 100;
-        int caseX = monX + monW + 4;
+        int caseX = monX + monW + 5;
         int caseY = deskY - caseH - 2;
         drawCase(g, caseX, caseY, caseW, caseH, frame, pcOn);
+
+        /* radio on the desk */
+        int radioX = w * 55 / 100;
+        int radioY = deskY - h * 6 / 100;
+        drawRadio(g, radioX, radioY, w * 13 / 100, h * 6 / 100, life, frame);
+
+        /* mug - the star of the tea screen, visible here too */
+        int mugX = w * 70 / 100;
+        int mugY = deskY - h * 6 / 100;
+        drawMug(g, mugX, mugY, w * 8 / 100, h * 6 / 100, life, frame);
 
         /* keyboard + mouse in front of the monitor */
         int kbY = deskY + deskH + 4;
         drawKeyboard(g, w * 6 / 100, kbY, w * 42 / 100, h * 5 / 100);
         drawMouse(g, w * 50 / 100, kbY + 2, w * 6 / 100, h * 4 / 100);
 
-        /* mug - the star of the tea screen, visible here too */
-        int mugX = w * 56 / 100;
-        int mugY = deskY - h * 7 / 100;
-        drawMug(g, mugX, mugY, w * 9 / 100, h * 7 / 100, life, frame);
-
-        /* desk lamp with a light cone */
-        drawLamp(g, w * 64 / 100, deskY - h * 17 / 100, h * 17 / 100, life, night);
+        /* the lamp itself on top of its beam */
+        drawLamp(g, lampX, lampY, lampH, life, night);
 
         /* ---------------- bed / futon in the foreground -------------- */
         drawBed(g, w, h, wallH, night, life);
@@ -447,28 +458,44 @@ public final class Room {
         }
     }
 
+    /** Soft cone of light. Drawn behind the objects on the desk. */
+    private static void drawLampBeam(Gfx g, int x, int y, int h, LifeSim life,
+                                     int night) {
+        if (!life.lampOn) {
+            return;
+        }
+        int shadeW = Math.max(10, h / 3);
+        int lx = x + shadeW / 2;
+        int beamTop = y + Math.max(5, h / 5) + 2;
+        int beamH = y + h - beamTop;
+        int bands = Math.max(6, beamH / 4);
+        int wall = night == 1 ? 0x232C42 : 0x415274;
+        for (int i = 0; i < bands; i++) {
+            int half = shadeW / 2 + (shadeW * 3 / 2) * i / bands;
+            // light, not paint: the beam is the wall colour warmed up, fading
+            // out as it widens
+            int c = mix(wall, 0xFFE6B8, 46 - i * 26 / bands);
+            g.setColor(c);
+            g.fillRect(lx - half, beamTop + i * beamH / bands, half * 2,
+                    beamH / bands + 1);
+        }
+        // warm pool of light where the beam lands
+        int poolY = y + h - 4;
+        for (int i = 0; i < 4; i++) {
+            g.setColor(mix(wall, 0xFFE6B8, 40 - i * 8));
+            int half = shadeW * 2 - i * shadeW / 3;
+            g.fillRect(lx - half, poolY + i, half * 2, 1);
+        }
+        g.setColor(0x8A6A28);
+        g.fillRect(lx - shadeW / 2, y + Math.max(5, h / 5) - 2, shadeW, 2);
+    }
+
+    /** The lamp itself: shade, pole, base. */
     private static void drawLamp(Gfx g, int x, int y, int h, LifeSim life, int night) {
         int shadeW = Math.max(10, h / 3);
         int shadeH = Math.max(5, h / 5);
         int lx = x + shadeW / 2;
         int baseY = y + h;
-        /* the beam is a stack of widening bands at low contrast - drawing it
-         * as one solid triangle looked like a rocket, not light */
-        if (life.lampOn) {
-            int beamTop = y + shadeH + 2;
-            int beamH = baseY - beamTop;
-            int bands = Math.max(4, beamH / 6);
-            for (int i = 0; i < bands; i++) {
-                int t = i * 100 / bands;
-                int c = mix(night == 1 ? 0x2A2416 : 0x3E3420, 0x0, t / 2);
-                g.setColor(c);
-                int half = shadeW / 2 + (shadeW * 3 / 2) * i / bands;
-                g.fillRect(lx - half, beamTop + i * beamH / bands, half * 2,
-                        beamH / bands + 1);
-            }
-            g.setColor(0xFFD06A);
-            g.fillRect(lx - shadeW / 2, y + shadeH - 1, shadeW, 2);
-        }
         /* pole + base */
         g.setColor(0x2A303C);
         g.fillRect(lx - 1, y + shadeH, 2, h - shadeH);
@@ -512,6 +539,46 @@ public final class Room {
         g.setColor(night == 1 ? 0x1A1410 : 0x2E2418);
         g.fillRect(x, y + bh + 3, 4, 4);
         g.fillRect(x + bw - 4, y + bh + 3, 4, 4);
+    }
+
+    /** Small desk radio: speaker grille, tuning dial, two knobs. */
+    private static void drawRadio(Gfx g, int x, int y, int w, int h, LifeSim life,
+                                  int frame) {
+        g.setColor(0x2A2E3A);
+        g.fillRect(x, y, w, h);
+        g.setColor(0x4A5060);
+        g.fillRect(x + 1, y + 1, w - 2, h - 2);
+        // speaker grille
+        g.setColor(0x1A1E28);
+        for (int row = 0; row < (h - 4) / 3; row++) {
+            for (int col = 0; col < (w * 55 / 100) / 3; col++) {
+                g.fillRect(x + 3 + col * 3, y + 3 + row * 3, 2, 1);
+            }
+        }
+        // tuning dial
+        int dx = x + w * 60 / 100;
+        g.setColor(0x1A1E28);
+        g.fillRect(dx, y + 3, w - (dx - x) - 3, h / 3);
+        if (life.radioOn) {
+            int lit = (life.radioStation + 1) * (w - (dx - x) - 5) / 4;
+            g.setColor(0x63E6A0);
+            g.fillRect(dx + 1, y + 4, Math.max(1, lit), h / 3 - 2);
+        }
+        // knobs
+        g.setColor(0x8A90A0);
+        g.fillRect(dx, y + h / 2 + 1, 3, 3);
+        g.fillRect(dx + 6, y + h / 2 + 1, 3, 3);
+        // antenna + "sound" waves while playing
+        g.setColor(0xB0B6C4);
+        g.drawLine(x + w / 2, y, x + w / 2 - 5, y - 5);
+        if (life.radioOn) {
+            g.setColor(0x63E6A0);
+            for (int i = 0; i < 3; i++) {
+                int r = 3 + (frame / 6 + i * 2) % 6;
+                g.drawLine(x + w + 2 + i * 3, y + h / 2 - r / 2,
+                        x + w + 2 + i * 3, y + h / 2 + r / 2);
+            }
+        }
     }
 
     private static void drawCat(Gfx g, LifeSim life, int w, int h, int wallH,
@@ -659,22 +726,22 @@ public final class Room {
     public static int[] rect(int hotspot, int w, int h) {
         int wallH = h * 55 / 100;
         int deskY = wallH + 4;
-        int monW = w * 34 / 100;
+        int monW = w * 32 / 100;
         int monH = monW * 72 / 100;
         int bedY = wallH + h * 26 / 100;
         switch (hotspot) {
             case HOT_MONITOR:
-                return new int[] { w * 5 / 100, deskY - monH - 3,
-                        monW + 6, monH + 6 };
+                return new int[] { w * 6 / 100 - 2, deskY - monH - 3,
+                        monW + 5, monH + 6 };
             case HOT_MUG:
-                return new int[] { w * 55 / 100, deskY - h * 8 / 100,
-                        w * 11 / 100, h * 9 / 100 };
+                return new int[] { w * 70 / 100 - 1, deskY - h * 7 / 100,
+                        w * 8 / 100 + 3, h * 7 / 100 };
             case HOT_CAT:
-                return new int[] { w * 52 / 100, h * 70 / 100,
-                        w * 22 / 100, h * 16 / 100 };
+                return new int[] { w * 52 / 100, h * 62 / 100,
+                        w * 24 / 100, h * 18 / 100 };
             case HOT_LAMP:
-                return new int[] { w * 62 / 100, deskY - h * 18 / 100,
-                        w * 16 / 100, h * 19 / 100 };
+                return new int[] { w * 75 / 100, deskY - h * 18 / 100,
+                        w * 14 / 100, h * 19 / 100 };
             case HOT_BED:
                 return new int[] { w * 1 / 100, bedY - 2,
                         w * 42 / 100, h * 14 / 100 };
@@ -684,9 +751,9 @@ public final class Room {
             case HOT_TOOLS:
                 return new int[] { w * 6 / 100, deskY + h * 8 / 100,
                         w * 46 / 100, h * 8 / 100 };
-            default: /* HOT_RADIO: the tower case on the desk */
-                return new int[] { w * 36 / 100, deskY - monH - 3,
-                        w * 16 / 100, monH + 4 };
+            default: /* HOT_RADIO */
+                return new int[] { w * 55 / 100, deskY - h * 7 / 100,
+                        w * 13 / 100, h * 7 / 100 };
         }
     }
 }

@@ -2331,61 +2331,95 @@ public class Game {
         this.mode = 46;
     }
     
+    /**
+     * Experiment lab index: 1000 experiments, so the row has to carry a lot of
+     * information in little width - number, title, platform and reward, with a
+     * progress ring and a compact filter bar.
+     */
     private void paintExpList() {
+        int w = this.W;
+        int h = this.H;
         this.header("\u041b\u0430\u0431\u043e\u0440\u0430\u0442\u043e\u0440\u0438\u044f",
-                this.expTotalPassed + "/1000 \u2022 XP " + this.expTotalXp);
-        int i = this.FH1 + 12;
-        String s = (this.expFilterPlat != -1) ? rpc.Exp.platformName(this.expFilterPlat) : "\u0432\u0441\u0435";
-        String s0 = (this.expFilterKind != -1) ? rpc.Exp.kindName(this.expFilterKind) : "\u0432\u0441\u0435";
+                this.expTotalPassed + "/1000  XP " + this.expTotalXp);
+
+        int top = this.FH1 + 12;
+        String plat = (this.expFilterPlat != -1)
+                ? rpc.Exp.platformName(this.expFilterPlat) : "\u0432\u0441\u0435";
+        String kind = (this.expFilterKind != -1)
+                ? rpc.Exp.kindName(this.expFilterKind) : "\u0432\u0441\u0435";
+        int barH = this.FH0 + 8;
         this.g.setColor(Theme.PANEL);
-        this.g.fillRect(4, i, this.W - 8, this.FH0 + 6);
-        this.g.setColor(Theme.ACCENT2);
-        String filter = "\u0424\u0438\u043b\u044c\u0442\u0440: " + s + " \u2022 " + s0;
-        this.g.drawText(Text.fit(filter, 0, this.W - 16), 8, i + 3, 0);
+        this.g.fillRect(4, top, w - 8, barH);
         this.g.setColor(Theme.LINE);
-        this.g.drawLine(4, i + this.FH0 + 6, this.W - 4, i + this.FH0 + 6);
-        int i1 = i + (this.FH0 + 9);
-        int i2 = this.FH0 * 2 + 6;
-        int i3 = (this.H - i1 - this.FH0 - 16) / i2;
-        if (i3 < 1) {
-            i3 = 1;
+        this.g.drawLine(4, top + barH - 1, w - 4, top + barH - 1);
+        Text.draw(this.g, "\u25c4", 8, top + 4, 0, Theme.ACCENT2);
+        Text.draw(this.g, Text.fit(plat, 0, w / 2 - 40), 16, top + 4, 0,
+                Theme.ACCENT2);
+        Text.draw(this.g, "\u25ba", w / 2 - 14, top + 4, 0, Theme.ACCENT2);
+        Text.draw(this.g, "\u25c4", w / 2 + 2, top + 4, 0, Theme.ACCENT);
+        Text.draw(this.g, Text.fit(kind, 0, w / 2 - 46), w / 2 + 10, top + 4, 0,
+                Theme.ACCENT);
+        Text.draw(this.g, "\u25ba", w - 14, top + 4, 0, Theme.ACCENT);
+
+        int listTop = top + barH + 3;
+        int footerTop = h - this.FH0 - 12;
+        int rowH = this.FH0 * 2 + 9;
+        int rows = (footerTop - listTop) / rowH;
+        if (rows < 1) {
+            rows = 1;
         }
         if (this.expSel < this.expTop) {
             this.expTop = this.expSel;
         }
-        if (this.expSel >= this.expTop + i3) {
-            this.expTop = this.expSel - i3 + 1;
+        if (this.expSel >= this.expTop + rows) {
+            this.expTop = this.expSel - rows + 1;
         }
-        int i4 = 0;
-        while(true) {
-            if (i4 < i3 && this.expTop + i4 < this.expFilteredCount) {
-                int i5 = this.expTop + i4;
-                int i6 = this.expFiltered[i5];
-                boolean b = i5 == this.expSel;
-                boolean b0 = this.expPassed[i6];
-                int i7 = i1 + i4 * i2;
-                this.g.setColor(b ? 2308170 : 1780536);
-                this.g.fillRect(4, i7, this.W - 8, i2 - 2);
-                if (b) {
-                    this.g.setColor(3793530);
-                    this.g.drawRect(4, i7, this.W - 8, i2 - 2);
-                }
-                this.g.setColor(b0 ? 3793530 : b ? 3793530 : 15003895);
-                String s1 = new StringBuffer(String.valueOf((Object)(b0 ? "\u2605 #" : "#"))).append(i6 + 1).append(" ").toString();
-                this.g.drawText(new StringBuffer(String.valueOf((Object)s1)).append(this.fit(rpc.Exp.title(i6), this.W - 70, 0)).toString(), 8, i7 + 2, 0);
-                this.g.setColor(8297134);
-                String s2 = new StringBuffer(String.valueOf((Object)rpc.Exp.platformName(i6))).append(" \u2022 ").append(rpc.Exp.year(i6)).append("\u0433. \u2022 ").append(rpc.Exp.baseFreq(i6)).append("MHz").toString();
-                this.g.drawText(s2, 8, i7 + this.FH0 + 3, 0);
-                String s3 = new StringBuffer("+").append(rpc.Exp.xp(i6)).append(" XP").toString();
-                this.g.setColor(b0 ? 3793530 : 16763196);
-                this.g.drawText(s3, this.W - this.g.textWidth(s3, 0) - 10, i7 + this.FH0 + 3, 0);
-                i4 = i4 + 1;
-                continue;
+        for (int r = 0; r < rows; r++) {
+            int idx = this.expTop + r;
+            if (idx >= this.expFilteredCount) {
+                break;
             }
-            this.footer("OK: \u0437\u0430\u043f\u0443\u0441\u043a \u2022 \u25c4/\u25ba: \u0444\u0438\u043b\u044c\u0442\u0440", "0: \u0432 \u043c\u0435\u043d\u044e");
-            return;
+            int id = this.expFiltered[idx];
+            boolean sel = idx == this.expSel;
+            boolean passed = this.expPassed[id];
+            int ry = listTop + r * rowH;
+            this.g.setColor(sel ? Theme.PANEL2 : Theme.PANEL);
+            this.g.fillRoundRect(4, ry, w - 8, rowH - 2, 3);
+            if (sel) {
+                this.g.setColor(Theme.ACCENT);
+                this.g.drawRoundRect(4, ry, w - 8, rowH - 2, 3);
+                this.g.fillRect(4, ry + 2, 2, rowH - 6);
+            }
+            // status chip
+            this.g.setColor(passed ? Theme.GREEN : Theme.BG);
+            this.g.fillRoundRect(8, ry + 4, 12, 12, 2);
+            if (passed) {
+                this.g.setColor(0x0E1A12);
+                this.g.drawLine(11, ry + 10, 13, ry + 13);
+                this.g.drawLine(13, ry + 13, 18, ry + 6);
+            } else {
+                this.g.setColor(Theme.LINE);
+                this.g.drawRoundRect(8, ry + 4, 12, 12, 2);
+            }
+            // line 1: number + title, reward on the right
+            String num = "#" + (id + 1);
+            Text.draw(this.g, num, 24, ry + 3, 0, passed ? Theme.GREEN : Theme.MUTED);
+            String xp = "+" + rpc.Exp.xp(id) + " XP";
+            int xw = this.g.textWidth(xp, 0);
+            Text.draw(this.g, xp, w - xw - 8, ry + 3, 0,
+                    passed ? Theme.MUTED : Theme.ACCENT);
+            int tx = 24 + this.g.textWidth("#1000 ", 0);
+            Text.draw(this.g, Text.fit(rpc.Exp.title(id), 0, w - tx - xw - 14),
+                    tx, ry + 3, 0, sel ? Theme.TEXT : Theme.DIM);
+            // line 2: platform and year
+            String meta = rpc.Exp.platformName(rpc.Exp.platform(id)) + " \u2022 "
+                    + rpc.Exp.year(id) + " \u0433.";
+            Text.draw(this.g, Text.fit(meta, 0, w - 32), 24,
+                    ry + 4 + this.FH0, 0, Theme.MUTED);
         }
+        this.footer("\u0432\u044b\u0431\u043e\u0440", "OK: \u0437\u0430\u043f\u0443\u0441\u043a");
     }
+
     
     private void inputExpList(int action) {
         // RIGHT/LEFT jump a whole page, 2/3 filter by platform/kind
@@ -3130,27 +3164,32 @@ public class Game {
         this.header(head, clock);
 
         int sceneTop = this.FH1 + 12;
-        int sceneH = this.H - this.FH0 * 3 - 26 - sceneTop;
+        int sceneH = this.H - this.FH0 * 4 - 24 - sceneTop;
         if (sceneH < 120) {
             sceneH = this.H - sceneTop - 30;
         }
         this.g.setClip(0, sceneTop, this.W, sceneH);
         Room.draw(this.g, this.life, this.life.animationTick, this.pcPowered, sceneH);
-        // number badges make the 1..8 shortcut discoverable
+        // number badges make the 1..8 shortcut discoverable: one per object,
+        // at the top-left corner of the object's own rectangle
         for (int i = 0; i < Room.HOT_COUNT; i++) {
             int[] rr = Room.rect(i, this.W, sceneH);
-            int bx = rr[0] + 1;
-            int by = sceneH + this.FH1 + 12 - rr[1] - rr[3] + 1;
-            if (by < this.FH1 + 13) {
-                by = rr[1] + this.FH1 + 13;
+            int bx = rr[0];
+            // rects are in scene space, the badges are drawn in screen space
+            int by = this.FH1 + 12 + rr[1];
+            if (bx + this.FH0 + 4 > this.W) {
+                bx = this.W - this.FH0 - 4;
+            }
+            if (by + this.FH0 + 4 > this.FH1 + 12 + sceneH) {
+                by = this.FH1 + 12 + sceneH - this.FH0 - 4;
             }
             boolean sel = i == this.roomCursor;
-            this.g.setColor(sel ? Theme.ACCENT : 0x000000);
-            this.g.fillRect(bx - 1, by - 1, this.FH0 + 3, this.FH0 + 3);
+            this.g.setColor(sel ? Theme.ACCENT : 0x121620);
+            this.g.fillRect(bx, by, this.FH0 + 2, this.FH0 + 2);
             this.g.setColor(sel ? 0x3A2A00 : Theme.PANEL2);
-            this.g.fillRect(bx, by, this.FH0 + 1, this.FH0 + 1);
-            Text.draw(this.g, Integer.toString(i + 1), bx + 1, by + 1, 0,
-                    sel ? Theme.ACCENT : Theme.DIM);
+            this.g.fillRect(bx + 1, by + 1, this.FH0, this.FH0);
+            Text.draw(this.g, Integer.toString(i + 1), bx + 2, by + 2, 0,
+                    sel ? Theme.ACCENT : Theme.MUTED);
         }
         // highlight the object under the cursor
         int[] r = Room.rect(this.roomCursor, this.W, sceneH);
@@ -3159,25 +3198,40 @@ public class Game {
         drawCornerBox(this.g, r[0], oy + r[1], r[2], r[3], 4);
         this.g.setClip(0, 0, this.W, this.H);
 
-        // status strip: two rows, above the footer
+        // status strip: three short rows, above the footer
         int footerTop = this.H - this.FH0 - 11;
-        int sy = footerTop - this.FH0 * 2 - 10;
+        int sy = footerTop - this.FH0 * 3 - 12;
         this.g.setColor(Theme.PANEL);
         this.g.fillRect(0, sy, this.W, footerTop - sy);
         this.g.setColor(Theme.LINE);
         this.g.drawLine(0, sy, this.W, sy);
-        String line1 = "\u2615" + this.life.teaLevel + "% "
-                + (this.life.teaHot ? "\u0433\u043e\u0440."
-                                    : "\u043e\u0441\u0442\u044b\u043b")
-                + " \u26a1" + this.life.energy + "%"
-                + " \u263a" + this.life.mood + "%";
-        Text.draw(this.g, Text.fit(line1, 0, this.W - 10), 5, sy + 2, 0,
-                Theme.TEXT);
-        String line2 = LifeSim.WEATHER_NAMES[this.life.weather] + " \u2022 "
-                + (this.life.radioOn ? this.life.radioTracks[this.life.radioStation]
-                                     : "\u0440\u0430\u0434\u0438\u043e \u0432\u044b\u043a\u043b");
-        Text.draw(this.g, Text.fit(line2, 0, this.W - 10), 5,
-                sy + this.FH0 + 1, 0, this.life.radioOn ? Theme.ACCENT2 : Theme.MUTED);
+        int row1 = sy + 2;
+        int row2 = row1 + this.FH0;
+        int row3 = row2 + this.FH0;
+        // tea + energy
+        Text.draw(this.g, "\u0447\u0430\u0439 " + this.life.teaLevel + "%", 5, row1, 0,
+                this.life.teaHot ? Theme.ORANGE : Theme.MUTED);
+        int tx = 5 + this.g.textWidth("\u0447\u0430\u0439 100%", 0) + 8;
+        Text.draw(this.g, "\u044d\u043d\u0435\u0440\u0433\u0438\u044f "
+                + this.life.energy + "%", tx, row1, 0, Theme.GREEN);
+        tx += this.g.textWidth("\u044d\u043d\u0435\u0440\u0433\u0438\u044f 100%", 0) + 8;
+        if (tx + 30 < this.W) {
+            Text.draw(this.g, this.life.teaHot ? "\u0433\u043e\u0440\u044f\u0447\u0438\u0439"
+                    : "\u043e\u0441\u0442\u044b\u043b", tx, row1, 0, Theme.ORANGE);
+        }
+        // mood + weather
+        Text.draw(this.g, "\u043d\u0430\u0441\u0442\u0440\u043e\u0435\u043d\u0438\u0435 "
+                + this.life.mood + "%", 5, row2, 0, Theme.ACCENT2);
+        String weather = LifeSim.WEATHER_NAMES[this.life.weather] + ", "
+                + LifeSim.SEASON_NAMES[this.life.season];
+        Text.draw(this.g, Text.fit(weather, 0, this.W / 2 - 10),
+                this.W / 2 + 4, row2, 0, Theme.DIM);
+        // radio
+        String radio = this.life.radioOn
+                ? "\u0440\u0430\u0434\u0438\u043e: " + this.life.radioTracks[this.life.radioStation]
+                : "\u0440\u0430\u0434\u0438\u043e \u0432\u044b\u043a\u043b\u044e\u0447\u0435\u043d\u043e";
+        Text.draw(this.g, Text.fit(radio, 0, this.W - 10), 5, row3, 0,
+                this.life.radioOn ? Theme.GREEN : Theme.MUTED);
         this.footer(this.roomHint(), "\u041b\u0421\u041a:\u041b\u0430\u0431");
     }
 
@@ -3216,78 +3270,183 @@ public class Game {
 
     private void paintTea() {
         this.teaTick++;
-        this.header("\u0427\u0430\u0435\u043f\u0438\u0442\u0438\u0435", "\u0441\u0442\u0430\u043a\u0430\u043d \u2116"
-                + (1 + this.teaBrewed));
         int w = this.W;
         int h = this.H;
+        this.header("\u0427\u0430\u0435\u043f\u0438\u0442\u0438\u0435",
+                "\u0441\u0442\u0430\u043a\u0430\u043d \u2116" + (1 + this.teaBrewed));
 
-        // cozy background: warm table under a lamp
-        this.g.setColor(0x2A1F16);
-        this.g.fillRect(0, this.FH1 + 10, w, h - this.FH1 - this.FH0 * 3 - 30);
-        this.g.setColor(0x3A2A1C);
-        for (int y = this.FH1 + 14; y < h - this.FH0 * 3 - 22; y += 9) {
+        int top = this.FH1 + 12;
+        int footerTop = h - this.FH0 - 12;
+        int cardH = this.FH0 * 4 + 12;
+        int sceneH = footerTop - top - cardH - 8;
+
+        // warm table under a lamp
+        this.g.setColor(0x2C1F14);
+        this.g.fillRect(0, top, w, sceneH);
+        this.g.setColor(0x3E2C1C);
+        for (int y = top + 6; y < top + sceneH; y += 11) {
             this.g.drawLine(0, y, w, y);
         }
-
-        // steam particles rise
-        int cupW = w / 3;
-        int cupH = cupW * 3 / 4;
-        int cx = (w - cupW) / 2;
-        int cy = h / 2 - cupH / 2;
+        // warm ambient light from the desk lamp, as soft bands (a hard
+        // triangle read as a floating shape, not as light)
         for (int i = 0; i < 7; i++) {
-            if (!this.life.teaHot || this.life.teaLevel <= 0) {
-                break;
-            }
-            int phase = (this.teaTick + i * 7) % 28;
-            int px = cx + cupW / 4 + (i * 13 + (int) (Math.sin(
-                    (this.teaTick + i * 9) * 0.2) * 6)) % (cupW / 2);
-            int py = cy - 6 - phase * 2;
-            this.g.setColor(phase > 16 ? 0x8A93A8 : 0xDDE6F6);
-            this.g.fillRect(px, py, 2, 3);
+            int bandW = w * (28 + i * 9) / 100;
+            int bandY = top + sceneH * i / 22;
+            this.g.setColor(0x38291A);
+            this.g.fillRect(w - bandW, bandY, bandW, sceneH / 22 + 1);
         }
 
-        // cup
-        this.g.setColor(0xE8EEF8);
-        this.g.fillRect(cx, cy, cupW, cupH);
-        this.g.fillRect(cx + cupW, cy + cupH / 4, cupW / 6, cupH / 2);
-        this.g.setColor(0x3A2A1C);
-        this.g.fillRect(cx + cupW + 2, cy + cupH / 4 + 3, cupW / 6 - 4, cupH / 2 - 6);
-        this.g.setColor(0xB4651E);
-        this.g.fillRect(cx + 3, cy + 3, cupW - 6,
-                (cupH - 6) * Math.max(0, this.life.teaLevel) / 100);
-        this.g.setColor(0x8A4A16);
-        this.g.fillRect(cx + 3, cy + 3, cupW - 6, 2);
-        this.g.setColor(0xE8EEF8);
-        this.g.fillRect(cx - 6, cy + cupH - 4, cupW + 12, 4);
-        // saucer + spoon
-        this.g.setColor(0xC8CEDC);
-        this.g.fillRect(cx - 12, cy + cupH, cupW + 24, 4);
+        int cupW = Math.min(w * 46 / 100, 96);
+        int cupH = cupW * 85 / 100;
+        int cx = (w - cupW) / 2 - 8;
+        int cy = top + sceneH / 2 - cupH / 2;
+        int tea = Math.max(0, Math.min(100, this.life.teaLevel));
 
-        // tea bag tag animation
-        int swing = (int) (Math.sin(this.teaTick * 0.15) * 3);
+        // steam: three short wavy wisps rising from the rim
+        if (this.life.teaHot && tea > 0) {
+            int steamH = Math.min(sceneH / 3, cy - top - 4);
+            for (int wisp = 0; wisp < 3; wisp++) {
+                int baseX = cx + cupW / 3 + wisp * (cupW / 4) + 2;
+                for (int k = 0; k < steamH; k += 3) {
+                    int t = (this.teaTick / 2 + k * 2 + wisp * 9) % 38;
+                    int x = baseX + (int) (Math.sin((k + t) * 0.16) * (2 + k / 10));
+                    int y = cy - 3 - k;
+                    int shade = k * 3 / (steamH + 1);
+                    this.g.setColor(shade < 1 ? 0x9A9082
+                            : (shade < 2 ? 0x726A5C : 0x4E483C));
+                    this.g.fillRect(x, y, 1, 2);
+                }
+            }
+        }
+
+        // cast shadow + saucer (an ellipse built from stacked rows)
+        this.g.setColor(0x1E150D);
+        this.g.fillRoundRect(cx - 18, cy + cupH + 2, cupW + 36, 9, 5);
+        int sW = cupW + 36;
+        int sH = 11;
+        int sY = cy + cupH - 3;
+        for (int row = 0; row < sH; row++) {
+            int half = sW / 2 * (sH - Math.abs(row - sH / 2) * 2 + 2) / (sH + 2);
+            int rgb = row < 2 ? 0xEDE6D4 : (row < 5 ? 0xCFC3A8 : 0x8E8068);
+            this.g.setColor(rgb);
+            this.g.fillRect(cx + cupW / 2 - half, sY + row, half * 2, 1);
+        }
+        this.g.setColor(0xB8AC90);
+        this.g.fillRect(cx + 4, sY + 4, cupW - 8, 1);
+
+        // handle: a closed ring.  Outer body, then the hole is punched out,
+        // then the body of the cup is drawn over the root.
+        int hx = cx + cupW - 8;
+        int hy = cy + cupH / 4;
+        int hh = cupH / 2;
+        int hOuter = 26;
+        int hWall = 6;
+        this.g.setColor(0xC6BFB0);
+        for (int row = 0; row < hh; row++) {
+            // taper the ends so the grip looks round, not like a box
+            int inset = 0;
+            int edge = Math.min(row, hh - 1 - row);
+            if (edge < 5) {
+                inset = (5 - edge) * hOuter / 12;
+            }
+            this.g.fillRect(hx + inset, hy + row, hOuter - inset * 2, 1);
+        }
+        this.g.setColor(0x2C1F14);
+        for (int row = hWall; row < hh - hWall; row++) {
+            int edge = Math.min(row - hWall, hh - 1 - row - hWall);
+            int inset = 0;
+            if (edge < 4) {
+                inset = (4 - edge) * (hOuter - hWall * 2) / 14;
+            }
+            this.g.fillRect(hx + hWall + inset, hy + row,
+                    hOuter - hWall * 2 - inset * 2 + 2, 1);
+        }
+
+        // body: white ceramic, shaded on the right, bright on the left
+        this.g.setColor(0xE4DFD4);
+        this.g.fillRoundRect(cx, cy, cupW, cupH, 9);
+        this.g.setColor(0xAFA898);
+        this.g.fillRoundRect(cx + cupW - 10, cy + 5, 10, cupH - 10, 5);
+        this.g.setColor(0xE4DFD4);
+        this.g.fillRect(cx + cupW - 12, cy + 3, 9, cupH - 6);
+        this.g.setColor(0xF6F2E8);
+        this.g.fillRect(cx + 3, cy + 5, 3, cupH - 12);
+
+        // tea inside, with a highlight ring
+        int innerX = cx + 10;
+        int innerY = cy + 9;
+        int innerW = cupW - 20;
+        int innerH = cupH - 18;
+        this.g.setColor(0x2A1A0C);
+        this.g.fillRoundRect(innerX, innerY, innerW, innerH, 5);
+        int fillH = innerH * tea / 100;
+        if (fillH > 0) {
+            this.g.setColor(this.life.teaHot ? 0xB4651E : 0x8A4A16);
+            this.g.fillRoundRect(innerX, innerY + innerH - fillH, innerW,
+                    fillH, 4);
+            this.g.setColor(this.life.teaHot ? 0xD8862E : 0xA45C1E);
+            this.g.fillRect(innerX + 2, innerY + innerH - fillH, innerW - 4, 2);
+            this.g.setColor(0xF0B060);
+            this.g.fillRect(innerX + 5, innerY + innerH - fillH + 2, 10, 1);
+        }
+        // rim + inner shadow along the top edge of the tea hole
+        this.g.setColor(0x4A3218);
+        this.g.fillRect(innerX, innerY, innerW, 3);
+        this.g.setColor(0xF4F0E6);
+        this.g.fillRect(cx + 2, cy, cupW - 4, 3);
+
+        // tea bag on its string, swinging
+        int swing = (int) (Math.sin(this.teaTick * 0.11) * 5);
+        this.g.setColor(0xE8D8A8);
+        this.g.drawLine(cx + cupW - 8, cy + 8, cx + cupW + 14 + swing,
+                cy + cupH + 6);
         this.g.setColor(0xFFD06A);
-        this.g.drawLine(cx + cupW - 4, cy + cupH / 2, cx + cupW + 8 + swing,
-                cy + cupH + 12);
-        this.g.fillRect(cx + cupW + 4 + swing, cy + cupH + 10, 8, 8);
+        this.g.fillRect(cx + cupW + 10 + swing, cy + cupH + 4, 9, 11);
+        this.g.setColor(0xB08A30);
+        this.g.fillRect(cx + cupW + 12 + swing, cy + cupH + 7, 5, 2);
 
-        // info block
-        int iy = cy + cupH + 26;
+        // spoon resting on the saucer
+        this.g.setColor(0xB8BCC6);
+        this.g.drawLine(cx + cupW + 6, cy + cupH + 5, cx + cupW + 28,
+                cy + cupH + 2);
+        this.g.setColor(0xD8DCE4);
+        this.g.fillRoundRect(cx + cupW + 24, cy + cupH - 1, 10, 6, 3);
+
+        // info card
+        int iy = top + sceneH + 6;
         this.g.setColor(Theme.PANEL);
-        this.g.fillRoundRect(6, iy, w - 12, this.FH0 * 4 + 12, 5);
+        this.g.fillRoundRect(5, iy, w - 10, cardH, 5);
         this.g.setColor(Theme.LINE);
-        this.g.drawRoundRect(6, iy, w - 12, this.FH0 * 4 + 12, 5);
-        Text.draw(this.g, "\u0423\u0440\u043e\u0432\u0435\u043d\u044c: "
-                + this.life.teaLevel + "%", 12, iy + 4, 0, Theme.ACCENT);
-        Text.draw(this.g, "\u0422\u0435\u043c\u043f\u0435\u0440\u0430\u0442\u0443\u0440\u0430: "
-                + (this.life.teaHot ? "\u0433\u043e\u0440." :
-                   "\u043e\u0441\u0442\u044b\u043b"), 12, iy + 4 + this.FH0, 0, Theme.TEXT);
-        Text.draw(this.g, "\u042d\u043d\u0435\u0440\u0433\u0438\u044f " + this.life.energy
-                + "%   \u041d\u0430\u0441\u0442\u0440\u043e\u0435\u043d\u0438\u0435 "
-                + this.life.mood + "%", 12, iy + 4 + this.FH0 * 2, 0, Theme.GREEN);
-        Text.draw(this.g, Text.fit(this.life.lastEventMsg, 0, w - 20), 12,
-                iy + 4 + this.FH0 * 3, 0, Theme.DIM);
-        this.footer("OK: \u043f\u0438\u0442\u044c   2: \u0437\u0430\u0432\u0430\u0440\u0438\u0442\u044c", "\u041d\u0430\u0437\u0430\u0434");
+        this.g.drawRoundRect(5, iy, w - 10, cardH, 5);
+        int rowY = iy + 4;
+        Text.draw(this.g, "\u0423\u0440\u043e\u0432\u0435\u043d\u044c " + tea + "%",
+                10, rowY, 0, Theme.ACCENT);
+        // gauge
+        int gx = 10 + this.g.textWidth("\u0423\u0440\u043e\u0432\u0435\u043d\u044c 100%", 0) + 6;
+        int gw = w - gx - 14;
+        this.g.setColor(Theme.BG);
+        this.g.fillRect(gx, rowY + 2, gw, this.FH0 - 3);
+        this.g.setColor(this.life.teaHot ? 0xB4651E : 0x8A4A16);
+        this.g.fillRect(gx, rowY + 2, gw * tea / 100, this.FH0 - 3);
+        this.g.setColor(Theme.LINE);
+        this.g.drawRect(gx, rowY + 2, gw, this.FH0 - 3);
+
+        rowY += this.FH0 + 1;
+        Text.draw(this.g, this.life.teaHot ? "\u0433\u043e\u0440\u044f\u0447\u0438\u0439"
+                : "\u043e\u0441\u0442\u044b\u043b", 10, rowY, 0,
+                this.life.teaHot ? Theme.ORANGE : Theme.MUTED);
+        Text.draw(this.g, "\u044d\u043d\u0435\u0440\u0433\u0438\u044f " + this.life.energy
+                + "%  \u043d\u0430\u0441\u0442\u0440\u043e\u0435\u043d\u0438\u0435 "
+                + this.life.mood + "%", 10 + this.g.textWidth(
+                "\u0433\u043e\u0440\u044f\u0447\u0438\u0439", 0) + 10, rowY, 0,
+                Theme.GREEN);
+        rowY += this.FH0 + 1;
+        Text.draw(this.g, Text.fit(this.life.lastEventMsg, 0, w - 20), 10,
+                rowY, 0, Theme.DIM);
+        this.footer("OK: \u043f\u0438\u0442\u044c   2: \u0437\u0430\u0432\u0430\u0440\u0438\u0442\u044c",
+                "\u041d\u0430\u0437\u0430\u0434");
     }
+
 
     /* ==================================================================
      *  sleep screen
@@ -3358,47 +3517,106 @@ public class Game {
 
     
     
+    /**
+     * City screen: location tabs, an NPC portrait card and numbered replies.
+     *
+     * The 4.8 version drew two info boxes at the same y coordinate (so the
+     * description was buried under the dialogue) and duplicated the option
+     * numbers because the labels already contained them.
+     */
     private void paintCity() {
-        this.header(rpc.City.LOC_NAMES[this.city.curLocation],
+        int w = this.W;
+        int h = this.H;
+        int loc = this.city.curLocation;
+        this.header(rpc.City.LOC_NAMES[loc],
                 this.life.curHour + ":00  " + this.life.curYear);
-        this.g.setColor(Theme.PANEL);
-        this.g.fillRect(0, this.FH1 + 11, this.W, this.FH0 + 10);
-        Text.draw(this.g,
-                "\u25c4\u25ba \u0440\u0430\u0439\u043e\u043d " + (this.city.curLocation + 1)
-                + "/" + rpc.City.LOC_NAMES.length + "   1-4: \u043e\u0442\u0432\u0435\u0442",
-                6, this.FH1 + 14, 0, Theme.ACCENT2);
-        int i = this.FH1 + 8;
-        this.g.setColor(1582130);
-        this.g.fillRect(6, i, this.W - 12, this.FH0 * 2 + 4);
-        this.g.setColor(4084846);
-        this.g.drawRect(6, i, this.W - 12, this.FH0 * 2 + 4);
-        this.g.setColor(15002868);
-        this.g.drawText(this.fit(rpc.City.LOC_DESCS[this.city.curLocation], this.W - 18, 0), 10, i + 2, 0);
-        int i0 = i + (this.FH0 * 2 + 8);
-        this.g.setColor(1054756);
-        this.g.fillRect(6, i0, this.W - 12, this.FH0 * 3 + 8);
-        this.g.setColor(3793530);
-        this.g.drawRect(6, i0, this.W - 12, this.FH0 * 3 + 8);
-        this.g.drawText(new StringBuffer(String.valueOf((Object)this.city.dialogueNpc)).append(":").toString(), 10, i0 + 2, 1);
-        this.g.setColor(16772744);
-        this.g.drawText(this.fit(this.city.dialogueText, this.W - 20, 0), 10, i0 + this.FH1 + 3, 0);
-        int i1 = i0 + (this.FH0 * 3 + 12);
-        int i2 = 0;
-        while(i2 < this.city.dialogueOptions.length) {
-            int i3 = i1 + i2 * (this.FH0 + 5);
-            boolean b = i2 == this.city.selectedOption;
-            this.g.setColor(b ? 2246710 : 1780796);
-            this.g.fillRect(8, i3, this.W - 16, this.FH0 + 4);
-            this.g.setColor(b ? 3793530 : 4084846);
-            this.g.drawRect(8, i3, this.W - 16, this.FH0 + 4);
-            this.g.setColor(b ? 16772744 : 58879);
-            this.g.drawText((i2 + 1) + ". " + this.city.dialogueOptions[i2],
-                    12, i3 + 2, 0);
-            i2 = i2 + 1;
+
+        // location tabs
+        int top = this.FH1 + 12;
+        int tabH = this.FH0 + 7;
+        int n = rpc.City.LOC_NAMES.length;
+        int tabW = (w - 10) / n;
+        for (int i = 0; i < n; i++) {
+            int tx = 5 + i * tabW;
+            boolean sel = i == loc;
+            this.g.setColor(sel ? Theme.ACCENT : Theme.PANEL);
+            this.g.fillRoundRect(tx, top, tabW - 2, tabH, 2);
+            Text.draw(this.g, Integer.toString(i + 1), tx + 2, top + 4, 0,
+                    sel ? 0x2A1E00 : Theme.MUTED);
         }
-        int i4 = i1 + (this.city.dialogueOptions.length * (this.FH0 + 5) + 6);
-        this.footer("OK: \u0440\u0435\u043f\u043b\u0438\u043a\u0430  \u25c4\u25ba: \u0440\u0430\u0439\u043e\u043d",
-                "\u041d\u0430\u0437\u0430\u0434: \u0414\u043e\u043c");
+        String locTag = (loc + 1) + "/" + n;
+        Text.draw(this.g, locTag, w - this.g.textWidth(locTag, 0) - 6,
+                top + tabH + 4, 0, Theme.MUTED);
+
+        // description card
+        int dy = top + tabH + this.FH0 + 9;
+        String desc = rpc.City.LOC_DESCS[loc];
+        String[] dlines = wrap(desc, w - 18, 0, 2);
+        int descH = this.FH0 * dlines.length + 8;
+        this.g.setColor(Theme.PANEL2);
+        this.g.fillRoundRect(5, dy, w - 10, descH, 3);
+        for (int i = 0; i < dlines.length; i++) {
+            Text.draw(this.g, dlines[i], 9, dy + 4 + i * this.FH0, 0,
+                    Theme.ACCENT2);
+        }
+
+        // NPC card with a portrait badge
+        int ny = dy + descH + 4;
+        int npcH = this.FH0 * 3 + 12;
+        this.g.setColor(Theme.PANEL);
+        this.g.fillRoundRect(5, ny, w - 10, npcH, 4);
+        this.g.setColor(Theme.LINE);
+        this.g.drawRoundRect(5, ny, w - 10, npcH, 4);
+        int portrait = npcH - 10;
+        Icons.drawSized(this.g, Icons.CART, 9, ny + 5, portrait,
+                Theme.METAL, Theme.ACCENT, 0x39415A);
+        int ptx = 9 + portrait + 6;
+        Text.draw(this.g, Text.fit(this.city.dialogueNpc + ":", 0, w - ptx - 8),
+                ptx, ny + 3, 0, Theme.ACCENT);
+        String[] tlines = wrap(this.city.dialogueText, w - ptx - 10, 0, 2);
+        for (int i = 0; i < tlines.length; i++) {
+            Text.draw(this.g, tlines[i], ptx, ny + 4 + this.FH0 + i * this.FH0,
+                    0, Theme.TEXT);
+        }
+
+        // numbered replies
+        int oy = ny + npcH + 5;
+        int optH = this.FH0 + 6;
+        int footerTop = h - this.FH0 - 12;
+        for (int i = 0; i < this.city.dialogueOptions.length; i++) {
+            int ry = oy + i * (optH + 2);
+            if (ry + optH > footerTop) {
+                break;
+            }
+            boolean sel = i == this.city.selectedOption;
+            this.g.setColor(sel ? Theme.PANEL2 : Theme.PANEL);
+            this.g.fillRoundRect(6, ry, w - 12, optH, 3);
+            this.g.setColor(sel ? Theme.ACCENT : Theme.LINE);
+            this.g.drawRoundRect(6, ry, w - 12, optH, 3);
+            this.g.setColor(sel ? Theme.ACCENT : Theme.MUTED);
+            this.g.fillRect(6, ry + 2, 12, optH - 4);
+            Text.draw(this.g, Integer.toString(i + 1), 9, ry + 4, 0,
+                    sel ? 0x2A1E00 : Theme.DIM);
+            Text.draw(this.g, Text.fit(stripNumber(this.city.dialogueOptions[i]),
+                    0, w - 30), 22, ry + 4, 0,
+                    sel ? Theme.TEXT : Theme.DIM);
+        }
+        this.footer("OK: \u0440\u0435\u043f\u043b\u0438\u043a\u0430",
+                "\u2190\u2192 \u0440\u0430\u0439\u043e\u043d");
+    }
+
+    
+    /** Removes a leading "3. " that the 4.8 strings carry. */
+    private String stripNumber(String s) {
+        int i = 0;
+        while (i < s.length() && s.charAt(i) >= '0' && s.charAt(i) <= '9') {
+            i++;
+        }
+        if (i > 0 && i + 1 < s.length() && s.charAt(i) == '.'
+                && s.charAt(i + 1) == ' ') {
+            return s.substring(i + 2);
+        }
+        return s;
     }
     
     private void inputCity(int action) {
@@ -3553,34 +3771,147 @@ public class Game {
         }
     }
     
+    /**
+     * Calendar / history screen.
+     *
+     * Was: a header that overflowed its own plate ("ХРОНИКА IT 19802027"),
+     * an event box clipped to one line and a text list.  Now a year strip with
+     * arrows, the event card with the year rendered big, and achievement
+     * cards with a progress bar.
+     */
     private void paintEventNews() {
-        this.header("\u0425\u0440\u043e\u043d\u0438\u043a\u0430 IT 1980\u20132027", new StringBuffer("\u0413\u043e\u0434: ").append(this.life.curYear).toString());
-        int i = this.FH1 + 8;
-        this.g.setColor(1582130);
-        this.g.fillRect(6, i, this.W - 12, this.FH0 * 3 + 8);
-        this.g.setColor(3793530);
-        this.g.drawRect(6, i, this.W - 12, this.FH0 * 3 + 8);
-        this.g.setColor(16772744);
-        this.g.drawText(this.fit(rpc.CalendarHistory.getEventForYear(this.life.curYear), this.W - 18, 0), 10, i + 3, 0);
-        int i0 = i + (this.FH0 * 3 + 12);
-        this.g.setColor(3793530);
-        this.g.drawText("\u0414\u043e\u0441\u0442\u0438\u0436\u0435\u043d\u0438\u044f \u041c\u0430\u0441\u0442\u0435\u0440\u0430 (\u0412\u0430\u0439\u0431-\u043a\u043e\u043b\u043b\u0435\u043a\u0446\u0438\u044f):", 8, i0, 1);
-        int i1 = i0 + (this.FH1 + 4);
-        int i2 = Math.min(4, rpc.CalendarHistory.ACHIEVEMENTS.length);
-        int i3 = 0;
-        while(i3 < i2) {
-            int i4 = i1 + i3 * (this.FH0 * 2 + 2);
-            boolean b = rpc.CalendarHistory.achDone[i3];
-            this.g.setColor(b ? 1783848 : 1318440);
-            this.g.fillRect(8, i4, this.W - 16, this.FH0 * 2);
-            this.g.setColor(b ? 3793530 : 4084846);
-            this.g.drawRect(8, i4, this.W - 16, this.FH0 * 2);
-            this.g.setColor(b ? 3793530 : 8297134);
-            this.g.drawText(new StringBuffer(String.valueOf((Object)(b ? "\u2605 " : "\u2606 "))).append(this.fit(rpc.CalendarHistory.ACHIEVEMENTS[i3], this.W - 24, 0)).toString(), 12, i4 + 2, 0);
-            i3 = i3 + 1;
+        int w = this.W;
+        int h = this.H;
+        int year = this.life.curYear;
+        this.header("\u0425\u0440\u043e\u043d\u0438\u043a\u0430 IT", year + "");
+
+        // year strip
+        int top = this.FH1 + 12;
+        int stripH = this.FH2 + 12;
+        this.g.setColor(Theme.PANEL);
+        this.g.fillRoundRect(5, top, w - 10, stripH, 4);
+        this.g.setColor(Theme.LINE);
+        this.g.drawRoundRect(5, top, w - 10, stripH, 4);
+        this.g.setColor(Theme.ACCENT);
+        this.g.fillTriangle(14, top + stripH / 2, 22, top + stripH / 2 - 5,
+                22, top + stripH / 2 + 5);
+        this.g.fillTriangle(w - 14, top + stripH / 2, w - 22,
+                top + stripH / 2 - 5, w - 22, top + stripH / 2 + 5);
+        Text.drawAnchored(this.g, Integer.toString(year), w / 2,
+                top + (stripH - this.FH2) / 2, 2, Gfx.HCENTER, Theme.ACCENT);
+        Text.drawAnchored(this.g, "\u2190 \u0433\u043e\u0434 \u2192", w / 2,
+                top + stripH + 2, 0, Gfx.HCENTER, Theme.MUTED);
+
+        // event card
+        int ey = top + stripH + this.FH0 + 8;
+        int eh = this.FH0 * 4 + 10;
+        this.g.setColor(Theme.PANEL2);
+        this.g.fillRoundRect(5, ey, w - 10, eh, 4);
+        this.g.setColor(Theme.ACCENT2);
+        this.g.drawRoundRect(5, ey, w - 10, eh, 4);
+        Text.draw(this.g, "\u0421\u043e\u0431\u044b\u0442\u0438\u0435 \u0433\u043e\u0434\u0430", 9, ey + 3, 0,
+                Theme.ACCENT2);
+        String[] lines = wrap(rpc.CalendarHistory.getEventForYear(year),
+                w - 20, 0, 3);
+        for (int i = 0; i < lines.length; i++) {
+            Text.draw(this.g, lines[i], 9, ey + 4 + this.FH0 + i * this.FH0,
+                    0, Theme.TEXT);
         }
-        this.footer("\u25c4/\u25ba: \u0421\u043c\u0435\u043d\u0430 \u0433\u043e\u0434\u0430 \u2022 OK: \u0412 \u043a\u043e\u043c\u043d\u0430\u0442\u0443", "0: \u041d\u0430\u0437\u0430\u0434");
+
+        // achievements
+        int ay = ey + eh + 6;
+        int done = 0;
+        for (int i = 0; i < rpc.CalendarHistory.ACHIEVEMENTS.length; i++) {
+            if (rpc.CalendarHistory.achDone[i]) {
+                done++;
+            }
+        }
+        String head = "\u0414\u043e\u0441\u0442\u0438\u0436\u0435\u043d\u0438\u044f: " + done + "/"
+                + rpc.CalendarHistory.ACHIEVEMENTS.length;
+        Text.draw(this.g, head, 7, ay, 0, Theme.ACCENT);
+        // progress bar
+        int px = 7 + this.g.textWidth(head, 0) + 6;
+        int pw = w - px - 8;
+        this.g.setColor(Theme.BG);
+        this.g.fillRect(px, ay + 2, pw, this.FH0 - 3);
+        this.g.setColor(Theme.ACCENT);
+        int fill = pw * done / rpc.CalendarHistory.ACHIEVEMENTS.length;
+        if (fill > 0) {
+            this.g.fillRect(px, ay + 2, fill, this.FH0 - 3);
+        }
+        this.g.setColor(Theme.LINE);
+        this.g.drawRect(px, ay + 2, pw, this.FH0 - 3);
+
+        int cy = ay + this.FH0 + 5;
+        int cardH = this.FH0 * 2 + 6;
+        int footerTop = h - this.FH0 - 12;
+        int shown = 0;
+        for (int i = 0; i < rpc.CalendarHistory.ACHIEVEMENTS.length; i++) {
+            if (cy + cardH > footerTop) {
+                break;
+            }
+            boolean ok = rpc.CalendarHistory.achDone[i];
+            shown++;
+            this.g.setColor(ok ? 0x1E3A2A : Theme.PANEL);
+            this.g.fillRoundRect(5, cy, w - 10, cardH, 3);
+            this.g.setColor(ok ? Theme.GREEN : Theme.LINE);
+            this.g.drawRoundRect(5, cy, w - 10, cardH, 3);
+            // check box
+            this.g.setColor(ok ? Theme.GREEN : Theme.BG);
+            this.g.fillRect(9, cy + cardH / 2 - 4, 8, 8);
+            this.g.setColor(ok ? 0x0E1A12 : Theme.LINE);
+            this.g.drawRect(9, cy + cardH / 2 - 4, 8, 8);
+            if (ok) {
+                int bx0 = 9;
+                int by0 = cy + cardH / 2 - 4;
+                this.g.setColor(0x0E1A12);
+                this.g.drawLine(bx0 + 1, by0 + 3, bx0 + 3, by0 + 6);
+                this.g.drawLine(bx0 + 3, by0 + 6, bx0 + 7, by0 + 1);
+            }
+            String[] ach = wrap(rpc.CalendarHistory.ACHIEVEMENTS[i], w - 32, 0, 2);
+            for (int k = 0; k < ach.length; k++) {
+                Text.draw(this.g, ach[k], 21, cy + 3 + k * this.FH0, 0,
+                        ok ? Theme.TEXT : Theme.DIM);
+            }
+            cy += cardH + 3;
+        }
+        this.footer("\u2190\u2192 \u0433\u043e\u0434", "OK: \u0432 \u043a\u043e\u043c\u043d\u0430\u0442\u0443");
     }
+
+    /** Greedy word wrap; returns at most {@code maxLines} lines. */
+    private String[] wrap(String text, int maxPx, int style, int maxLines) {
+        String[] out = new String[maxLines];
+        int count = 0;
+        if (text == null) {
+            return new String[0];
+        }
+        int start = 0;
+        while (start < text.length() && count < maxLines) {
+            int end = text.length();
+            while (end > start && this.g.textWidth(text.substring(start, end), style) > maxPx) {
+                int space = text.lastIndexOf(' ', end - 1);
+                if (space <= start) {
+                    // a single very long word: hard cut
+                    end = start + Math.max(1, maxPx / (6 * Text.scale(style)) - 1);
+                    break;
+                }
+                end = space;
+            }
+            String piece = text.substring(start, Math.min(end, text.length())).trim();
+            if (count == maxLines - 1 && end < text.length()) {
+                piece = Text.fit(piece + " " + text.substring(Math.min(end, text.length())).trim(),
+                        style, maxPx);
+            }
+            out[count++] = piece;
+            start = end + 1;
+        }
+        String[] trimmed = new String[count];
+        for (int i = 0; i < count; i++) {
+            trimmed[i] = out[i];
+        }
+        return trimmed;
+    }
+
     
     private void inputEventNews(int i) {
         label0: if (i != 2) {
