@@ -435,7 +435,8 @@ public final class Icons {
             case 4: return CART;
             case 5: return FLASK;
             case 6: return CALENDAR;
-            default: return INFO;
+            case 7: return INFO;
+            default: return CHIP;
         }
     }
 }

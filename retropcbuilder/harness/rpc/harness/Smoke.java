@@ -1,7 +1,9 @@
 package rpc.harness;
 
+import rpc.Funcs;
 import rpc.Game;
 import rpc.Host;
+import rpc.Icons;
 import rpc.Part;
 
 /**
@@ -17,6 +19,19 @@ import rpc.Part;
 public final class Smoke {
 
     private static int failures;
+
+    /**
+     * Repaints until the character finished walking.  Stops as soon as the
+     * walk triggered a screen change, so the next check sees a fresh screen.
+     */
+    private static void settle(Game g) {
+        for (int i = 0; i < 120; i++) {
+            if (g.currentMode() != Game.M_ROOM) {
+                return;
+            }
+            g.paint();
+        }
+    }
 
     private static void check(boolean ok, String what) {
         if (!ok) {
@@ -85,24 +100,35 @@ public final class Smoke {
                     + " (got " + g.currentMode() + ")");
         }
 
-        /* in the room, key 1 opens the mug/tea screen and nothing else */
+        /* the character walks: a number sends it to the object, which is
+         * used when it arrives, and only then does the screen change */
         Game g = new Game();
         g.init(host, gfx);
         g.input(Game.ACT_NUM1);            /* Комната */
         check(g.currentMode() == Game.M_ROOM, "room reached");
+        int[] p0 = g.avatarPos();
+        g.input(Game.ACT_RIGHT);
+        int[] p1 = g.avatarPos();
+        check(p1[0] > p0[0], "right arrow walks the character ("
+                + p0[0] + " -> " + p1[0] + ")");
         g.input(Game.ACT_NUM1);            /* hot 1 = monitor */
-        check(g.currentMode() == Game.M_BUILD, "room object 1 -> build");
+        check(g.currentMode() == Game.M_ROOM, "number starts a walk, not a jump");
+        settle(g);
+        check(g.currentMode() == Game.M_BUILD, "walked to the monitor -> build");
+
         Game g2 = new Game();
         g2.init(host, gfx);
         g2.input(Game.ACT_NUM1);
         g2.input(Game.ACT_NUM2);           /* hot 2 = mug */
-        check(g2.currentMode() == Game.M_TEA, "room object 2 -> tea");
+        settle(g2);
+        check(g2.currentMode() == Game.M_TEA, "walked to the mug -> tea");
         g2.input(Game.ACT_FIRE);           /* drink */
         check(g2.currentMode() == Game.M_TEA, "tea screen stays after drinking");
         g2.input(Game.ACT_BACK);
         check(g2.currentMode() == Game.M_ROOM, "tea -> back returns to room");
         g2.input(Game.ACT_NUM5);           /* hot 5 = bed */
-        check(g2.currentMode() == Game.M_SLEEP, "room object 5 -> sleep");
+        settle(g2);
+        check(g2.currentMode() == Game.M_SLEEP, "walked to the bed -> sleep");
         g2.input(Game.ACT_FIRE);
         check(g2.currentMode() == Game.M_SLEEP, "sleep screen stays after sleeping");
         g2.input(Game.ACT_BACK);
@@ -110,13 +136,58 @@ public final class Smoke {
         g2.input(Game.ACT_BACK);
         check(g2.currentMode() == Game.M_MENU, "room -> back returns to menu");
 
-        /* arrow keys walk the same objects as the number keys */
+        /* OK only works while standing next to the object */
         Game g3 = new Game();
         g3.init(host, gfx);
         g3.input(Game.ACT_NUM1);
-        g3.input(Game.ACT_RIGHT);
+        for (int i = 0; i < 20; i++) {      /* walk into the far corner */
+            g3.input(Game.ACT_LEFT);
+        }
         g3.input(Game.ACT_FIRE);
-        check(g3.currentMode() == Game.M_TEA, "right + fire on mug -> tea");
+        check(g3.currentMode() == Game.M_ROOM,
+                "OK away from every object does nothing");
+        g3.input(Game.ACT_NUM2);
+        settle(g3);
+        check(g3.currentMode() == Game.M_TEA, "OK works after walking up");
+
+        /* the 500 function catalog */
+        check(Funcs.count() == 500, "catalog holds 500 functions ("
+                + Funcs.count() + ")");
+        int bad = 0;
+        for (int i = 0; i < Funcs.N; i++) {
+            if (Funcs.title(i).length() == 0 || Funcs.cat(i) < 0
+                    || Funcs.cat(i) >= Funcs.CATS || Funcs.xp(i) <= 0
+                    || Funcs.icon(i) < 0 || Funcs.icon(i) >= Icons.COUNT) {
+                bad++;
+            }
+        }
+        check(bad == 0, "every function has a title, chapter, icon and XP");
+        int perCat = Funcs.count() / Funcs.CATS;
+        boolean even = true;
+        for (int c = 0; c < Funcs.CATS; c++) {
+            if (Funcs.title(c * perCat).length() == 0
+                    || Funcs.cat(c * perCat + perCat - 1) != c) {
+                even = false;
+            }
+        }
+        check(even && perCat == 50, "ten chapters of fifty (" + perCat + ")");
+
+        Game gf = new Game();
+        gf.init(host, gfx);
+        gf.input(Game.ACT_NUM9);           /* menu entry 9 */
+        check(gf.currentMode() == Game.M_FUNCS, "menu entry 9 -> catalog");
+        gf.grantCredits(10000000);
+        gf.applyFunc(0);
+        check(gf.funcsDone() == 1, "doing a function marks it done");
+        int done = 0;
+        int xpBefore = gf.totalXp();
+        for (int i = 0; i < Funcs.N; i++) {
+            gf.applyFunc(i);
+        }
+        done = gf.funcsDone();
+        check(done == 500, "all 500 functions can be performed (" + done + ")");
+        check(gf.totalXp() > xpBefore, "functions award XP ("
+                + xpBefore + " -> " + gf.totalXp() + ")");
 
         /* BACK always leads back to the menu, from every reachable screen */
         int stuck = 0;

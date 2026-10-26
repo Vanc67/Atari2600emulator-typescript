@@ -2,3 +2,5 @@ build/
 .toolchain/
 docs/screens/*.bmp
 docs/screens/*.wav
+__pycache__/
+*.pyc

@@ -78,7 +78,7 @@ SRC=$(find src -name '*.java' | sort)
 echo "[build] compiling $(echo "$SRC" | wc -l | tr -d ' ') sources"
 # shellcheck disable=SC2086
 "$JAVA_BIN" -Xmx512m -cp "$TOOLS_JAR" com.sun.tools.javac.Main \
-    -source 1.3 -target 1.3 -bootclasspath "$STUBS" -nowarn \
+    -source 1.3 -target 1.3 -bootclasspath "$STUBS" -encoding UTF-8 -nowarn \
     -d "$CLASSES" $SRC
 
 $PY tools/pack_jar.py downgrade --classes "$CLASSES"
@@ -97,7 +97,7 @@ if [ "$WANT_HARNESS" = "1" ]; then
     HSRC=$(find harness -name '*.java' | sort)
     # shellcheck disable=SC2086
     "$JAVA_BIN" -Xmx512m -cp "$TOOLS_JAR" com.sun.tools.javac.Main \
-        -source 1.3 -target 1.3 -bootclasspath "$STUBS" -nowarn \
+        -source 1.3 -target 1.3 -bootclasspath "$STUBS" -encoding UTF-8 -nowarn \
         -classpath "$CLASSES" -d "$HARNESS_CLASSES" $HSRC
     echo "[build] harness compiled -> $HARNESS_CLASSES"
     "$JAVA_BIN" -cp "$CLASSES:$HARNESS_CLASSES" rpc.harness.Smoke data

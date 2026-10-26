@@ -756,4 +756,49 @@ public final class Room {
                         w * 15 / 100, h * 8 / 100 };
         }
     }
+
+    /* ------------------------------------------------------------------
+     *  floor anchors - where the character stands to use each object
+     * ------------------------------------------------------------------ */
+
+    /** Floor x for a hotspot: the avatar walks here to use the object. */
+    public static int anchorX(int hot, int w) {
+        switch (hot) {
+            case HOT_MONITOR:
+                return w * 22 / 100;
+            case HOT_MUG:
+                return w * 68 / 100;
+            case HOT_CAT:
+                return w * 58 / 100;
+            case HOT_LAMP:
+                return w * 79 / 100;
+            case HOT_BED:
+                return w * 24 / 100;
+            case HOT_DOOR:
+                return w * 86 / 100;
+            case HOT_TOOLS:
+                return w * 34 / 100;
+            default: /* HOT_RADIO */
+                return w * 50 / 100;
+        }
+    }
+
+    /** Floor y for a hotspot (depth in the room). */
+    public static int anchorY(int hot, int viewH) {
+        switch (hot) {
+            case HOT_BED:
+                return viewH - 6;
+            case HOT_DOOR:
+                return viewH - 6;
+            case HOT_CAT:
+                return viewH - 8;
+            default:
+                return viewH * 84 / 100;
+        }
+    }
+
+    /** How close the avatar must stand to use the object. */
+    public static int reach(int hot) {
+        return hot == HOT_DOOR || hot == HOT_BED ? 30 : 24;
+    }
 }

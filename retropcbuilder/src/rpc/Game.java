@@ -83,6 +83,8 @@ public class Game {
     final public static int M_DEFRAG = 51;
     final public static int M_EVENT_NEWS = 52;
     final public static int M_TEA = 53;
+    /** the 500 function catalog */
+    final public static int M_FUNCS = 55;
     final public static int M_SLEEP = 54;
     final public static int C_BG = 923168;
     final public static int C_BG2 = 1318956;
@@ -248,6 +250,22 @@ public class Game {
     private int[] gamesList;
     /** Cursor of the room screen: index into the hotspot list. */
     private int roomCursor;
+    /* ---- 500 functions catalog -------------------------------------- */
+    private final boolean[] funcDone = new boolean[Funcs.N];
+    private int funcsDoneCount;
+    private int funcsSel;
+    private int funcsTop;
+    /** -1 = all chapters, otherwise a Funcs.CAT_* value */
+    private int funcsTab = -1;
+    private int[] funcsIdx = new int[0];
+    private int funcsIdxN;
+    private String funcsResult = "";
+    /** the player character walking around the room */
+    private final Avatar avatar = new Avatar();
+    /** scene geometry cached for input (movement needs the viewport size) */
+    private int roomSceneH;
+    private int roomSceneTop;
+
     /**
      * Navigation history.
      *
@@ -366,7 +384,7 @@ public class Game {
         this.resultPhase = 0;
         this.resultFrames = 0;
         this.RESULT_FRAMES = 6;
-        this.cash = 0;
+        this.cash = 750;
         this.day = 1;
         this.seed = 20260101;
         this.table = new rpc.Table();
@@ -443,7 +461,7 @@ public class Game {
         this.expTab = 0;
         this.expFiltered = new int[1000];
         this.expFilteredCount = 0;
-        String[] a = new String[8];
+        String[] a = new String[9];
         a[0] = "\u0423\u044e\u0442\u043d\u0430\u044f \u043a\u043e\u043c\u043d\u0430\u0442\u0430 & \u0416\u0438\u0437\u043d\u044c (Life-Sim)";
         a[1] = "\u041f\u0435\u0441\u043e\u0447\u043d\u0438\u0446\u0430: \u0421\u0431\u043e\u0440\u043a\u0430 \u041f\u041a (1979-2027)";
         a[2] = "\u0412\u044b\u0445\u043e\u0434 \u0432 \u0433\u043e\u0440\u043e\u0434 (\u041c\u0438\u0442\u0438\u043d\u043e, \u041a\u043b\u0443\u0431, \u041a\u0430\u0444\u0435)";
@@ -452,8 +470,9 @@ public class Game {
         a[5] = "\u041b\u0430\u0431\u043e\u0440\u0430\u0442\u043e\u0440\u0438\u044f: 1000 \u042d\u043a\u0441\u043f\u0435\u0440\u0438\u043c\u0435\u043d\u0442\u043e\u0432";
         a[6] = "\u041a\u0430\u043b\u0435\u043d\u0434\u0430\u0440\u044c 1980-2027 & \u0414\u043e\u0441\u0442\u0438\u0436\u0435\u043d\u0438\u044f";
         a[7] = "\u041e\u0431 \u0438\u0433\u0440\u0435 & \u0412\u044b\u0445\u043e\u0434";
+        a[8] = "500 \u0444\u0443\u043d\u043a\u0446\u0438\u0439: \u043f\u043e\u043b\u043d\u044b\u0439 \u043a\u0430\u0442\u0430\u043b\u043e\u0433";
         this.MENU_ITEMS = a;
-        String[] t = new String[8];
+        String[] t = new String[9];
         t[0] = "\u041a\u043e\u043c\u043d\u0430\u0442\u0430";
         t[1] = "\u0421\u0431\u043e\u0440\u043a\u0430 \u041f\u041a";
         t[2] = "\u0413\u043e\u0440\u043e\u0434";
@@ -462,6 +481,7 @@ public class Game {
         t[5] = "\u041b\u0430\u0431\u043e\u0440\u0430\u0442\u043e\u0440\u0438\u044f";
         t[6] = "\u041a\u0430\u043b\u0435\u043d\u0434\u0430\u0440\u044c";
         t[7] = "\u041e\u0431 \u0438\u0433\u0440\u0435";
+        t[8] = "500 \u0444\u0443\u043d\u043a\u0446\u0438\u0439";
         this.MENU_TITLES = t;
         this.catSel = 0;
         this.catTop = 0;
@@ -534,6 +554,11 @@ public class Game {
     public void init(rpc.Host a, rpc.Gfx a0) {
         this.host = a;
         this.g = a0;
+        this.W = a0.width();
+        this.H = a0.height();
+        this.FH0 = a0.textHeight(0);
+        this.FH1 = a0.textHeight(1);
+        this.FH2 = a0.textHeight(2);
         rpc.Assets.bind(a0);
         this.db = new rpc.Db();
         try {
@@ -801,7 +826,8 @@ public class Game {
         }
         int before = this.mode;
         boolean newScreens = this.mode == M_MENU || this.mode == M_ROOM
-                || this.mode == M_TEA || this.mode == M_SLEEP;
+                || this.mode == M_TEA || this.mode == M_SLEEP
+                || this.mode == M_FUNCS;
         if ((action == ACT_BACK || action == ACT_SOFT2) && !newScreens) {
             // legacy screens: BACK always returns to the previous screen
             this.navBack();
@@ -820,6 +846,9 @@ public class Game {
             case M_SLEEP:
                 this.inputSleep(action);
                 break;
+            case M_FUNCS:
+                this.inputFuncs(action);
+                break;
             default:
                 this.inputLegacy(action);
                 break;
@@ -827,7 +856,8 @@ public class Game {
         if (this.mode != before) {
             if (this.navPopping) {
                 this.navPopping = false;
-            } else {
+            } else if (this.navDepth == 0
+                    || this.navStack[this.navDepth - 1] != before) {
                 this.navPush(before);
             }
         }
@@ -1727,7 +1757,7 @@ public class Game {
         } else if (action == ACT_FIRE || action == ACT_SOFT1) {
             Sound.ok();
             this.menuAction();
-        } else if (action >= ACT_NUM1 && action < ACT_NUM1 + 8) {
+        } else if (action >= ACT_NUM1 && action < ACT_NUM1 + 9) {
             // number keys jump straight to the entry, they are printed on
             // the left edge of every row
             this.menuSel = action - ACT_NUM1;
@@ -1744,32 +1774,25 @@ public class Game {
      *  the room (life sim hub)
      * ================================================================== */
 
-    private int roomHotspot(int action) {
-        /*
-         * The cursor moves through the objects that are actually drawn:
-         * monitor, mug, cat, lamp, bed, door, tools, radio.  Number keys are
-         * the same objects in the same order, so both input styles agree -
-         * in 4.8 the printed numbers (5: tea, 6: cat, 7: sleep) were wired
-         * to completely different actions.
-         */
-        if (action == ACT_LEFT || action == ACT_UP) {
-            this.roomCursor = (this.roomCursor + Room.HOT_COUNT - 1) % Room.HOT_COUNT;
-            Sound.click();
-            return -1;
+    /**
+     * Nearest object the character can reach right now, or -1.
+     *
+     * Replaces the 4.8 cursor: the object is chosen by where the avatar is
+     * standing, so "walk up to the mug and press OK" always means the mug.
+     */
+    private int nearestHotspot() {
+        int best = -1;
+        int bestD = 1 << 20;
+        int h = this.roomSceneH <= 0 ? this.sceneHeight() : this.roomSceneH;
+        for (int i = 0; i < Room.HOT_COUNT; i++) {
+            int ax = Room.anchorX(i, this.W);
+            int d = this.avatar.near(ax);
+            if (d <= Room.reach(i) && d < bestD) {
+                bestD = d;
+                best = i;
+            }
         }
-        if (action == ACT_RIGHT || action == ACT_DOWN) {
-            this.roomCursor = (this.roomCursor + 1) % Room.HOT_COUNT;
-            Sound.click();
-            return -1;
-        }
-        if (action >= ACT_NUM1 && action < ACT_NUM1 + Room.HOT_COUNT) {
-            this.roomCursor = action - ACT_NUM1;
-            return this.roomCursor;
-        }
-        if (action == ACT_FIRE) {
-            return this.roomCursor;
-        }
-        return -2;
+        return best;
     }
 
     private void inputRoom(int action) {
@@ -1779,18 +1802,61 @@ public class Game {
             return;
         }
         if (action == ACT_SOFT1) {
-            this.openExpList();
+            this.openFuncs();
             return;
         }
-        int hot = this.roomHotspot(action);
-        if (hot == -1 || hot == -2) {
+        int h = this.sceneHeight();
+        int step = this.W / 14;
+        if (action == ACT_LEFT) {
+            this.avatar.step(-step, 0, this.W, h);
+            Sound.click();
             return;
         }
-        this.useRoomObject(hot);
+        if (action == ACT_RIGHT) {
+            this.avatar.step(step, 0, this.W, h);
+            Sound.click();
+            return;
+        }
+        if (action == ACT_UP) {
+            this.avatar.step(0, -step / 2, this.W, h);
+            Sound.click();
+            return;
+        }
+        if (action == ACT_DOWN) {
+            this.avatar.step(0, step / 2, this.W, h);
+            Sound.click();
+            return;
+        }
+        if (action >= ACT_NUM1 && action < ACT_NUM1 + Room.HOT_COUNT) {
+            int hot = action - ACT_NUM1;
+            this.roomCursor = hot;
+            int ax = Room.anchorX(hot, this.W);
+            int ay = Room.anchorY(hot, h);
+            if (this.avatar.near(ax) <= Room.reach(hot)) {
+                // already standing there - use it immediately
+                this.avatar.place(this.avatar.x, this.avatar.y);
+                this.useRoomObject(hot);
+            } else {
+                this.avatar.walkTo(ax, ay, hot);
+                Sound.click();
+            }
+            return;
+        }
+        if (action == ACT_FIRE) {
+            int hot = this.nearestHotspot();
+            if (hot < 0) {
+                this.toastMsg("\u043f\u043e\u0434\u043e\u0439\u0434\u0438 \u043a \u043f\u0440\u0435\u0434\u043c\u0435\u0442\u0443");
+                return;
+            }
+            this.roomCursor = hot;
+            this.useRoomObject(hot);
+        }
     }
+
 
     /** Activates one object of the room. */
     private void useRoomObject(int hot) {
+        int prev = this.mode;
         switch (hot) {
             case Room.HOT_MONITOR:
                 this.startSandboxBuild();
@@ -1825,6 +1891,11 @@ public class Game {
             default:
                 this.toastMsg(this.life.toggleRadio());
                 break;
+        }
+        // a walk that ends at the mug changes the screen outside input(), the
+        // history still has to know where we came from
+        if (this.mode != prev && !this.navPopping) {
+            this.navPush(prev);
         }
     }
 
@@ -1886,40 +1957,42 @@ public class Game {
     }
     
     private void menuAction() {
-        if (this.menuSel != 0) {
-            if (this.menuSel != 1) {
-                if (this.menuSel != 2) {
-                    if (this.menuSel != 3) {
-                        if (this.menuSel != 4) {
-                            if (this.menuSel != 5) {
-                                if (this.menuSel != 6) {
-                                    if (this.menuSel == 7) {
-                                        this.mode = 6;
-                                    }
-                                } else {
-                                    this.mode = 52;
-                                }
-                            } else {
-                                this.openExpList();
-                            }
-                        } else {
-                            this.mode = 7;
-                            this.catSel = 0;
-                            this.catTop = 0;
-                        }
-                    } else {
-                        this.mode = 49;
-                    }
-                } else {
-                    this.mode = 48;
-                }
-            } else {
+        switch (this.menuSel) {
+            case 0:
+                this.mode = M_ROOM;
+                this.roomCursor = Room.HOT_DOOR;
+                this.avatar.place(Room.anchorX(Room.HOT_DOOR, this.W),
+                        Room.anchorY(Room.HOT_DOOR, this.sceneHeight()));
+                break;
+            case 1:
                 this.startSandboxBuild();
-            }
-        } else {
-            this.mode = 47;
+                break;
+            case 2:
+                this.mode = 48;
+                break;
+            case 3:
+                this.mode = 49;
+                break;
+            case 4:
+                this.mode = 7;
+                this.catSel = 0;
+                this.catTop = 0;
+                break;
+            case 5:
+                this.openExpList();
+                break;
+            case 6:
+                this.mode = 52;
+                break;
+            case 7:
+                this.mode = 6;
+                break;
+            default:
+                this.openFuncs();
+                break;
         }
     }
+
     
     public void startSandboxBuild() {
         int i = 0;
@@ -3152,6 +3225,15 @@ public class Game {
      * Everything the player can touch is both drawn and listed, and the
      * hint line under the scene always names the object the cursor is on.
      */
+    /** Height of the walkable scene viewport (shared by paint and input). */
+    private int sceneHeight() {
+        int h = this.H - this.FH0 * 4 - 24 - (this.FH1 + 12);
+        if (h < 120) {
+            h = this.H - (this.FH1 + 12) - 30;
+        }
+        return h;
+    }
+
     private void paintRoom() {
         this.life.tickTime(1);
         this.life.updateEnvironment();
@@ -3164,12 +3246,40 @@ public class Game {
         this.header(head, clock);
 
         int sceneTop = this.FH1 + 12;
-        int sceneH = this.H - this.FH0 * 4 - 24 - sceneTop;
-        if (sceneH < 120) {
-            sceneH = this.H - sceneTop - 30;
-        }
+        int sceneH = this.sceneHeight();
+        this.roomSceneTop = sceneTop;
+        this.roomSceneH = sceneH;
         this.g.setClip(0, sceneTop, this.W, sceneH);
         Room.draw(this.g, this.life, this.life.animationTick, this.pcPowered, sceneH);
+        // the character walks; a queued object fires when it arrives
+
+        int arrived = this.avatar.tick(this.W, sceneH);
+        if (arrived >= 0) {
+            this.roomCursor = arrived;
+            this.useRoomObject(arrived);
+            if (this.mode != M_ROOM) {
+                this.g.setClip(0, 0, this.W, this.H);
+                return;
+            }
+        }
+        int near = this.avatar.hasTarget() ? -1 : this.nearestHotspot();
+        if (near >= 0) {
+            this.roomCursor = near;
+        }
+        if (this.avatar.hasTarget()) {
+            Avatar.drawTargetMarker(this.g, this.avatar.x,
+                    sceneTop + this.avatar.y - 34, this.life.animationTick);
+        }
+        Avatar.draw(this.g, this.avatar, sceneTop,
+                this.life.timeOfDay == LifeSim.TIME_NIGHT ? 1 : 0,
+                this.life.animationTick);
+        if (near >= 0) {
+            // small "you can use this" glow under the character
+            int[] nr = Room.rect(near, this.W, sceneH);
+            this.g.setColor(Theme.ACCENT);
+            drawCornerBox(this.g, nr[0] - 2, sceneTop + nr[1] - 2,
+                    nr[2] + 4, nr[3] + 4, 3);
+        }
         // number badges make the 1..8 shortcut discoverable: one per object,
         // at the top-left corner of the object's own rectangle
         for (int i = 0; i < Room.HOT_COUNT; i++) {
@@ -3232,11 +3342,332 @@ public class Game {
                 : "\u0440\u0430\u0434\u0438\u043e: \u0442\u0438\u0448\u0438\u043d\u0430";
         Text.draw(this.g, Text.fit(radio, 0, this.W - 10), 5, row3, 0,
                 this.life.radioOn ? Theme.GREEN : Theme.MUTED);
-        this.footer(this.roomHint(), "\u041b\u0421\u041a:\u041b\u0430\u0431");
+        this.footer(this.roomHint(), "\u041b\u0421\u041a: 500");
     }
 
     /** "OK: <verb> <object>" hint for the current cursor position. */
+
+    /* ==================================================================
+     *  500 functions: catalog screen + execution
+     * ================================================================== */
+
+    /** Total XP collected (catalog, experiments, builds). */
+    public int totalXp() {
+        return this.totalXp;
+    }
+
+    /** Adds money (used by the lottery entries and by the harness). */
+    public void grantCredits(int n) {
+        this.cash += n;
+    }
+
+    public int funcsDone() {
+        return this.funcsDoneCount;
+    }
+
+    /** Character position and facing, for the harness and for status lines. */
+    /** True when the character is standing still (no key, no walk target). */
+    public boolean walkIdle() {
+        return !this.avatar.moving && !this.avatar.hasTarget();
+    }
+
+    public int[] avatarPos() {
+        return new int[] { this.avatar.x, this.avatar.y, this.avatar.face,
+                this.avatar.moving ? 1 : 0 };
+    }
+
+    public void openFuncs() {
+        this.mode = M_FUNCS;
+        this.funcsTab = -1;
+        this.rebuildFuncs();
+        this.funcsSel = 0;
+        this.funcsTop = 0;
+        this.funcsResult = "";
+        Sound.click();
+    }
+
+    /** Rebuilds the filtered index list from the chapter tab. */
+    private void rebuildFuncs() {
+        int[] tmp = new int[Funcs.N];
+        int n = 0;
+        for (int i = 0; i < Funcs.N; i++) {
+            if (this.funcsTab < 0 || Funcs.cat(i) == this.funcsTab) {
+                tmp[n++] = i;
+            }
+        }
+        this.funcsIdx = tmp;
+        this.funcsIdxN = n;
+        if (this.funcsSel >= n) {
+            this.funcsSel = n - 1;
+        }
+        if (this.funcsSel < 0) {
+            this.funcsSel = 0;
+        }
+    }
+
+    private int funcAt(int row) {
+        if (row < 0 || row >= this.funcsIdxN) {
+            return -1;
+        }
+        return this.funcsIdx[row];
+    }
+
+    private void inputFuncs(int action) {
+        if (action == ACT_BACK || action == ACT_SOFT2) {
+            this.navBack();
+            return;
+        }
+        if (action == ACT_SOFT1) {
+            this.funcsTab = -1;
+            this.rebuildFuncs();
+            Sound.click();
+            return;
+        }
+        if (action == ACT_UP) {
+            this.funcsSel = (this.funcsSel + this.funcsIdxN - 1) % this.funcsIdxN;
+            Sound.click();
+            return;
+        }
+        if (action == ACT_DOWN) {
+            this.funcsSel = (this.funcsSel + 1) % this.funcsIdxN;
+            Sound.click();
+            return;
+        }
+        if (action == ACT_LEFT || action == ACT_RIGHT) {
+            int c = this.funcsTab;
+            if (action == ACT_LEFT) {
+                c = c <= -1 ? Funcs.CATS - 1 : c - 1;
+            } else {
+                c = c >= Funcs.CATS - 1 ? -1 : c + 1;
+            }
+            this.funcsTab = c;
+            this.funcsSel = 0;
+            this.rebuildFuncs();
+            Sound.click();
+            return;
+        }
+        if (action >= ACT_NUM1 && action <= ACT_NUM9) {
+            this.funcsTab = action - ACT_NUM1;
+            this.funcsSel = 0;
+            this.rebuildFuncs();
+            Sound.click();
+            return;
+        }
+        if (action == ACT_FIRE) {
+            this.applyFunc(this.funcAt(this.funcsSel));
+        }
+    }
+
+    private static int clamp100(int v) {
+        return v < 0 ? 0 : (v > 100 ? 100 : v);
+    }
+
+    /**
+     * Runs one of the 500 catalog entries.  Every entry costs money, gives XP
+     * and moves energy/mood; the chapter decides the extra consequence so the
+     * action is visible on the other screens (tea is really brewed, the bench
+     * is really cleaned, the cat is really happy, parts are sold).
+     */
+    public void applyFunc(int id) {
+        if (id < 0) {
+            return;
+        }
+        int cost = Funcs.cost(id);
+        if (cost > this.credits()) {
+            this.funcsResult = "не хватает денег";
+            this.toastMsg("не хватает денег: нужно " + cost + "\u0440");
+            Sound.click();
+            return;
+        }
+        this.cash -= cost;
+        boolean first = !this.funcDone[id];
+        if (first) {
+            this.funcDone[id] = true;
+            this.funcsDoneCount++;
+            this.totalXp += Funcs.xp(id);
+        }
+        this.life.energy = clamp100(this.life.energy + Funcs.energy(id));
+        this.life.mood = clamp100(this.life.mood + Funcs.mood(id));
+        String extra = "";
+        switch (Funcs.special(id)) {
+            case 1:
+                this.life.teaLevel = 100;
+                this.life.teaHot = true;
+                this.life.teaSteamTick = 0;
+                extra = " чай готов";
+                break;
+            case 2:
+                this.life.energy = clamp100(this.life.energy + 35);
+                extra = " +35 энергии";
+                break;
+            case 3:
+                this.life.roomDust = this.life.roomDust > 25
+                        ? this.life.roomDust - 25 : 0;
+                extra = " пыли меньше";
+                break;
+            case 4:
+                this.life.catHappiness = clamp100(this.life.catHappiness + 12);
+                extra = " кот доволен";
+                break;
+            case 5:
+                this.workshop.dustRemaining = this.workshop.dustRemaining > 30
+                        ? this.workshop.dustRemaining - 30 : 0;
+                if (this.workshop.caps != null) {
+                    for (int i = 0; i < this.workshop.caps.length; i++) {
+                        if (this.workshop.caps[i] > 0) {
+                            this.workshop.caps[i] = 0;
+                            break;
+                        }
+                    }
+                }
+                extra = " стенд чист";
+                break;
+            case 6:
+                int earn = 40 + (id % 7) * 15;
+                this.cash += earn;
+                extra = " +" + earn + "\u0440";
+                break;
+            case 7:
+                this.hackLevel = this.hackLevel + 1;
+                extra = " система стоит";
+                break;
+            case 8:
+                extra = " деталь на месте";
+                break;
+            default:
+                break;
+        }
+        this.funcsResult = first ? "+" + Funcs.xp(id) + " XP" + extra
+                                 : "уже делали" + extra;
+        this.toastMsg(Funcs.title(id) + ":" + extra);
+        if (first) {
+            Sound.ok();
+        } else {
+            Sound.click();
+        }
+    }
+
+    private void paintFuncs() {
+        int w = this.W;
+        int h = this.H;
+        String right = this.funcsTab < 0 ? "все главы"
+                : Funcs.CAT_NAMES[this.funcsTab];
+        this.header("500 функций", right);
+
+        /* ---- chapter tabs: icon squares --------------------------- */
+        int tabY = this.FH1 + 12;
+        int tabH = 20;
+        int gap = 2;
+        int tw = (w - 8 - gap * (Funcs.CATS - 1)) / Funcs.CATS;
+        for (int c = 0; c <= Funcs.CATS; c++) {
+            int idx = c - 1;                 // -1 == "all chapters"
+            int tx = 4 + c * (tw + gap);
+            boolean sel = idx == this.funcsTab;
+            this.g.setColor(sel ? Theme.PANEL3 : Theme.PANEL);
+            this.g.fillRoundRect(tx, tabY, tw, tabH, 3);
+            this.g.setColor(sel ? Theme.ACCENT : Theme.LINE);
+            this.g.drawRoundRect(tx, tabY, tw, tabH, 3);
+            if (idx < 0) {
+                Text.draw(this.g, "*", tx + tw / 2 - 2, tabY + 3, 1,
+                        sel ? Theme.ACCENT : Theme.MUTED);
+            } else {
+                Icons.drawSized(this.g, Funcs.CAT_ICON[idx], tx + 4,
+                        tabY + 3, tabH - 6, sel ? Theme.ACCENT : Theme.METAL,
+                        sel ? Theme.ACCENT2 : Theme.DIM, Theme.BG);
+            }
+        }
+
+        /* ---- progress line --------------------------------------- */
+        int py = tabY + tabH + 3;
+        int doneW = 60;
+        Text.draw(this.g, "выполнено " + this.funcsDoneCount + "/" + Funcs.N,
+                5, py, 0, Theme.MUTED);
+        int barX = 5 + this.g.textWidth("выполнено 500/500", 0) + 6;
+        int barW = w - barX - 8;
+        if (barW > 12) {
+            this.g.setColor(Theme.BG2);
+            this.g.fillRect(barX, py + 1, barW, this.FH0 - 3);
+            this.g.setColor(Theme.GREEN);
+            this.g.fillRect(barX, py + 1,
+                    barW * this.funcsDoneCount / Funcs.N, this.FH0 - 3);
+        }
+
+        /* ---- detail card, pinned above the footer ----------------- */
+        int footerTop = h - this.FH0 - 11;
+        int cardH = this.FH0 * 3 + 16;
+        int cardY = footerTop - cardH - 4;
+        int selId = this.funcAt(this.funcsSel);
+
+        /* ---- list ------------------------------------------------- */
+        int listTop = py + this.FH0 + 3;
+        int rowH = this.FH0 + 9;
+        int rows = (cardY - listTop - 4) / rowH;
+        if (rows < 1) {
+            rows = 1;
+        }
+        if (this.funcsSel < this.funcsTop) {
+            this.funcsTop = this.funcsSel;
+        }
+        if (this.funcsSel > this.funcsTop + rows - 1) {
+            this.funcsTop = this.funcsSel - rows + 1;
+        }
+        for (int r = 0; r < rows; r++) {
+            int idx = this.funcsTop + r;
+            int id = this.funcAt(idx);
+            if (id < 0) {
+                break;
+            }
+            int ry = listTop + r * rowH;
+            boolean sel = idx == this.funcsSel;
+            this.g.setColor(sel ? Theme.PANEL2 : Theme.PANEL);
+            this.g.fillRoundRect(4, ry, w - 8, rowH - 2, 3);
+            if (sel) {
+                this.g.setColor(Theme.ACCENT);
+                this.g.drawRoundRect(4, ry, w - 8, rowH - 2, 3);
+                this.g.fillRect(4, ry + 2, 2, rowH - 6);
+            }
+            int is = rowH - 8;
+            Icons.drawSized(this.g, Funcs.icon(id), 8, ry + 4, is,
+                    this.funcDone[id] ? Theme.GREEN : Theme.METAL,
+                    this.funcDone[id] ? Theme.GREEN : Theme.DIM, Theme.BG);
+            int x = 8 + is + 6;
+            int numW = this.g.textWidth(String.valueOf(id + 1), 0) + 6;
+            Text.draw(this.g, Text.fit(Funcs.title(id), 0, w - x - numW - 10),
+                    x, ry + 3, 0, sel ? Theme.TEXT : Theme.DIM);
+            Text.draw(this.g, String.valueOf(id + 1), w - numW, ry + 3, 0,
+                    this.funcDone[id] ? Theme.GREEN : Theme.MUTED);
+        }
+
+        /* ---- detail card ------------------------------------------ */
+        this.g.setColor(Theme.PANEL);
+        this.g.fillRoundRect(4, cardY, w - 8, cardH, 4);
+        this.g.setColor(Theme.LINE);
+        this.g.drawRoundRect(4, cardY, w - 8, cardH, 4);
+        if (selId >= 0) {
+            int is = this.FH0 + 8;
+            Icons.drawSized(this.g, Funcs.icon(selId), 9, cardY + 6, is,
+                    Funcs.color(selId), Theme.DIM, Theme.BG);
+            int x = 9 + is + 7;
+            Text.draw(this.g, Text.fit(Funcs.title(selId), 0, w - x - 8), x,
+                    cardY + 4, 0, Theme.TEXT);
+            Text.draw(this.g, Funcs.effectLine(selId), x,
+                    cardY + 5 + this.FH0, 0, Theme.ACCENT2);
+            String state = this.funcDone[selId]
+                    ? "\u2713 выполнено" : "\u25cb не выполнено";
+            Text.draw(this.g, state, x, cardY + 6 + this.FH0 * 2, 0,
+                    this.funcDone[selId] ? Theme.GREEN : Theme.MUTED);
+            if (this.funcsResult.length() > 0) {
+                Text.draw(this.g, Text.fit(this.funcsResult, 0, w - x - 8),
+                        x, cardY + 6 + this.FH0 * 2, 0, Theme.ORANGE);
+            }
+        }
+        this.footer("OK: выполнить  \u2190\u2192 глава", "ЛСК: назад");
+    }
+
     private String roomHint() {
+        if (this.nearestHotspot() < 0) {
+            return "\u2190\u2192 \u0438\u0434\u0442\u0438  \u2191\u2193 \u0433\u043b\u0443\u0431\u0436\u0435";
+        }
         switch (this.roomCursor) {
             case Room.HOT_MONITOR: return "OK: \u0441\u0435\u0441\u0442\u044c \u0437\u0430 \u041f\u041a";
             case Room.HOT_MUG: return "OK: \u0447\u0430\u0439";
@@ -4057,6 +4488,9 @@ public class Game {
             case M_SLEEP:
                 this.paintSleep();
                 break;
+            case M_FUNCS:
+                this.paintFuncs();
+                break;
             default:
                 this.paintLegacy();
                 break;
@@ -4664,8 +5098,8 @@ public class Game {
         if (sel != null) {
             Text.draw(this.g, Text.fit(sel.name, 0, w - spriteW - 24),
                     8 + spriteW + 6, cardY + 5, 0, Theme.TEXT);
-            Text.draw(this.g, Text.fit(sel.year + " \u2022 " + sel.catName()
-                    + " \u2022 \u0441\u043e\u0441\u0442. " + sel.cond + "%", 0,
+            Text.draw(this.g, Text.fit(sel.year + " / " + sel.catName()
+                    + " / \u0441\u043e\u0441\u0442. " + sel.cond + "%", 0,
                     w - spriteW - 24), 8 + spriteW + 6, cardY + 6 + this.FH0,
                     0, Theme.ACCENT2);
             Text.draw(this.g, Util.money(sel.price), 8 + spriteW + 6,

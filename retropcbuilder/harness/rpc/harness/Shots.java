@@ -34,7 +34,7 @@ public final class Shots {
         { "05_build", new int[] { NUM + 1 } },
         { "05b_room_sleep", new int[] { FIRE, NUM + 4, FIRE } },
         { "05c_room_cursor", new int[] { FIRE, NUM + 3 } },
-        { "05d_room_radio", new int[] { FIRE, NUM + 7, FIRE } },
+        { "05d_room_radio", new int[] { FIRE, NUM + 7 } },
         { "06_build_shop", new int[] { NUM + 1, FIRE } },
         { "07_lab", new int[] { NUM + 5 } },
         { "08_city", new int[] { FIRE, NUM + 5, FIRE } },
@@ -45,6 +45,12 @@ public final class Shots {
         { "10_catalog", new int[] { NUM + 4 } },
         { "11_calendar", new int[] { NUM + 6 } },
         { "12_about", new int[] { NUM + 7 } },
+        { "13_funcs", new int[] { NUM + 8 } },
+        { "13b_funcs_chapter", new int[] { NUM + 8, RIGHT, RIGHT } },
+        { "13c_funcs_done", new int[] { NUM + 8, FIRE, FIRE, DOWN, FIRE } },
+        { "14_room_walk", new int[] { FIRE, RIGHT, RIGHT, RIGHT } },
+        { "14b_room_walk2", new int[] { FIRE, LEFT, LEFT, LEFT, LEFT, DOWN, DOWN } },
+        { "14c_room_near", new int[] { FIRE, LEFT, LEFT } },
     };
 
     public static void main(String[] args) {
@@ -73,14 +79,24 @@ public final class Shots {
                     System.out.println("[shots] " + name + " input " + keys[k]
                             + " failed: " + t);
                 }
+                // repaint while the character is still walking and until the
+                // screen stops changing - otherwise the next key would land on
+                // the wrong screen (the walk now spans several frames)
+                for (int f = 0; f < 40; f++) {
+                    gfx.setClip(0, 0, W, H);
+                    try {
+                        game.paint();
+                    } catch (Throwable t) {
+                        System.out.println("[shots] " + name + " paint failed: " + t);
+                        break;
+                    }
+                    if (f > 2 && game.walkIdle()) {
+                        break;
+                    }
+                }
             }
             gfx.setClip(0, 0, W, H);
-            try {
-                game.paint();
-            } catch (Throwable t) {
-                System.out.println("[shots] " + name + " paint failed: " + t);
-                t.printStackTrace();
-            }
+            game.paint();
             Bmp.write(outDir + "/" + name + ".bmp", gfx.pixels, W, H);
             System.out.println("[shots] " + name + " mode=" + game.currentMode());
         }
