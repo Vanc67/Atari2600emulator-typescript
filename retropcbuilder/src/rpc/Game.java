@@ -3229,7 +3229,7 @@ public class Game {
         // radio
         String radio = this.life.radioOn
                 ? "\u0440\u0430\u0434\u0438\u043e: " + this.life.radioTracks[this.life.radioStation]
-                : "\u0440\u0430\u0434\u0438\u043e \u0432\u044b\u043a\u043b\u044e\u0447\u0435\u043d\u043e";
+                : "\u0440\u0430\u0434\u0438\u043e: \u0442\u0438\u0448\u0438\u043d\u0430";
         Text.draw(this.g, Text.fit(radio, 0, this.W - 10), 5, row3, 0,
                 this.life.radioOn ? Theme.GREEN : Theme.MUTED);
         this.footer(this.roomHint(), "\u041b\u0421\u041a:\u041b\u0430\u0431");
@@ -4635,102 +4635,116 @@ public class Game {
     }
 
     
+    /**
+     * Shop for one slot: part card on top (sprite, generation strip, specs),
+     * then the filtered list with price and affordability.
+     */
     private void paintShop() {
-        rpc.Part a = (this.shopList.length <= 0) ? null : this.db.get(this.shopList[this.shopSel]);
-        this.header(rpc.Score.SLOT_NAMES[this.shopSlot], (this.shopAllYears) ? "\u0432\u0441\u0435 \u0433\u043e\u0434\u044b" : "\u044d\u043f\u043e\u0445\u0430");
-        int i = this.FH1 + 13;
-        this.g.setColor(1780536);
-        this.g.fillRect(4, i, this.W - 8, 76);
-        this.g.setColor(3033694);
-        this.g.drawRect(4, i, this.W - 8, 76);
-        label0: {
-            label1: {
-                label2: {
-                    if (a == null) {
-                        break label2;
-                    }
-                    if (rpc.Assets.ready) {
-                        break label1;
-                    }
-                }
-                if (a == null) {
-                    break label0;
-                }
-                this.g.setColor(8297134);
-                this.g.drawText("\u043d\u0435\u0442 \u043a\u0430\u0440\u0442\u0438\u043d\u043a\u0438", 10, i + 8, 0);
-                break label0;
-            }
-            this.g.setColor(791580);
-            this.g.fillRect(6, i + 4, 88, 44);
-            this.g.fillRect(6, i + 44 + 8, this.W - 12, 20);
-            rpc.Assets.drawPart(this.g, a, 6, i + 4, 88, 44);
-            rpc.Assets.drawStrip(this.g, a.cat, 6, i + 44 + 8, this.W - 12, 20);
-            this.g.setColor(8297134);
-            String s = (a.cat != 20) ? new StringBuffer("\u043f\u043e\u043a\u043e\u043b\u0435\u043d\u0438\u044f ").append(a.catName()).append(": ").append(rpc.Assets.editions(a.cat)).toString() : new StringBuffer("\u0432\u0438\u0434\u044b \u0442\u0435\u0445\u043d\u0438\u043a\u0438: ").append(rpc.Assets.editions(a.cat)).toString();
-            this.g.drawText(s, 100, i + 6, 0);
-            this.g.setColor(16763196);
-            this.g.drawText(new StringBuffer().append(a.year).toString(), 100, i + 18, 1);
-            this.g.setColor(8297134);
-            this.g.drawText(this.fit(a.name, this.W - 88 - 26, 0), 100, i + 34, 0);
+        int w = this.W;
+        int h = this.H;
+        Part sel = (this.shopList.length <= 0)
+                ? null : this.db.get(this.shopList[this.shopSel]);
+        this.header(rpc.Score.SLOT_NAMES[this.shopSlot],
+                this.shopAllYears ? "\u0432\u0441\u0435 \u0433\u043e\u0434\u044b"
+                                  : "\u044d\u043f\u043e\u0445\u0430");
+
+        // ---- part card -------------------------------------------------
+        int cardY = this.FH1 + 12;
+        int cardH = 74;
+        this.g.setColor(Theme.PANEL);
+        this.g.fillRoundRect(4, cardY, w - 8, cardH, 4);
+        this.g.setColor(Theme.LINE);
+        this.g.drawRoundRect(4, cardY, w - 8, cardH, 4);
+        int spriteW = 74;
+        this.g.setColor(Theme.BG);
+        this.g.fillRect(8, cardY + 4, spriteW, 42);
+        if (sel != null && rpc.Assets.ready) {
+            rpc.Assets.drawPart(this.g, sel, 8, cardY + 4, spriteW, 42);
         }
-        int i0 = this.FH0 + 7;
-        int i1 = i + 76 + 6;
-        int i2 = this.FH0 * 2 + 10;
-        int i3 = (this.H - i1 - i2 - this.FH0 - 14) / i0;
-        if (i3 < 1) {
-            i3 = 1;
+        if (sel != null) {
+            Text.draw(this.g, Text.fit(sel.name, 0, w - spriteW - 24),
+                    8 + spriteW + 6, cardY + 5, 0, Theme.TEXT);
+            Text.draw(this.g, Text.fit(sel.year + " \u2022 " + sel.catName()
+                    + " \u2022 \u0441\u043e\u0441\u0442. " + sel.cond + "%", 0,
+                    w - spriteW - 24), 8 + spriteW + 6, cardY + 6 + this.FH0,
+                    0, Theme.ACCENT2);
+            Text.draw(this.g, Util.money(sel.price), 8 + spriteW + 6,
+                    cardY + 7 + this.FH0 * 2, 0,
+                    sel.price <= this.budget - this.spent ? Theme.GREEN
+                                                          : Theme.RED);
+            // generation / variant strip along the bottom of the card
+            this.g.setColor(Theme.BG);
+            this.g.fillRect(8, cardY + cardH - 22, w - 16, 18);
+            if (rpc.Assets.ready) {
+                rpc.Assets.drawStrip(this.g, sel.cat, 9, cardY + cardH - 21,
+                        w - 18, 16);
+            }
+        } else {
+            Text.draw(this.g, "\u043d\u0435\u0442 \u0434\u0435\u0442\u0430\u043b\u0435\u0439 \u0432 \u044d\u0442\u043e\u043c \u0444\u0438\u043b\u044c\u0442\u0440\u0435",
+                    8 + spriteW + 6, cardY + 8, 0, Theme.MUTED);
+        }
+
+        // ---- list -------------------------------------------------------
+        int listTop = cardY + cardH + 4;
+        int rowH = this.FH0 + 7;
+        int footerTop = h - this.FH0 - 12;
+        int infoH = this.FH0 + 5;
+        int rows = (footerTop - listTop - infoH - 4) / rowH;
+        if (rows < 1) {
+            rows = 1;
         }
         if (this.shopSel < this.shopTop) {
             this.shopTop = this.shopSel;
         }
-        if (this.shopSel > this.shopTop + i3 - 1) {
-            this.shopTop = this.shopSel - i3 + 1;
+        if (this.shopSel > this.shopTop + rows - 1) {
+            this.shopTop = this.shopSel - rows + 1;
         }
-        int i4 = this.budget - this.spent + ((this.slots[this.shopSlot] != null) ? this.slots[this.shopSlot].price : 0);
-        int i5 = 0;
-        while(true) {
-            if (i5 < i3) {
-                int i6 = this.shopTop + i5;
-                if (i6 < this.shopList.length) {
-                    rpc.Part a0 = this.db.get(this.shopList[i6]);
-                    int i7 = i1 + i5 * i0;
-                    boolean b = i6 == this.shopSel;
-                    boolean b0 = a0.price <= i4;
-                    this.g.setColor(b ? 2308170 : 1780536);
-                    this.g.fillRect(4, i7, this.W - 8, i0 - 1);
-                    if (rpc.Assets.ready) {
-                        this.g.setColor(791580);
-                        this.g.fillRect(6, i7, 26, i0 - 2);
-                        rpc.Assets.drawPart(this.g, a0, 7, i7 + 1, 24, 16);
-                    }
-                    this.g.setColor(b ? 3793530 : b0 ? 15003895 : 8297134);
-                    String s0 = new StringBuffer().append(a0.price).toString();
-                    this.g.drawText(this.fit(a0.name, this.W - this.g.textWidth(s0, 0) - 58, 0), 36, i7 + 4, 0);
-                    this.g.setColor(b0 ? 16763196 : 16739179);
-                    this.g.drawText(s0, this.W - this.g.textWidth(s0, 0) - 8, i7 + 4, 0);
-                    i5 = i5 + 1;
-                    continue;
-                }
+        int cash = this.budget - this.spent
+                + ((this.slots[this.shopSlot] != null)
+                        ? this.slots[this.shopSlot].price : 0);
+        for (int r = 0; r < rows; r++) {
+            int idx = this.shopTop + r;
+            if (idx >= this.shopList.length) {
+                break;
             }
-            int i8 = this.H - i2 - this.FH0 - 10;
-            this.g.setColor(1780536);
-            this.g.fillRect(0, i8, this.W, i2);
-            this.g.setColor(3033694);
-            this.g.drawLine(0, i8, this.W, i8);
-            if (a == null) {
-                this.g.setColor(8297134);
-                this.g.drawText("\u041f\u0443\u0441\u0442\u043e", 8, i8 + 4, 0);
-            } else {
-                this.g.setColor(3793530);
-                this.g.drawText(new StringBuffer(String.valueOf(a.year)).append(" \u2022 ").append(a.catName()).toString(), 8, i8 + 4, 0);
-                this.g.setColor(15003895);
-                String s1 = this.detailText(a);
-                this.g.drawText(this.fit(s1, this.W - 16, 0), 8, i8 + 5 + this.FH0, 0);
+            Part p = this.db.get(this.shopList[idx]);
+            int ry = listTop + r * rowH;
+            boolean selRow = idx == this.shopSel;
+            boolean afford = p.price <= cash;
+            this.g.setColor(selRow ? Theme.PANEL2 : Theme.PANEL);
+            this.g.fillRoundRect(4, ry, w - 8, rowH - 2, 3);
+            if (selRow) {
+                this.g.setColor(Theme.ACCENT);
+                this.g.drawRoundRect(4, ry, w - 8, rowH - 2, 3);
+                this.g.fillRect(4, ry + 2, 2, rowH - 6);
             }
-            this.footer(new StringBuffer("(").append(this.shopSel + 1).append("/").append(this.shopList.length).append(")").toString(), "3: \u0432\u0441\u0435 \u0433\u043e\u0434\u044b");
-            return;
+            if (rpc.Assets.ready) {
+                this.g.setColor(Theme.BG);
+                this.g.fillRect(7, ry + 1, 24, rowH - 4);
+                rpc.Assets.drawPart(this.g, p, 8, ry + 2, 22, rowH - 6);
+            }
+            String price = Util.money(p.price);
+            int priceW = this.g.textWidth(price, 0);
+            Text.draw(this.g, price, w - priceW - 7, ry + 2, 0,
+                    afford ? (selRow ? Theme.ACCENT : Theme.GREEN) : Theme.RED);
+            Text.draw(this.g, Text.fit(p.name, 0, w - 40 - priceW),
+                    34, ry + 2, 0, selRow ? Theme.TEXT : Theme.DIM);
         }
+
+        // ---- how many / filter hint -------------------------------------
+        int infoY = footerTop - infoH;
+        this.g.setColor(Theme.PANEL);
+        this.g.fillRect(0, infoY, w, infoH);
+        String pos = "(" + (this.shopList.length == 0 ? 0 : this.shopSel + 1)
+                + "/" + this.shopList.length + ")";
+        Text.draw(this.g, pos, 6, infoY + 2, 0, Theme.MUTED);
+        String hint = this.shopAllYears ? "3: \u044d\u043f\u043e\u0445\u0430"
+                                        : "3: \u0432\u0441\u0435 \u0433\u043e\u0434\u044b";
+        Text.draw(this.g, hint,
+                w - this.g.textWidth(hint, 0) - 6, infoY + 2, 0, Theme.ACCENT2);
+        this.footer("OK: \u043a\u0443\u043f\u0438\u0442\u044c", "BACK");
     }
+
     
     private String detailText(rpc.Part a) {
         StringBuffer a0 = new StringBuffer();
