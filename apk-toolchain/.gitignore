@@ -9,3 +9,7 @@ build/
 # are not present on a normal checkout, so this APK cannot be rebuilt there -
 # unlike everything under build/, it is a deliverable, not an intermediate.
 !release/A5-Boot-Lab.apk
+
+# apksigner also emits a v4 signature alongside the APK. Nothing here installs
+# with adb --incremental, so the v4 blob is noise next to the tracked release.
+*.idsig
