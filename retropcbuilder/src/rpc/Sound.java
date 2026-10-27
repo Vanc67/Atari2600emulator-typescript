@@ -48,6 +48,17 @@ public class Sound {
     public static void boot() {
         playBootVariant(rnd.nextInt(8));
     }
+
+    /**
+     * The boot noise a machine of this era makes, with the last word left to
+     * chance: a 1983 board cannot sound like a 2024 one, but two boards of
+     * the same year still differ.
+     */
+    public static void bootFor(int year) {
+        int era = (year < 1989) ? 0 : (year < 2000) ? 1 : (year < 2012) ? 2 : 3;
+        int[] pair = {0, 1, 2, 7, 6, 7, 3, 4};
+        playBootVariant(pair[era * 2 + rnd.nextInt(2)]);
+    }
     
     public static void postOk() {
         engine.playPostBeep(0);
@@ -126,23 +137,6 @@ public class Sound {
         engine.playCatPurr();
     }
     
-    /** The flat's radio: the station's loop, four different songs. */
-    public static void radio(int station) {
-        switch (Math.abs(station) % 4) {
-            case 0:
-                radioTrack0();
-                break;
-            case 1:
-                radioTrack1();
-                break;
-            case 2:
-                radioTrack2();
-                break;
-            default:
-                radioTrack3();
-                break;
-        }
-    }
     
     public static void tool(int i) {
         engine.playToolSound(i);
@@ -209,7 +203,7 @@ public class Sound {
         int[][] a = new int[14][2];
         for (int i = 0; i < a.length; i++) {
             a[i][0] = 6;
-            a[i][1] = 108 + rnd.nextInt(30);
+            a[i][1] = 96 + rnd.nextInt(30);
         }
         engine.playSequenceSafe(seq(300, a));
     }
@@ -308,50 +302,119 @@ public class Sound {
     }
 
     /* ==================================================================
-     *  the radio
+     *  the radio - a small lo-fi composer
      * ==================================================================
-     *  Four stations, four different lo-fi loops: a bass note per chord and
-     *  the chord's notes as short stabs above it.  Nothing here is a single
-     *  arpeggio - each station has its own progression and its own pace.
+     *  Nothing here is a stored track.  The station and the year seed a
+     *  generator that picks a scale, a chord progression, a bass figure and
+     *  a top line, and then writes the whole piece out note by note - bass,
+     *  chord stabs, a melody and a beat.  Every station in every era gets
+     *  its own song, and the same station always gets the same one.
      */
 
-    /** Station 0: Am - F - C - G, the relaxed one. */
-    private static void radioTrack0() {
-        engine.playSequenceSafe(seq(120, new int[][] {
-            {30, N_A2}, {10, N_A3}, {10, N_C4}, {10, N_E4},
-            {30, N_F2}, {10, N_F3}, {10, N_A3}, {10, N_C4},
-            {30, N_C3}, {10, N_C4}, {10, N_E4}, {10, N_G4},
-            {30, N_G2}, {10, N_G3}, {10, N_B3}, {10, N_D4},
-            {30, 0}}));
+    private static final int[] S_MINOR = {0, 2, 3, 5, 7, 8, 10};
+    private static final int[] S_DORIAN = {0, 2, 3, 5, 7, 9, 10};
+    private static final int[] S_MAJOR = {0, 2, 4, 5, 7, 9, 11};
+    private static final int[][] SCALES = {S_MINOR, S_DORIAN, S_MAJOR};
+
+    /** A complete lo-fi piece: four chords, about ten seconds, with a beat. */
+    private static byte[] lofiTrack(int seed) {
+        Random r = new Random((long) seed * 7919L + 101L);
+        int[] s = SCALES[r.nextInt(3)];
+        int root = 33 + r.nextInt(3) * 12;
+        int tempo = 96 + r.nextInt(32);
+        int beat = 24;                      // 40ths of a second per beat
+        int[][] a = new int[220][2];
+        int k = 0;
+        for (int c = 0; c < 4; c++) {
+            int d0 = r.nextInt(7);
+            int bass = root + s[d0];
+            int third = root + s[(d0 + 2) % 7];
+            int fifth = root + s[(d0 + 4) % 7];
+            // the top line's motif for this chord
+            int m0 = bass + 12 + s[r.nextInt(7)];
+            int m1 = bass + 12 + s[(d0 + 3) % 7];
+            for (int b = 0; b < 4; b++) {
+                if (b == 0 || b == 2) {
+                    a[k][0] = 10;
+                    a[k][1] = 33;
+                    k++;
+                }
+                a[k][0] = beat;
+                a[k][1] = bass;
+                k++;
+                a[k][0] = 5;
+                a[k][1] = 100 + r.nextInt(10);
+                k++;
+                if (b == 1 || b == 3) {
+                    a[k][0] = 7;
+                    a[k][1] = third;
+                    k++;
+                    a[k][0] = 7;
+                    a[k][1] = fifth;
+                    k++;
+                    a[k][0] = 6;
+                    a[k][1] = bass;
+                    k++;
+                }
+                if (b == 1 && r.nextInt(2) == 0) {
+                    a[k][0] = 14;
+                    a[k][1] = m0;
+                    k++;
+                }
+                if (b == 3) {
+                    a[k][0] = 18;
+                    a[k][1] = m1;
+                    k++;
+                }
+            }
+        }
+        int[][] out = new int[k][2];
+        for (int i = 0; i < k; i++) {
+            out[i][0] = a[i][0];
+            out[i][1] = a[i][1];
+        }
+        return seq(tempo, out);
     }
 
-    /** Station 1: Dm - Bb - F - C, a little lower and slower. */
-    private static void radioTrack1() {
-        engine.playSequenceSafe(seq(110, new int[][] {
-            {32, N_D3}, {12, N_D4}, {12, N_F4}, {12, N_A4},
-            {30, N_A2}, {12, N_A3}, {12, N_C4}, {12, N_E4},
-            {30, N_F2}, {12, N_F3}, {12, N_A3}, {12, N_C4},
-            {32, N_C3}, {12, N_C4}, {12, N_E4}, {12, N_G4},
-            {32, 0}}));
+    /** The flat's radio: a generated song for the station and the era. */
+    public static void radio(int station, int year) {
+        engine.playSequenceSafe(lofiTrack(station * 131 + year));
     }
 
-    /** Station 2: Em - C - G - D, quicker, with a top note on the fourth. */
-    private static void radioTrack2() {
-        engine.playSequenceSafe(seq(132, new int[][] {
-            {24, N_E2}, {8, N_E3}, {8, N_G3}, {8, N_B3}, {8, N_E4},
-            {24, N_C3}, {8, N_C4}, {8, N_E4}, {8, N_G4}, {8, 0},
-            {24, N_G2}, {8, N_G3}, {8, N_B3}, {8, N_D4}, {8, 0},
-            {24, N_D3}, {8, N_D4}, {8, N_F4}, {8, N_A4}, {28, 0}}));
-    }
+    /* ==================================================================
+     *  the machine itself
+     * ==================================================================
+     *  What the box sounds like while it is running, written from what the
+     *  player actually put in it: a water-cooled, solid-state, low-power
+     *  machine is a faint hum, a small-fanned, dusty, spinning-disk one
+     *  rattles the window.
+     */
 
-    /** Station 3: Cmaj7 - A7 - Dm - G, the bluesy one. */
-    private static void radioTrack3() {
-        engine.playSequenceSafe(seq(104, new int[][] {
-            {32, N_C3}, {12, N_C4}, {12, N_E4}, {12, N_G4},
-            {28, N_A2}, {12, N_A3}, {12, N_C4}, {12, N_E4},
-            {28, N_D3}, {12, N_D4}, {12, N_F4}, {12, N_A4},
-            {32, N_G2}, {12, N_G3}, {12, N_B3}, {12, N_D4},
-            {32, 0}}));
+    /**
+     * The fan and the storage.  {@code noise} is 0..100 as computed from the
+     * build, {@code year} sets the character, {@code spinningDisk} adds the
+     * clatter of a mechanical drive.
+     */
+    public static void pcSystem(int noise, int year, boolean spinningDisk) {
+        if (noise <= 0) {
+            return;
+        }
+        if (noise <= 14) {
+            // water cooling, solid state, a low-power part: a whisper
+            engine.playToneSafe(147, 190, 8, true);
+            engine.playToneSafe(220, 140, 6, true);
+            return;
+        }
+        int vol = 14 + noise * 40 / 100;
+        // the fan's pitch rises with the load, and the year moves it too
+        int fan = 26 + noise * 8 / 100 + ((year >= 2000) ? 1 : 0);
+        engine.playToneSafe(fan, 240, vol, false);
+        engine.playToneSafe(fan + 7, 170, vol * 3 / 4, false);
+        if (spinningDisk && rnd.nextInt(6) == 0) {
+            engine.playSequenceSafe(seq(210, new int[][] {
+                {4, 62}, {4, 59}, {4, 62}, {4, 60}, {4, 62}, {4, 65},
+                {4, 62}, {4, 60}, {30, 0}}));
+        }
     }
 
     /* ==================================================================

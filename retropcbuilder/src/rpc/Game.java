@@ -3371,10 +3371,15 @@ public class Game {
         if ((this.life.animationTick % 45) == 0) {
             rpc.Sound.tick();
         }
-        // the radio is on: each station's loop is about seven seconds, so
-        // the next one starts just as the previous one runs out
+        // the radio is on: a generated song per station, one after another
         if (this.life.radioOn && (this.life.animationTick % 110) == 0) {
-            rpc.Sound.radio(this.life.radioStation);
+            rpc.Sound.radio(this.life.radioStation, this.life.curYear);
+        }
+        // and the machine itself: its fan and its storage, loud or quiet by
+        // what was actually built into it
+        if (this.pcPowered && (this.life.animationTick % 80) == 0) {
+            rpc.Sound.pcSystem(this.pcNoise(), this.life.curYear,
+                    this.pcSpinningDisk());
         }
         // and the street under the window, muffled through the glass
         if ((this.life.weather == LifeSim.WEATHER_RAIN
@@ -10451,7 +10456,47 @@ public class Game {
         this.bootTotalFrames = i4;
         this.bootFrame = 0;
         this.mode = 43;
-        rpc.Sound.boot();
+        rpc.Sound.bootFor(this.levelYear());
+    }
+
+    /**
+     * How loud the machine is, 0..100, written from what the player put in
+     * it: the cooler, the CPU and the graphics card, the dust, and whether
+     * the storage still spins.
+     */
+    public int pcNoise() {
+        int n = 0;
+        rpc.Part cooler = this.slots[12];
+        rpc.Part cpu = this.slots[0];
+        rpc.Part gpu = this.slots[6];
+        if (cooler != null) {
+            // a big air cooler or a water block is quiet, a small fan is not
+            n += 25 + Math.min(40, Math.max(0, cooler.f[1]) / 20);
+        } else {
+            n += 52;
+        }
+        if (cpu != null) {
+            n += Math.min(22, cpu.f[3] / 4);           // the TDP drives the fan
+        }
+        if (gpu != null) {
+            n += Math.min(12, gpu.f[4] / 8);
+        }
+        n += Math.min(14, rpc.Diag.dustOf(this.slots) * 3 / 20);
+        if (this.pcSpinningDisk()) {
+            n += 8;                                    // a mechanical drive clatters
+        }
+        return (n > 100) ? 100 : n;
+    }
+
+    /** True when one of the three drive bays holds a spinning disk. */
+    public boolean pcSpinningDisk() {
+        for (int i = 7; i <= 9; i++) {
+            rpc.Part a = this.slots[i];
+            if (a != null && (a.cat == 5 || a.cat == 6)) {
+                return true;
+            }
+        }
+        return false;
     }
     
     private void paintBootAnim() {

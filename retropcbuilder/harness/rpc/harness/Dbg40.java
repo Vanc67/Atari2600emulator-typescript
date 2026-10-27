@@ -24,7 +24,7 @@ public final class Dbg40 {
         }
         for (int st = 0; st < 4; st++) {
             for (int i = 0; i < 6; i++) {
-                try { Sound.radio(st); ok(); } catch (Throwable t) { fail("radio" + st, t); }
+                try { Sound.radio(st, 2020); ok(); } catch (Throwable t) { fail("radio" + st, t); }
             }
         }
         for (int i = 0; i < 30; i++) {
