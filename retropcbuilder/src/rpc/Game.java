@@ -914,6 +914,12 @@ public class Game {
     }
     
     private void inputLegacy(int i) {
+        if (i == ACT_NUM1 && this.mode == M_INSTALL) {
+            // paintInstall() promises "1: прервать" and nothing listened
+            this.installingOs = null;
+            this.navBack();
+            return;
+        }
         // Arrow keys that the screen handlers never implemented: the player
         // expects them to move the highlight, so give them a job here
         // instead of letting them fall through and do nothing.
