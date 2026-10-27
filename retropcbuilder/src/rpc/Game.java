@@ -2609,25 +2609,29 @@ public class Game {
         }
     }
     
-    private void pointerExpList(int i, int i0) {
-        int i1 = this.FH1 + 10;
-        int i2 = this.FH0 + 9;
-        if (i0 >= i1 && i0 < i1 + i2) {
-            if (i >= this.W / 2) {
-                this.inputExpList(3);
-            } else {
-                this.inputExpList(2);
-            }
+    private void pointerExpList(int x, int y) {
+        // the same geometry as paintExpList, row for row: a tap zone that
+        // is a few pixels off makes every tap select the wrong experiment
+        int top = this.FH1 + 12;
+        int barH = this.FH0 + 8;
+        int rowH = this.FH0 * 2 + 9;
+        int listTop = top + barH + 3;
+        int footerTop = this.H - this.FH0 - 12;
+        int rows = (footerTop - listTop) / rowH;
+        if (rows < 1) {
+            rows = 1;
+        }
+        // the filter bar: left half is the platform, right half the kind
+        if (y >= top && y < top + barH) {
+            this.inputExpList(x >= this.W / 2 ? 3 : 2);
             return;
         }
-        int i3 = this.FH0 * 2 + 6;
-        int i4 = i1 + i2;
-        int i5 = this.expTop + (i0 - i4) / i3;
-        if (i5 >= 0 && i5 < this.expFilteredCount) {
-            if (this.expSel != i5) {
-                this.expSel = i5;
+        int idx = this.expTop + (y - listTop) / rowH;
+        if (idx >= 0 && idx < this.expFilteredCount) {
+            if (this.expSel != idx) {
+                this.expSel = idx;
             } else {
-                this.openExpRun(this.expFiltered[i5]);
+                this.openExpRun(this.expFiltered[idx]);
             }
         }
     }
@@ -3421,6 +3425,9 @@ public class Game {
     /** Position of the character outside (the harness watches it). */
     public int roomCursor() { return this.roomCursor; }
     public int FH1() { return this.FH1; }
+    public int FH0() { return this.FH0; }
+    public int W() { return this.W; }
+    public int H() { return this.H; }
     public int roomSceneTop() { return this.roomSceneTop; }
     public int roomSceneH() { return this.roomSceneH; }
     public int funcsIdxN() { return this.funcsIdxN; }
