@@ -28,7 +28,26 @@ Flashing builds intended for `zerofltexx` on other device variants may permanent
 ### Selected Base: LineageOS 20.0 (Android 13)
 * To avoid unmaintainable framework hacks or non-booting ROMs, this reproducible build package utilizes **LineageOS 20.0 (Android 13)** as the verified open-source OS base.
 * Legacy Exynos 7420 hardware HALs (`hardware/samsung_slsi/linaro_*`) and Linux 3.10 kernel backports are integrated into this build configuration.
-* Pixel-inspired UI overlays and default app options can be applied cleanly on top of LineageOS 20 without violating open-source licenses or compromising system stability. **This build is explicitly LineageOS 20-based and NOT official Pixel Experience.**
+* Pixel-inspired UI overlays and default app options can be applied cleanly on top of LineageOS 20 using the TWRP Pixel Overlay generator (`tools/make_pixel_overlay_zip.sh`). **This build is explicitly LineageOS 20-based with safe Pixel overlays and NOT official Pixel Experience.**
+
+---
+
+## 🎨 Safe Pixel Overlay Customization Package
+
+To transform a clean LineageOS 20 installation into a Pixel-like UI experience without corrupting `system.img` signatures or causing bootloops, use the modular TWRP overlay generator:
+
+```bash
+# Generate flashable Pixel Overlay ZIP
+bash tools/make_pixel_overlay_zip.sh
+```
+
+Output: `out/Pixel_Overlay_SM-G920F.zip`
+
+### Flashing Order in TWRP:
+1. Flash **LineageOS 20.0 ROM ZIP** (`lineage-20.0-*-zerofltexx.zip`).
+2. Flash **OpenGApps / MindTheGapps 13.0 ARM64** (Google Services).
+3. Flash **`Pixel_Overlay_SM-G920F.zip`** (Pixel System UI & RRO Overlays).
+4. Reboot System.
 
 ---
 
@@ -108,7 +127,7 @@ bash scripts/06_package_verify.sh
    - Perform **Wipe → Advanced Wipe** → Select `System`, `Data`, `Cache`, `Dalvik/ART Cache`. *(Caution: All user data will be erased!)*
    - Transfer `lineage-20.0-*-zerofltexx.zip` to `/sdcard`.
    - Select **Install** → Choose the ZIP file → Swipe to Confirm Flash.
-   - (Optional) Flash OpenGApps / MindTheGapps (ARM64, Android 13) if Google services are desired.
+   - Flash MindTheGapps (ARM64, Android 13) and `Pixel_Overlay_SM-G920F.zip`.
    - Reboot to System. First boot may take 5 to 10 minutes.
 
 5. **Stock Rollback Procedure**:
@@ -120,7 +139,8 @@ bash scripts/06_package_verify.sh
 
 ## 📑 Verification & Manifest File Listing
 
-* Manifest Location: `.repo/local_manifests/local_manifest.xml`
+* Manifest Location: `manifests/local_manifest.xml`
 * Device Configuration: `device/samsung/zerofltexx/`
 * Common Platform: `device/samsung/universal7420-common/`
 * Kernel Config: `lineage_zerofltexx_defconfig` inside `kernel/samsung/universal7420`
+* Overlay Generator: `tools/make_pixel_overlay_zip.sh`

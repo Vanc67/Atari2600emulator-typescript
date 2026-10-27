@@ -1,0 +1,33 @@
+#!/sbin/sh
+OUTFD=$2
+
+ui_print() {
+    echo "ui_print $1" >&$OUTFD
+    echo "ui_print" >&$OUTFD
+}
+
+ui_print "==========================================="
+ui_print " Pixel Overlay Customization Package"
+ui_print " Target: Samsung Galaxy S6 (SM-G920F)"
+ui_print "==========================================="
+
+# Verify target device assert
+MODEL=$(getprop ro.product.model)
+DEVICE=$(getprop ro.product.device)
+
+if [ "$MODEL" != "SM-G920F" ] && [ "$DEVICE" != "zerofltexx" ] && [ "$DEVICE" != "zeroflte" ]; then
+    ui_print "ERROR: This overlay package is ONLY for SM-G920F (zerofltexx)!"
+    ui_print "Current device: $MODEL / $DEVICE"
+    exit 1
+fi
+
+ui_print "Mounting /system..."
+mount /system 2>/dev/null || mount /system_root 2>/dev/null
+
+ui_print "Installing Pixel UI Resource Overlays..."
+mkdir -p /system/product/overlay
+cp -rf /tmp/system/product/overlay/* /system/product/overlay/ 2>/dev/null || true
+
+ui_print "Pixel Overlay package installed successfully."
+ui_print "Reboot system to apply Pixel UI modifications."
+exit 0
