@@ -25,6 +25,21 @@ public final class Shots {
     private static final int BACK = 7;
     private static final int NUM = 8; /* NUM + (n-1) */
 
+    private static int[] cat(int[] a, int[] b) {
+        int[] r = new int[a.length + b.length];
+        System.arraycopy(a, 0, r, 0, a.length);
+        System.arraycopy(b, 0, r, a.length, b.length);
+        return r;
+    }
+
+    private static int[] rep(int v, int n) {
+        int[] r = new int[n];
+        for (int i = 0; i < n; i++) {
+            r[i] = v;
+        }
+        return r;
+    }
+
     /** Each scenario: name, then the keys pressed before the frame. */
     private static final Object[][] SCRIPT = {
         { "01_menu", new int[] {} },
@@ -51,6 +66,10 @@ public final class Shots {
         { "14_room_walk", new int[] { FIRE, RIGHT, RIGHT, RIGHT } },
         { "14b_room_walk2", new int[] { FIRE, LEFT, LEFT, LEFT, LEFT, DOWN, DOWN } },
         { "14c_room_near", new int[] { FIRE, LEFT, LEFT } },
+        { "15_city_bazaar", new int[] { FIRE, NUM + 5, RIGHT, RIGHT } },
+        { "15b_city_shop", new int[] { FIRE, NUM + 5, LEFT } },
+        { "16_ending", cat(new int[] { NUM + 6 },
+                cat(rep(LEFT, 48), new int[] { UP })) },
     };
 
     public static void main(String[] args) {

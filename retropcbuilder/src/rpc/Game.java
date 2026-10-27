@@ -85,6 +85,8 @@ public class Game {
     final public static int M_TEA = 53;
     /** the 500 function catalog */
     final public static int M_FUNCS = 55;
+    /** the 2027 finale */
+    final public static int M_ENDING = 56;
     final public static int M_SLEEP = 54;
     final public static int C_BG = 923168;
     final public static int C_BG2 = 1318956;
@@ -265,6 +267,8 @@ public class Game {
     /** scene geometry cached for input (movement needs the viewport size) */
     private int roomSceneH;
     private int roomSceneTop;
+    /** last autosave in milliseconds (every 5 minutes of play) */
+    private long lastSave;
 
     /**
      * Navigation history.
@@ -554,6 +558,7 @@ public class Game {
     public void init(rpc.Host a, rpc.Gfx a0) {
         this.host = a;
         this.g = a0;
+        this.lastSave = System.currentTimeMillis();
         this.W = a0.width();
         this.H = a0.height();
         this.FH0 = a0.textHeight(0);
@@ -827,7 +832,7 @@ public class Game {
         int before = this.mode;
         boolean newScreens = this.mode == M_MENU || this.mode == M_ROOM
                 || this.mode == M_TEA || this.mode == M_SLEEP
-                || this.mode == M_FUNCS;
+                || this.mode == M_FUNCS || this.mode == M_ENDING;
         if ((action == ACT_BACK || action == ACT_SOFT2) && !newScreens) {
             // legacy screens: BACK always returns to the previous screen
             this.navBack();
@@ -848,6 +853,9 @@ public class Game {
                 break;
             case M_FUNCS:
                 this.inputFuncs(action);
+                break;
+            case M_ENDING:
+                this.inputEnding(action);
                 break;
             default:
                 this.inputLegacy(action);
@@ -3352,6 +3360,10 @@ public class Game {
      * ================================================================== */
 
     /** Total XP collected (catalog, experiments, builds). */
+    public rpc.LifeSim life() {
+        return this.life;
+    }
+
     public int totalXp() {
         return this.totalXp;
     }
@@ -3359,6 +3371,11 @@ public class Game {
     /** Adds money (used by the lottery entries and by the harness). */
     public void grantCredits(int n) {
         this.cash += n;
+    }
+
+    /** How many PCs were built (sandbox rebuilds count too). */
+    public int buildsDone() {
+        return this.minedTotal > 0 ? this.minedTotal : this.unlocked - 1;
     }
 
     public int funcsDone() {
@@ -3959,11 +3976,20 @@ public class Game {
         int w = this.W;
         int h = this.H;
         int loc = this.city.curLocation;
-        this.header(rpc.City.LOC_NAMES[loc],
-                this.life.curHour + ":00  " + this.life.curYear);
+        String holiday = rpc.LifeSim.holidayName(this.life);
+        String right = this.life.curHour + ":00  " + this.life.curYear
+                + (holiday.length() > 0 ? "  " + holiday : "");
+        this.header(rpc.City.LOC_NAMES[loc], right);
 
-        // location tabs
-        int top = this.FH1 + 12;
+        // ---- the picture: street, buildings, weather --------------
+        int sceneTop = this.FH1 + 12;
+        int sceneH = this.sceneHeight();
+        this.g.setClip(0, sceneTop, w, sceneH);
+        rpc.CityArt.draw(this.g, this.life, loc, this.life.animationTick);
+        this.g.setClip(0, 0, w, h);
+
+        // location tabs under the header
+        int tabY = sceneTop;
         int tabH = this.FH0 + 7;
         int n = rpc.City.LOC_NAMES.length;
         int tabW = (w - 10) / n;
@@ -3971,54 +3997,41 @@ public class Game {
             int tx = 5 + i * tabW;
             boolean sel = i == loc;
             this.g.setColor(sel ? Theme.ACCENT : Theme.PANEL);
-            this.g.fillRoundRect(tx, top, tabW - 2, tabH, 2);
-            Text.draw(this.g, Integer.toString(i + 1), tx + 2, top + 4, 0,
+            this.g.fillRoundRect(tx, tabY, tabW - 2, tabH, 2);
+            Text.draw(this.g, Integer.toString(i + 1), tx + 2, tabY + 4, 0,
                     sel ? 0x2A1E00 : Theme.MUTED);
         }
-        String locTag = (loc + 1) + "/" + n;
-        Text.draw(this.g, locTag, w - this.g.textWidth(locTag, 0) - 6,
-                top + tabH + 4, 0, Theme.MUTED);
 
-        // description card
-        int dy = top + tabH + this.FH0 + 9;
-        String desc = rpc.City.LOC_DESCS[loc];
-        String[] dlines = wrap(desc, w - 18, 0, 2);
-        int descH = this.FH0 * dlines.length + 8;
-        this.g.setColor(Theme.PANEL2);
-        this.g.fillRoundRect(5, dy, w - 10, descH, 3);
-        for (int i = 0; i < dlines.length; i++) {
-            Text.draw(this.g, dlines[i], 9, dy + 4 + i * this.FH0, 0,
-                    Theme.ACCENT2);
-        }
-
-        // NPC card with a portrait badge
-        int ny = dy + descH + 4;
+        // ---- NPC card + numbered replies --------------------------
+        int cardY = tabY + tabH + 4;
+        int cardH = h - this.FH0 - 11 - cardY;
         int npcH = this.FH0 * 3 + 12;
+        if (cardH > npcH + this.FH0 * 2 + 8) {
+            cardH = npcH + this.FH0 * 2 + 8;
+        }
         this.g.setColor(Theme.PANEL);
-        this.g.fillRoundRect(5, ny, w - 10, npcH, 4);
+        this.g.fillRoundRect(5, cardY, w - 10, cardH, 4);
         this.g.setColor(Theme.LINE);
-        this.g.drawRoundRect(5, ny, w - 10, npcH, 4);
+        this.g.drawRoundRect(5, cardY, w - 10, cardH, 4);
+        // portrait of the person speaking
         int portrait = npcH - 10;
-        Icons.drawSized(this.g, Icons.CART, 9, ny + 5, portrait,
+        Icons.drawSized(this.g, Icons.forMenu(loc), 9, cardY + 5, portrait,
                 Theme.METAL, Theme.ACCENT, 0x39415A);
         int ptx = 9 + portrait + 6;
         Text.draw(this.g, Text.fit(this.city.dialogueNpc + ":", 0, w - ptx - 8),
-                ptx, ny + 3, 0, Theme.ACCENT);
+                ptx, cardY + 3, 0, Theme.ACCENT);
         String[] tlines = wrap(this.city.dialogueText, w - ptx - 10, 0, 2);
         for (int i = 0; i < tlines.length; i++) {
-            Text.draw(this.g, tlines[i], ptx, ny + 4 + this.FH0 + i * this.FH0,
+            Text.draw(this.g, tlines[i], ptx, cardY + 4 + this.FH0 + i * this.FH0,
                     0, Theme.TEXT);
         }
-
-        // numbered replies
-        int oy = ny + npcH + 5;
+        // numbered replies at the bottom of the card
+        int oy = cardY + npcH + 4;
         int optH = this.FH0 + 6;
-        int footerTop = h - this.FH0 - 12;
-        for (int i = 0; i < this.city.dialogueOptions.length; i++) {
+        int room = cardY + cardH - oy;
+        int shown = Math.min(this.city.dialogueOptions.length, room / (optH + 2));
+        for (int i = 0; i < shown; i++) {
             int ry = oy + i * (optH + 2);
-            if (ry + optH > footerTop) {
-                break;
-            }
             boolean sel = i == this.city.selectedOption;
             this.g.setColor(sel ? Theme.PANEL2 : Theme.PANEL);
             this.g.fillRoundRect(6, ry, w - 12, optH, 3);
@@ -4029,12 +4042,99 @@ public class Game {
             Text.draw(this.g, Integer.toString(i + 1), 9, ry + 4, 0,
                     sel ? 0x2A1E00 : Theme.DIM);
             Text.draw(this.g, Text.fit(stripNumber(this.city.dialogueOptions[i]),
-                    0, w - 30), 22, ry + 4, 0,
-                    sel ? Theme.TEXT : Theme.DIM);
+                    0, w - 30), 22, ry + 4, 0, sel ? Theme.TEXT : Theme.DIM);
         }
-        this.footer("OK: \u0440\u0435\u043f\u043b\u0438\u043a\u0430",
-                "\u2190\u2192 \u0440\u0430\u0439\u043e\u043d");
+        // era tag so the year is visible in the picture itself
+        String era = this.eraName();
+        Text.draw(this.g, era, w - this.g.textWidth(era, 0) - 6, cardY + 3, 0,
+                Theme.MUTED);
+        this.footer("OK: разговор  \u2190\u2192 \u0430\u0441\u0435\u0430\u0434", "\u041b\u0421\u041a: \u0431\u0430\u0437");
     }
+
+    /** Short era label for the city screen. */
+    private String eraName() {
+        int year = this.life.curYear;
+        if (year < 1989) {
+            return "\u0426\u0435\u0430\u0432\u044b \u0438\u0437\u0437\u0435\u0436\u0435\u043c\u0441\u0442\u0432\u0435\u0441\u0442\u0432\u043e";
+        }
+        if (year < 2000) {
+            return "199\u0430\u044f \u0434\u0435\u043a\u0430\u0434\u0430";
+        }
+        if (year < 2012) {
+            return "2000-\u044b \u0433\u043e\u0434\u0438";
+        }
+        return "2010-\u043b\u0435 \u0444\u043e\u0442\u0430";
+    }
+
+    /** Era-dependent skyline drawn behind the room window. */
+    private static void drawEraSkyline(Gfx g, LifeSim life, int x, int y, int w,
+                                      int h, int night) {
+        int year = life.curYear;
+        int tall = year < 1989 ? h * 34 / 100 : (year < 2000 ? h * 46 / 100
+                : h * 60 / 100);
+        int base = y + h;
+        g.setColor(night == 1 ? 0x141D33 : 0x9AAEC4);
+        for (int bx = x; bx < x + w;) {
+            int bw = 8 + (bx * 3) % 14;
+            int bh = tall - (bx % 5) * 6;
+            g.fillRect(bx, base - bh, bw, bh);
+            if (year >= 2000) {
+                g.setColor(night == 1 ? 0x2A3A56 : 0xC8DCF0);
+                for (int wy = base - bh + 3; wy < base - 2; wy += 4) {
+                    g.fillRect(bx + 1, wy, bw - 2, 1);
+                }
+            }
+            if (year >= 2012) {
+                g.setColor(night == 1 ? 0x4AE0C0 : 0x6AF0D8);
+                g.fillRect(bx + bw - 3, base - bh - 3, 2, 2);
+            }
+            g.setColor(night == 1 ? 0x141D33 : 0x9AAEC4);
+            bx += bw + 2;
+        }
+    }
+
+    /** The 2027 finale. */
+    private void paintEnding() {
+        int w = this.W;
+        int h = this.H;
+        this.header("2027", "fin");
+        // banner
+        this.g.setColor(Theme.PANEL2);
+        this.g.fillRoundRect(8, this.FH1 + 12, w - 16, this.FH0 * 6 + 16, 6);
+        this.g.setColor(Theme.ACCENT);
+        this.g.drawRoundRect(8, this.FH1 + 12, w - 16, this.FH0 * 6 + 16, 6);
+        Text.drawAnchored(this.g, "2 0 2 7", w / 2, this.FH1 + 18, 2,
+                Gfx.HCENTER, Theme.ACCENT);
+        String[] lines = {
+            "\u041d\u043e\u0432\u044b\u043d \u0433\u043e\u0434 \u0441\u043e\u0441\u0442\u0430\u043d\u043d\u0438\u043a",
+            "\u041a\u043e\u043c\u043d\u0430\u0442\u0430 \u0438\u0437\u0437\u0435\u0436\u0435\u043c\u0441\u0442\u0432\u043e\u0432\u0430\u044f",
+            "\u0426\u0435\u043b\u0435\u0432\u0435 \u0441\u0435\u043a\u0443\u0437\u043b\u0438\u043a\u0438 \u0441\u043e\u0437\u0434\u0430\u044e",
+            "",
+            "PC: " + this.buildsDone() + "  \u0444\u0430\u0449\u0439: " + this.funcsDone()
+                + "/500",
+            "XP: " + this.totalXp() + "  \u044d\u043d\u043e\u0433\u0438\u044f: " + this.life.energy + "%"
+        };
+        for (int i = 0; i < lines.length; i++) {
+            Text.draw(this.g, Text.fit(lines[i], 0, w - 30), 14,
+                    this.FH1 + 34 + i * this.FH0, 0,
+                    i == 0 ? Theme.ACCENT2 : Theme.TEXT);
+        }
+        // secret ending: an OS that only runs on junk
+        int secret = this.hackLevel >= 30 ? 1 : 0;
+        Text.drawAnchored(this.g,
+                secret == 1 ? "\u0421\u0440\u0435\u0449\u043d\u044b\u044f \u0447\u043e\u0440\u0438\u0449: Windows 11 \u043d\u0430 \u0432\u0435\u0434\u0440\u0435 2005"
+                    : "\u0411\u043b\u0430\u0433\u043e\u0434\u0438\u0442\u0435 \u0447\u043e\u0440\u0438\u0449 \u0438\u0437 2027",
+                w / 2, this.FH1 + 4 + this.FH0 * 6, 0, Gfx.HCENTER,
+                secret == 1 ? Theme.VIOLET : Theme.MUTED);
+        this.footer("OK: \u0435\u043f\u0438\u0433 \u043e 2027", "\u041b\u0421\u041a: \u043b\u0430\u0431");
+    }
+
+    private void inputEnding(int action) {
+        if (action == ACT_BACK || action == ACT_SOFT2 || action == ACT_FIRE) {
+            this.navBack();
+        }
+    }
+
 
     
     /** Removes a leading "3. " that the 4.8 strings carry. */
@@ -4416,9 +4516,18 @@ public class Game {
                         break label0;
                     }
                 }
-                this.mode = 47;
+                // the last year of the game: OK goes to the finale
+                if (this.life.curYear >= 2027) {
+                    this.mode = M_ENDING;
+                } else {
+                    this.mode = 47;
+                }
             } else {
+                boolean reached = this.life.curYear >= 2027;
                 this.life.curYear = Math.min(2027, this.life.curYear + 1);
+                if (this.life.curYear >= 2027 && !reached) {
+                    this.toastMsg("2027: последний год \u2014 финиш подходит к концу");
+                }
                 rpc.Sound.click();
             }
         } else {
@@ -4460,7 +4569,13 @@ public class Game {
         return s;
     }
     
+    /** Called once per repaint: age the autosave timer. */
     public void paint() {
+        long now = System.currentTimeMillis();
+        if (now - this.lastSave > 300000L) {
+            this.lastSave = now;
+            this.saveProgress();
+        }
         this.W = this.g.width();
         this.H = this.g.height();
         this.FH0 = this.g.textHeight(0);
@@ -4490,6 +4605,9 @@ public class Game {
                 break;
             case M_FUNCS:
                 this.paintFuncs();
+                break;
+            case M_ENDING:
+                this.paintEnding();
                 break;
             default:
                 this.paintLegacy();

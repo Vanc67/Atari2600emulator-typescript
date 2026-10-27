@@ -112,6 +112,79 @@ public class LifeSim {
         this.reset(1980);
     }
     
+    /**
+     * Holidays move the town: the tree comes out, the flags go up, the
+     * market raises prices and the club hangs bunting.
+     */
+    public static boolean isHoliday(LifeSim a) {
+        if (a == null) {
+            return false;
+        }
+        int m = a.curMonth + 1;
+        int d = a.curDay;
+        if (m == 1 && d <= 8) {
+            return true;                       // New Year holidays
+        }
+        if (m == 2 && d >= 22 && d <= 24) {
+            return true;                       // Defender of the Fatherland
+        }
+        if (m == 3 && d >= 5 && d <= 9) {
+            return true;                       // International Women's Day
+        }
+        if (m == 5 && d >= 9) {
+            return true;                       // Victory Day
+        }
+        if (m == 9 && d == 1) {
+            return true;                       // School year
+        }
+        if (m == 12 && d >= 28) {
+            return true;
+        }
+        return false;
+    }
+
+    /** Name of the holiday, or an empty string on an ordinary day. */
+    public static String holidayName(LifeSim a) {
+        if (a == null) {
+            return "";
+        }
+        int m = a.curMonth + 1;
+        int d = a.curDay;
+        if (m == 1 && d <= 8) {
+            return "\u041d\u043e\u0432\u044b\u043d \u0433\u043e\u0434";
+        }
+        if (m == 2 && d >= 22 && d <= 24) {
+            return "23 \u0444\u0435\u0432\u0440\u0430\u043b\u044f";
+        }
+        if (m == 3 && d >= 5 && d <= 9) {
+            return "8 \u043c\u0430\u0440\u0442\u0430";
+        }
+        if (m == 5 && d >= 9) {
+            return "\u0414\u0435\u043d\u044c \u041f\u043e\u0431\u0435\u0434\u0438";
+        }
+        if (m == 9 && d == 1) {
+            return "1 \u0441\u0435\u043d\u0442\u044f\u043c\u043d\u044f";
+        }
+        if (m == 12 && d >= 28) {
+            return "\u041d\u043e\u0432\u044b\u043d \u0433\u043e\u0434";
+        }
+        return "";
+    }
+
+    /** Seasonal price multiplier: winter and New Year cost more. */
+    public static int marketIndex(LifeSim a) {
+        int m = a.curMonth + 1;
+        int base = 100;
+        if (m == 1 || m == 2) {
+            base = 125;
+        } else if (m == 12) {
+            base = 130;
+        } else if (a.season == SEASON_SUMMER) {
+            base = 90;
+        }
+        return base;
+    }
+
     public void reset(int i) {
         this.curYear = Math.max(1979, Math.min(2027, i));
         this.curMonth = 1;

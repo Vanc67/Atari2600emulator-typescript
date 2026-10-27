@@ -194,6 +194,10 @@ public final class Room {
             g.fillRect(x, y + h * i / bands, w, h / bands + 1);
         }
 
+        // the town behind the window, and it changes with the era
+        drawEraSkyline(g, life, x, y + h * 66 / 100, w, h * 26 / 100,
+                life.timeOfDay == LifeSim.TIME_NIGHT ? 1 : 0);
+
         // sun / moon
         int cx = x + w * 74 / 100;
         int cy = y + h * 22 / 100;
@@ -800,5 +804,36 @@ public final class Room {
     /** How close the avatar must stand to use the object. */
     public static int reach(int hot) {
         return hot == HOT_DOOR || hot == HOT_BED ? 30 : 24;
+    }
+
+    /* ------------------------------------------------------------------
+     *  era skyline behind the window
+     * ------------------------------------------------------------------ */
+
+    /** Era-dependent town seen through the window. */
+    public static void drawEraSkyline(Gfx g, LifeSim life, int x, int y,
+                                      int w, int h, int night) {
+        int year = life.curYear;
+        int tall = year < 1989 ? h * 34 / 100
+                : (year < 2000 ? h * 46 / 100 : h * 60 / 100);
+        int base = y + h;
+        g.setColor(night == 1 ? 0x141D33 : 0x9AAEC4);
+        for (int bx = x; bx < x + w;) {
+            int bw = 8 + (bx * 3) % 14;
+            int bh = tall - (bx % 5) * 6;
+            g.fillRect(bx, base - bh, bw, bh);
+            if (year >= 2000) {
+                g.setColor(night == 1 ? 0x2A3A56 : 0xC8DCF0);
+                for (int wy = base - bh + 3; wy < base - 2; wy += 4) {
+                    g.fillRect(bx + 1, wy, bw - 2, 1);
+                }
+            }
+            if (year >= 2012) {
+                g.setColor(night == 1 ? 0x4AE0C0 : 0x6AF0D8);
+                g.fillRect(bx + bw - 3, base - bh - 3, 2, 2);
+            }
+            g.setColor(night == 1 ? 0x141D33 : 0x9AAEC4);
+            bx += bw + 2;
+        }
     }
 }
