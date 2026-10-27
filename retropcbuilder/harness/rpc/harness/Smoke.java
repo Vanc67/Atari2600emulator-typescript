@@ -100,35 +100,28 @@ public final class Smoke {
                     + " (got " + g.currentMode() + ")");
         }
 
-        /* the character walks: a number sends it to the object, which is
-         * used when it arrives, and only then does the screen change */
+        /* the room has no character: arrows move the highlight, OK and the
+         * number keys use the highlighted object - one press is enough */
         Game g = new Game();
         g.init(host, gfx);
         g.input(Game.ACT_NUM1);            /* Комната */
         check(g.currentMode() == Game.M_ROOM, "room reached");
-        int[] p0 = g.avatarPos();
         g.input(Game.ACT_RIGHT);
-        int[] p1 = g.avatarPos();
-        check(p1[0] > p0[0], "right arrow walks the character ("
-                + p0[0] + " -> " + p1[0] + ")");
+        check(g.currentMode() == Game.M_ROOM, "arrows move the highlight");
         g.input(Game.ACT_NUM1);            /* hot 1 = monitor */
-        check(g.currentMode() == Game.M_ROOM, "number starts a walk, not a jump");
-        settle(g);
-        check(g.currentMode() == Game.M_BUILD, "walked to the monitor -> build");
+        check(g.currentMode() == Game.M_BUILD, "number 1 uses the monitor -> build");
 
         Game g2 = new Game();
         g2.init(host, gfx);
         g2.input(Game.ACT_NUM1);
         g2.input(Game.ACT_NUM2);           /* hot 2 = mug */
-        settle(g2);
-        check(g2.currentMode() == Game.M_TEA, "walked to the mug -> tea");
+        check(g2.currentMode() == Game.M_TEA, "number 2 uses the mug -> tea");
         g2.input(Game.ACT_FIRE);           /* drink */
         check(g2.currentMode() == Game.M_TEA, "tea screen stays after drinking");
         g2.input(Game.ACT_BACK);
         check(g2.currentMode() == Game.M_ROOM, "tea -> back returns to room");
         g2.input(Game.ACT_NUM5);           /* hot 5 = bed */
-        settle(g2);
-        check(g2.currentMode() == Game.M_SLEEP, "walked to the bed -> sleep");
+        check(g2.currentMode() == Game.M_SLEEP, "number 5 uses the bed -> sleep");
         g2.input(Game.ACT_FIRE);
         check(g2.currentMode() == Game.M_SLEEP, "sleep screen stays after sleeping");
         g2.input(Game.ACT_BACK);
@@ -136,19 +129,28 @@ public final class Smoke {
         g2.input(Game.ACT_BACK);
         check(g2.currentMode() == Game.M_MENU, "room -> back returns to menu");
 
-        /* OK only works while standing next to the object */
+        /* OK uses whatever the highlight is on, no walking needed */
         Game g3 = new Game();
         g3.init(host, gfx);
         g3.input(Game.ACT_NUM1);
-        for (int i = 0; i < 20; i++) {      /* walk into the far corner */
-            g3.input(Game.ACT_LEFT);
-        }
+        g3.input(Game.ACT_RIGHT);
         g3.input(Game.ACT_FIRE);
-        check(g3.currentMode() == Game.M_ROOM,
-                "OK away from every object does nothing");
-        g3.input(Game.ACT_NUM2);
-        settle(g3);
-        check(g3.currentMode() == Game.M_TEA, "OK works after walking up");
+        check(g3.currentMode() == Game.M_TEA, "OK on the highlighted mug -> tea");
+
+        /* outside the room the character walks on the pavement */
+        Game gc = new Game();
+        gc.init(host, gfx);
+        gc.input(Game.ACT_NUM1);            /* room */
+        gc.input(Game.ACT_NUM6);            /* hot 6 = door -> city */
+        check(gc.currentMode() == Game.M_CITY, "door opens the city");
+        gc.paint();
+        int[] c0 = gc.cityCharPos();
+        for (int i = 0; i < 30; i++) {
+            gc.paint();
+        }
+        int[] c1 = gc.cityCharPos();
+        check(c1[0] != c0[0], "the character walks outside (city) ("
+                + c0[0] + " -> " + c1[0] + ")");
 
         /* the 500 function catalog */
         check(Funcs.count() == 500, "catalog holds 500 functions ("

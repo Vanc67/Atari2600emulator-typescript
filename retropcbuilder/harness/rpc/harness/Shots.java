@@ -69,7 +69,7 @@ public final class Shots {
         { "15_city_bazaar", new int[] { FIRE, NUM + 5, RIGHT, RIGHT } },
         { "15b_city_shop", new int[] { FIRE, NUM + 5, LEFT } },
         { "16_ending", cat(new int[] { NUM + 6 },
-                cat(rep(LEFT, 48), new int[] { UP })) },
+                cat(rep(RIGHT, 48), new int[] { UP })) },
     };
 
     public static void main(String[] args) {
@@ -98,18 +98,14 @@ public final class Shots {
                     System.out.println("[shots] " + name + " input " + keys[k]
                             + " failed: " + t);
                 }
-                // repaint while the character is still walking and until the
-                // screen stops changing - otherwise the next key would land on
-                // the wrong screen (the walk now spans several frames)
-                for (int f = 0; f < 40; f++) {
+                // repaint a few frames so animations settle before the next
+                // key lands on the right screen
+                for (int f = 0; f < 6; f++) {
                     gfx.setClip(0, 0, W, H);
                     try {
                         game.paint();
                     } catch (Throwable t) {
                         System.out.println("[shots] " + name + " paint failed: " + t);
-                        break;
-                    }
-                    if (f > 2 && game.walkIdle()) {
                         break;
                     }
                 }

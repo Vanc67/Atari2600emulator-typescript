@@ -63,7 +63,7 @@ public final class CityArt {
         g.fillRect(0, h * 56 / 100, w, h * 4 / 100);
 
         // ---- far silhouettes (era dependent) ------------------------
-        drawFar(g, w, h, era, night);
+        drawFar(g, w, h, era, night, life);
 
         // ---- street -------------------------------------------------
         int roadY = h * 60 / 100;
@@ -96,6 +96,19 @@ public final class CityArt {
         drawBlock(g, w - w * 20 / 100 - 4, roadY - 8, w * 20 / 100,
                 h * 34 / 100, era, night, life, 1, frame);
 
+        // ---- trees: the season shows up on the street --------------
+        drawTrees(g, w, roadY, life, night, frame);
+        // puddles when it rains
+        if (life.weather == LifeSim.WEATHER_RAIN
+                || life.weather == LifeSim.WEATHER_STORM) {
+            g.setColor(night == 1 ? 0x2A3A52 : 0x6A7E96);
+            for (int i = 0; i < 5; i++) {
+                int px = 14 + i * (w - 30) / 4;
+                g.fillRect(px, roadY + roadH * 30 / 100, 14, 3);
+                g.fillRect(px + 3, roadY + roadH * 30 / 100 + 3, 8, 2);
+            }
+        }
+
         // ---- traffic and people -----------------------------------
         drawBus(g, w, roadY, roadH, frame, night);
         drawCar(g, w, roadY, roadH, frame, night);
@@ -105,7 +118,8 @@ public final class CityArt {
         drawWeather(g, w, h, life, frame);
     }
 
-    private static void drawFar(Gfx g, int w, int h, int era, int night) {
+    private static void drawFar(Gfx g, int w, int h, int era, int night,
+                                LifeSim life) {
         int base = h * 46 / 100;
         int tall = era >= 2 ? h * 30 / 100 : h * 14 / 100;
         g.setColor(night == 1 ? 0x172238 : 0xB8C6D6);
@@ -120,6 +134,11 @@ public final class CityArt {
                 for (int wx = x + 2; wx < x + bw - 2; wx += 5) {
                     g.fillRect(wx, wy, 2, 2);
                 }
+            }
+            if (life.season == LifeSim.SEASON_WINTER) {
+                g.setColor(night == 1 ? 0xC8DCF0 : 0xE8F2FA);
+                g.fillRect(x, base - bh, bw, 2);
+                g.fillRect(x + bw - 3, base - bh - 4, 3, 4);
             }
             g.setColor(night == 1 ? 0x172238 : 0xB8C6D6);
             x += bw + 3;
@@ -143,6 +162,10 @@ public final class CityArt {
         g.fillRect(x - 2, y - 6, w + 4, 6);
         g.setColor(night == 1 ? 0x252E3D : 0x8A7E6C);
         g.fillRect(x - 2, y - 6, w + 4, 2);
+        if (life.season == LifeSim.SEASON_WINTER) {
+            g.setColor(night == 1 ? 0xC0D4EC : 0xEAF4FC);
+            g.fillRect(x - 2, y - 7, w + 4, 2);
+        }
         // chimney / antenna
         g.setColor(night == 1 ? 0x191F2B : 0x595046);
         g.fillRect(x + w * 70 / 100, y - 16, 2, 12);
@@ -662,5 +685,45 @@ public final class CityArt {
         gg /= 100;
         bb /= 100;
         return (r << 16) | (gg << 8) | bb;
+    }
+
+    /** Trees along the pavement; the crown is the season's colour. */
+    private static void drawTrees(Gfx g, int w, int roadY, LifeSim life,
+                                  int night, int frame) {
+        int seasons = life.season;
+        int trunk = night == 1 ? 0x2A2119 : 0x6A4A2E;
+        int[] crowns = { 0x7A8A5A, 0x9AD07A, 0x4A9A4A, 0xD88A3A };
+        int crown = crowns[seasons];
+        for (int t = 0; t < 3; t++) {
+            int tx = w * (12 + t * 32) / 100;
+            int ty = roadY - 30;
+            g.setColor(trunk);
+            g.fillRect(tx, ty, 5, 22);
+            if (seasons == LifeSim.SEASON_WINTER) {
+                // bare branches with snow on top
+                g.setColor(night == 1 ? 0x4A4038 : 0x7A6A4A);
+                g.fillRect(tx - 6, ty - 4, 17, 3);
+                g.fillRect(tx - 3, ty - 8, 11, 3);
+                g.setColor(night == 1 ? 0xD0E2F4 : 0xEAF4FC);
+                g.fillRect(tx - 6, ty - 5, 17, 2);
+                g.fillRect(tx - 3, ty - 9, 11, 2);
+            } else {
+                g.setColor(crown);
+                g.fillRect(tx - 8, ty - 12, 18, 14);
+                g.fillRect(tx - 6, ty - 16, 13, 6);
+                g.fillRect(tx - 9, ty - 8, 4, 8);
+                g.fillRect(tx + 5, ty - 8, 4, 8);
+                if (seasons == LifeSim.SEASON_AUTUMN) {
+                    g.setColor(0xE86A3A);
+                    g.fillRect(tx - 6, ty - 14, 4, 4);
+                    g.fillRect(tx + 3, ty - 10, 4, 4);
+                }
+                if (seasons == LifeSim.SEASON_SPRING) {
+                    g.setColor(0xE8A8C8);
+                    g.fillRect(tx - 7, ty - 12, 3, 3);
+                    g.fillRect(tx + 3, ty - 9, 3, 3);
+                }
+            }
+        }
     }
 }

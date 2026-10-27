@@ -262,8 +262,8 @@ public class Game {
     private int[] funcsIdx = new int[0];
     private int funcsIdxN;
     private String funcsResult = "";
-    /** the player character walking around the room */
-    private final Avatar avatar = new Avatar();
+    /** the player character - it walks outside, on the pavement */
+    private final Avatar cityChar = new Avatar();
     /** scene geometry cached for input (movement needs the viewport size) */
     private int roomSceneH;
     private int roomSceneTop;
@@ -388,7 +388,7 @@ public class Game {
         this.resultPhase = 0;
         this.resultFrames = 0;
         this.RESULT_FRAMES = 6;
-        this.cash = 750;
+        this.cash = 20000;
         this.day = 1;
         this.seed = 20260101;
         this.table = new rpc.Table();
@@ -1782,26 +1782,7 @@ public class Game {
      *  the room (life sim hub)
      * ================================================================== */
 
-    /**
-     * Nearest object the character can reach right now, or -1.
-     *
-     * Replaces the 4.8 cursor: the object is chosen by where the avatar is
-     * standing, so "walk up to the mug and press OK" always means the mug.
-     */
-    private int nearestHotspot() {
-        int best = -1;
-        int bestD = 1 << 20;
-        int h = this.roomSceneH <= 0 ? this.sceneHeight() : this.roomSceneH;
-        for (int i = 0; i < Room.HOT_COUNT; i++) {
-            int ax = Room.anchorX(i, this.W);
-            int d = this.avatar.near(ax);
-            if (d <= Room.reach(i) && d < bestD) {
-                bestD = d;
-                best = i;
-            }
-        }
-        return best;
-    }
+
 
     private void inputRoom(int action) {
         if (action == ACT_BACK || action == ACT_SOFT2) {
@@ -1813,53 +1794,33 @@ public class Game {
             this.openFuncs();
             return;
         }
-        int h = this.sceneHeight();
-        int step = this.W / 14;
-        if (action == ACT_LEFT) {
-            this.avatar.step(-step, 0, this.W, h);
+        /*
+         * The room has no character: the arrows move the highlight over the
+         * objects (monitor, mug, cat, lamp, bed, door, tools, radio) and OK
+         * uses the highlighted one.  The number keys jump straight to an
+         * object and use it, so one press is always enough.
+         */
+        if (action == ACT_LEFT || action == ACT_UP) {
+            this.roomCursor = (this.roomCursor + Room.HOT_COUNT - 1)
+                    % Room.HOT_COUNT;
             Sound.click();
             return;
         }
-        if (action == ACT_RIGHT) {
-            this.avatar.step(step, 0, this.W, h);
-            Sound.click();
-            return;
-        }
-        if (action == ACT_UP) {
-            this.avatar.step(0, -step / 2, this.W, h);
-            Sound.click();
-            return;
-        }
-        if (action == ACT_DOWN) {
-            this.avatar.step(0, step / 2, this.W, h);
+        if (action == ACT_RIGHT || action == ACT_DOWN) {
+            this.roomCursor = (this.roomCursor + 1) % Room.HOT_COUNT;
             Sound.click();
             return;
         }
         if (action >= ACT_NUM1 && action < ACT_NUM1 + Room.HOT_COUNT) {
-            int hot = action - ACT_NUM1;
-            this.roomCursor = hot;
-            int ax = Room.anchorX(hot, this.W);
-            int ay = Room.anchorY(hot, h);
-            if (this.avatar.near(ax) <= Room.reach(hot)) {
-                // already standing there - use it immediately
-                this.avatar.place(this.avatar.x, this.avatar.y);
-                this.useRoomObject(hot);
-            } else {
-                this.avatar.walkTo(ax, ay, hot);
-                Sound.click();
-            }
+            this.roomCursor = action - ACT_NUM1;
+            this.useRoomObject(this.roomCursor);
             return;
         }
         if (action == ACT_FIRE) {
-            int hot = this.nearestHotspot();
-            if (hot < 0) {
-                this.toastMsg("\u043f\u043e\u0434\u043e\u0439\u0434\u0438 \u043a \u043f\u0440\u0435\u0434\u043c\u0435\u0442\u0443");
-                return;
-            }
-            this.roomCursor = hot;
-            this.useRoomObject(hot);
+            this.useRoomObject(this.roomCursor);
         }
     }
+
 
 
     /** Activates one object of the room. */
@@ -1968,9 +1929,7 @@ public class Game {
         switch (this.menuSel) {
             case 0:
                 this.mode = M_ROOM;
-                this.roomCursor = Room.HOT_DOOR;
-                this.avatar.place(Room.anchorX(Room.HOT_DOOR, this.W),
-                        Room.anchorY(Room.HOT_DOOR, this.sceneHeight()));
+                this.roomCursor = Room.HOT_MONITOR;
                 break;
             case 1:
                 this.startSandboxBuild();
@@ -3233,13 +3192,13 @@ public class Game {
      * Everything the player can touch is both drawn and listed, and the
      * hint line under the scene always names the object the cursor is on.
      */
-    /** Height of the walkable scene viewport (shared by paint and input). */
+    /** Height of the scene viewport (shared by paint and input). */
     private int sceneHeight() {
         int h = this.H - this.FH0 * 4 - 24 - (this.FH1 + 12);
         if (h < 120) {
             h = this.H - (this.FH1 + 12) - 30;
         }
-        return h;
+        return h < 190 ? h : h - 10;
     }
 
     private void paintRoom() {
@@ -3259,35 +3218,6 @@ public class Game {
         this.roomSceneH = sceneH;
         this.g.setClip(0, sceneTop, this.W, sceneH);
         Room.draw(this.g, this.life, this.life.animationTick, this.pcPowered, sceneH);
-        // the character walks; a queued object fires when it arrives
-
-        int arrived = this.avatar.tick(this.W, sceneH);
-        if (arrived >= 0) {
-            this.roomCursor = arrived;
-            this.useRoomObject(arrived);
-            if (this.mode != M_ROOM) {
-                this.g.setClip(0, 0, this.W, this.H);
-                return;
-            }
-        }
-        int near = this.avatar.hasTarget() ? -1 : this.nearestHotspot();
-        if (near >= 0) {
-            this.roomCursor = near;
-        }
-        if (this.avatar.hasTarget()) {
-            Avatar.drawTargetMarker(this.g, this.avatar.x,
-                    sceneTop + this.avatar.y - 34, this.life.animationTick);
-        }
-        Avatar.draw(this.g, this.avatar, sceneTop,
-                this.life.timeOfDay == LifeSim.TIME_NIGHT ? 1 : 0,
-                this.life.animationTick);
-        if (near >= 0) {
-            // small "you can use this" glow under the character
-            int[] nr = Room.rect(near, this.W, sceneH);
-            this.g.setColor(Theme.ACCENT);
-            drawCornerBox(this.g, nr[0] - 2, sceneTop + nr[1] - 2,
-                    nr[2] + 4, nr[3] + 4, 3);
-        }
         // number badges make the 1..8 shortcut discoverable: one per object,
         // at the top-left corner of the object's own rectangle
         for (int i = 0; i < Room.HOT_COUNT; i++) {
@@ -3360,6 +3290,11 @@ public class Game {
      * ================================================================== */
 
     /** Total XP collected (catalog, experiments, builds). */
+    /** Position of the character outside (the harness watches it). */
+    public int[] cityCharPos() {
+        return new int[] { this.cityChar.x, this.cityChar.y, this.cityChar.face };
+    }
+
     public rpc.LifeSim life() {
         return this.life;
     }
@@ -3380,17 +3315,6 @@ public class Game {
 
     public int funcsDone() {
         return this.funcsDoneCount;
-    }
-
-    /** Character position and facing, for the harness and for status lines. */
-    /** True when the character is standing still (no key, no walk target). */
-    public boolean walkIdle() {
-        return !this.avatar.moving && !this.avatar.hasTarget();
-    }
-
-    public int[] avatarPos() {
-        return new int[] { this.avatar.x, this.avatar.y, this.avatar.face,
-                this.avatar.moving ? 1 : 0 };
     }
 
     public void openFuncs() {
@@ -3569,7 +3493,7 @@ public class Game {
         int h = this.H;
         String right = this.funcsTab < 0 ? "все главы"
                 : Funcs.CAT_NAMES[this.funcsTab];
-        this.header("500 функций", right);
+        this.header("500 функций", right + "  " + Util.money(this.cash));
 
         /* ---- chapter tabs: icon squares --------------------------- */
         int tabY = this.FH1 + 12;
@@ -3678,13 +3602,11 @@ public class Game {
                         x, cardY + 6 + this.FH0 * 2, 0, Theme.ORANGE);
             }
         }
-        this.footer("OK: выполнить  \u2190\u2192 глава", "ЛСК: назад");
+        this.footer("OK: выполнить  \u2190\u2192 глава  1-9: глава",
+                "ЛСК: назад");
     }
 
     private String roomHint() {
-        if (this.nearestHotspot() < 0) {
-            return "\u2190\u2192 \u0438\u0434\u0442\u0438  \u2191\u2193 \u0433\u043b\u0443\u0431\u0436\u0435";
-        }
         switch (this.roomCursor) {
             case Room.HOT_MONITOR: return "OK: \u0441\u0435\u0441\u0442\u044c \u0437\u0430 \u041f\u041a";
             case Room.HOT_MUG: return "OK: \u0447\u0430\u0439";
@@ -3976,6 +3898,7 @@ public class Game {
         int w = this.W;
         int h = this.H;
         int loc = this.city.curLocation;
+        this.life.animationTick++;      // the pavement has to move
         String holiday = rpc.LifeSim.holidayName(this.life);
         String right = this.life.curHour + ":00  " + this.life.curYear
                 + (holiday.length() > 0 ? "  " + holiday : "");
@@ -3986,7 +3909,29 @@ public class Game {
         int sceneH = this.sceneHeight();
         this.g.setClip(0, sceneTop, w, sceneH);
         rpc.CityArt.draw(this.g, this.life, loc, this.life.animationTick);
+        // the character only exists outside: it paces along the pavement
+        if (this.cityChar.y == 0) {
+            this.cityChar.place(w / 2, sceneH - 24);
+        }
+        if (!this.cityChar.hasTarget()
+                && (this.life.animationTick % 20) == 0) {
+            int dir = (this.life.animationTick / 20) % 2 == 0 ? 1 : -1;
+            this.cityChar.walkTo(this.cityChar.x + dir * w / 3,
+                    this.cityChar.y, -1);
+        }
+        this.cityChar.tick(w, sceneH);
+        Avatar.draw(this.g, this.cityChar, sceneTop,
+                this.life.timeOfDay == LifeSim.TIME_NIGHT ? 1 : 0,
+                this.life.animationTick);
         this.g.setClip(0, 0, w, h);
+
+        // street sound when it rains or snows outside
+        if ((this.life.weather == LifeSim.WEATHER_RAIN
+                || this.life.weather == LifeSim.WEATHER_STORM
+                || this.life.weather == LifeSim.WEATHER_SNOW)
+                && (this.life.animationTick % 14) == 0) {
+            Sound.rain(this.life.weather == LifeSim.WEATHER_STORM ? 3 : 2);
+        }
 
         // location tabs under the header
         int tabY = sceneTop;
