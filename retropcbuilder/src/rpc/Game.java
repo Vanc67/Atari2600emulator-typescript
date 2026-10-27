@@ -901,6 +901,65 @@ public class Game {
     }
     
     private void inputLegacy(int i) {
+        // Arrow keys that the screen handlers never implemented: the player
+        // expects them to move the highlight, so give them a job here
+        // instead of letting them fall through and do nothing.
+        if (i == ACT_LEFT || i == ACT_RIGHT) {
+            if (this.mode == M_CATALOG) {
+                int n = CAT_ORDER.length;
+                this.catSel = (this.catSel + (i == ACT_RIGHT ? 1 : n - 1)) % n;
+                rpc.Sound.click();
+                return;
+            }
+            if (this.mode == M_SHOP && i == ACT_LEFT) {
+                int n2 = this.shopList.length;
+                if (n2 > 0) {
+                    this.shopSel = (this.shopSel + n2 - 1) % n2;
+                    rpc.Sound.click();
+                }
+                return;
+            }
+            if (this.mode == M_EVENT_NEWS && i == ACT_DOWN) {
+                boolean reached = this.life.curYear >= 2027;
+                this.life.curYear = Math.min(2027, this.life.curYear + 1);
+                if (this.life.curYear >= 2027 && !reached) {
+                    this.toastMsg("\u041f\u0443\u0447\u0435\u0441\u0442\u044b\u0439 \u0433\u043e\u0434 \u2014 \u0444\u0438\u043d\u0438\u0448 \u043f\u043e\u0434\u0438\u0442 \u043a \u043a\u043e\u043d\u0446\u0443");
+                }
+                rpc.Sound.click();
+                return;
+            }
+        }
+        if (i >= ACT_NUM1 && i <= ACT_NUM9) {
+            if (this.mode == M_CATALOG) {
+                // number keys pick the category straight away
+                int nc = CAT_ORDER.length;
+                int ic = i - ACT_NUM1;
+                if (ic < nc) {
+                    this.catSel = ic;
+                    rpc.Sound.click();
+                }
+                return;
+            }
+            if (this.mode == M_SHOP) {
+                int ns = this.shopList.length;
+                if (ns > 0) {
+                    this.shopSel = (i - ACT_NUM1) % ns;
+                    this.shopTop = Math.max(0, this.shopSel - 3);
+                    rpc.Sound.click();
+                }
+                return;
+            }
+            if (this.mode == M_CATPARTS) {
+                // number keys jump to the n-th part of the opened category
+                int n3 = this.partList.length;
+                if (n3 > 0) {
+                    this.partSel = (i - ACT_NUM1) % n3;
+                    this.partTop = 0;
+                    rpc.Sound.click();
+                }
+                return;
+            }
+        }
         label0: if (this.mode != 0) {
             if (this.mode != 1) {
                 if (this.mode != 2) {
@@ -1758,10 +1817,10 @@ public class Game {
 
     private void inputMenu(int action) {
         int n = this.MENU_ITEMS.length;
-        if (action == ACT_DOWN) {
+        if (action == ACT_DOWN || action == ACT_RIGHT) {
             this.menuSel = (this.menuSel + 1) % n;
             Sound.click();
-        } else if (action == ACT_UP) {
+        } else if (action == ACT_UP || action == ACT_LEFT) {
             this.menuSel = (this.menuSel + n - 1) % n;
             Sound.click();
         } else if (action == ACT_FIRE || action == ACT_SOFT1) {
@@ -1878,6 +1937,13 @@ public class Game {
     private void inputTea(int action) {
         if (action == ACT_BACK || action == ACT_SOFT2) {
             this.navBack();
+            return;
+        }
+        if (action == ACT_LEFT || action == ACT_RIGHT) {
+            // the two actions are laid out as a strip, so the horizontal
+            // arrows switch between them exactly like UP/DOWN do
+            this.teaSel = 1 - this.teaSel;
+            Sound.click();
             return;
         }
         if (action == ACT_UP || action == ACT_DOWN) {
@@ -3300,7 +3366,7 @@ public class Game {
                 : "\u0440\u0430\u0434\u0438\u043e: \u0442\u0438\u0448\u0438\u043d\u0430";
         Text.draw(this.g, Text.fit(radio, 0, this.W - 10), 5, row3, 0,
                 this.life.radioOn ? Theme.GREEN : Theme.MUTED);
-        this.footer(this.roomHint(), "\u041b\u0421\u041a: 500   \u0442\u0430\u043f: \u043d\u0430 \u043f\u0440\u0435\u0434\u0435\u043c\u0435\u043d\u0442");
+        this.footer(this.roomHint(), "\u041b\u0421\u041a: \u043d\u0430\u0437\u0430\u0434   \u0442\u0430\u043f: \u043d\u0430 \u043f\u0440\u0435\u0434\u0436\u0435\u0442");
     }
 
     /** "OK: <verb> <object>" hint for the current cursor position. */
@@ -3318,6 +3384,50 @@ public class Game {
     public int funcsIdxN() { return this.funcsIdxN; }
     public int funcsSel() { return this.funcsSel; }
     public int funcsTop() { return this.funcsTop; }
+    public int menuSel() { return this.menuSel; }
+    public int menuItems() { return this.MENU_ITEMS.length; }
+    public int partSel() { return this.partSel; }
+    public int partListLen() {
+        return this.partList == null ? 0 : this.partList.length;
+    }
+    public int cityLoc() { return this.city.curLocation; }
+    public int teaSel() { return this.teaSel; }
+    public int funcsTab() { return this.funcsTab; }
+    public int catSel() { return this.catSel; }
+    public int shopSel() { return this.shopSel; }
+    public int taskSel() { return this.taskSel; }
+    public int progSel() { return this.progSel; }
+    public int editorSel() { return this.editorSel; }
+    public int setupSel() { return this.setupSel; }
+    public int offerSel() { return this.offerSel; }
+    public int langSel() { return this.langSel; }
+    public int expSel() { return this.expSel; }
+    public int expCount() { return this.expFilteredCount; }
+    public int museumSel() { return this.museumSel; }
+    public int workshopTool() {
+        return this.workshop == null ? -1 : this.workshop.activeTool;
+    }
+    public int expVoltage() {
+        return this.expStress == null ? -1 : this.expStress.curVoltage;
+    }
+    public int expFreq() {
+        return this.expStress == null ? -1 : this.expStress.curFreq;
+    }
+    public int expCooling() {
+        return this.expStress == null ? -1 : this.expStress.curCooling;
+    }
+    public int expStatus() {
+        return this.expStress == null ? -1 : this.expStress.status;
+    }
+    public int expTop() { return this.expTop; }
+    public int expFilterPlat() { return this.expFilterPlat; }
+    public int expFilterKind() { return this.expFilterKind; }
+    public String toastText() { return this.toast; }
+    public int citySel() { return this.city.selectedOption; }
+    public int cityOpts() {
+        return this.city.dialogueOptions == null ? 0
+                : this.city.dialogueOptions.length;
+    }
     public int[] cityCharPos() {
         return new int[] { this.cityChar.x, this.cityChar.y, this.cityChar.face };
     }
@@ -3945,7 +4055,7 @@ public class Game {
         this.footer(this.teaSel == 0
                         ? "OK: \u0432\u044b\u043f\u0442\u044c   2: \u0437\u0430\u0432\u0430\u0440\u0438\u0442\u044c"
                         : "OK: \u0437\u0430\u0432\u0430\u0440\u0438\u0442\u044c   1: \u0432\u044b\u043f\u0438\u0442\u044c",
-                "\u2191\u2193: \u0434\u0435\u043b\u043e\u0445\u0438\u0438   \u041d\u0430\u0437\u0430\u0444");
+                "\u2191\u2193: \u0434\u0435\u0439\u0436\u0435\u0432\u0438\u0435   \u041d\u0430\u0437\u0430\u0434");
     }
 
 
@@ -4408,7 +4518,10 @@ public class Game {
                                 break label2;
                             }
                         }
-                        this.workshop.useToolAction(i);
+                        String fb = this.workshop.useToolAction(i);
+                        if (fb != null) {
+                            this.toastMsg(fb);
+                        }
                         break label0;
                     }
                     label1: {
