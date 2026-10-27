@@ -87,7 +87,18 @@ public class Game {
     final public static int M_FUNCS = 55;
     /** the 2027 finale */
     final public static int M_ENDING = 56;
+    /** the year of the opening screen, 1979..2027 */
+    private int startYear;
+    /** 0 = morning, 1 = day, 2 = sunset, 3 = night */
+    private int startTod;
+    /** 0 = winter, 1 = spring, 2 = summer, 3 = autumn */
+    private int startSeason;
+    private int startWeather;
+    /** which row of the opening screen is highlighted */
+    private int startRow;
     final public static int M_SLEEP = 54;
+    /** the opening screen: which year, which hour, which season the run starts in */
+    final public static int M_START = 57;
     final public static int C_BG = 923168;
     final public static int C_BG2 = 1318956;
     final public static int C_PANEL = 1780536;
@@ -467,27 +478,29 @@ public class Game {
         this.expTab = 0;
         this.expFiltered = new int[1000];
         this.expFilteredCount = 0;
-        String[] a = new String[9];
-        a[0] = "\u0423\u044e\u0442\u043d\u0430\u044f \u043a\u043e\u043c\u043d\u0430\u0442\u0430 & \u0416\u0438\u0437\u043d\u044c (Life-Sim)";
-        a[1] = "\u041f\u0435\u0441\u043e\u0447\u043d\u0438\u0446\u0430: \u0421\u0431\u043e\u0440\u043a\u0430 \u041f\u041a (1979-2027)";
-        a[2] = "\u0412\u044b\u0445\u043e\u0434 \u0432 \u0433\u043e\u0440\u043e\u0434 (\u041c\u0438\u0442\u0438\u043d\u043e, \u041a\u043b\u0443\u0431, \u041a\u0430\u0444\u0435)";
-        a[3] = "\u041c\u0430\u0441\u0442\u0435\u0440\u0441\u043a\u0430\u044f: \u0418\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442\u044b (\u041f\u0438\u043d\u0446\u0435\u0442, \u041f\u0430\u0439\u043a\u0430)";
-        a[4] = "\u041a\u0430\u0442\u0430\u043b\u043e\u0433 \u0436\u0435\u043b\u0435\u0437\u0430 & \u041c\u0443\u0437\u0435\u0439";
-        a[5] = "\u041b\u0430\u0431\u043e\u0440\u0430\u0442\u043e\u0440\u0438\u044f: 1000 \u042d\u043a\u0441\u043f\u0435\u0440\u0438\u043c\u0435\u043d\u0442\u043e\u0432";
-        a[6] = "\u041a\u0430\u043b\u0435\u043d\u0434\u0430\u0440\u044c 1980-2027 & \u0414\u043e\u0441\u0442\u0438\u0436\u0435\u043d\u0438\u044f";
-        a[7] = "\u041e\u0431 \u0438\u0433\u0440\u0435 & \u0412\u044b\u0445\u043e\u0434";
-        a[8] = "500 \u0444\u0443\u043d\u043a\u0446\u0438\u0439: \u043f\u043e\u043b\u043d\u044b\u0439 \u043a\u0430\u0442\u0430\u043b\u043e\u0433";
+        String[] a = new String[10];
+        a[0] = "\u0421\u0442\u0430\u0440\u0442: \u0433\u043E\u0434, \u0447\u0430\u0441 \u0438 \u0441\u0435\u0437\u043E\u043D \u043D\u043E\u0432\u043E\u0439 \u0436\u0438\u0437\u043D\u0438";
+        a[1] = "\u0423\u044E\u0442\u043D\u0430\u044F \u043A\u043E\u043C\u043D\u0430\u0442\u0430 & \u0416\u0438\u0437\u043D\u044C (Life-Sim)";
+        a[2] = "\u041F\u043E\u0441\u0442\u0430\u0432\u0438\u0442\u044C: \u0421\u0431\u043E\u0440\u043A\u0430 \u041F\u041A (1979-2027)";
+        a[3] = "\u0412\u044B\u0432\u043E\u0434 \u0432 \u0433\u043E\u0440\u044B (\u041C\u0438\u0442\u0438\u043D\u043E, \u041A\u043B\u0443\u0431, \u041A\u0430\u0444\u0435)";
+        a[4] = "\u041C\u0430\u0441\u0442\u0435\u0440\u0441\u043A\u0430\u044F: \u0418\u043D\u0441\u0442\u0440\u0443\u043A\u0442\u044B (\u041F\u0438\u043D\u0447\u0435\u0442, \u041F\u0430\u0439\u043A\u0430)";
+        a[5] = "\u041A\u0430\u0442\u0430\u043B\u043E\u0433 \u0436\u0435\u043B\u0435\u0437\u0430 & \u041C\u0443\u0437\u0435\u0439";
+        a[6] = "\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F: 1000 \u044D\u043A\u0441\u043F\u0435\u0440\u0438\u043C\u0435\u043D\u0442\u043E\u0432";
+        a[7] = "\u041A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C 1980-2027 & \u0414\u043E\u0441\u0442\u0438\u0436\u0435\u043D\u0438\u044F";
+        a[9] = "500 \u0444\u0443\u043D\u043A\u0446\u0438\u0439: \u043F\u043E\u043B\u043D\u044B\u0439 \u043A\u0430\u0442\u0430\u043B\u043E\u0433";
+        a[8] = "\u041E\u0431 \u0438\u0433\u0440\u0435 & \u0412\u044B\u0432\u043E\u0434";
         this.MENU_ITEMS = a;
-        String[] t = new String[9];
-        t[0] = "\u041a\u043e\u043c\u043d\u0430\u0442\u0430";
-        t[1] = "\u0421\u0431\u043e\u0440\u043a\u0430 \u041f\u041a";
-        t[2] = "\u0413\u043e\u0440\u043e\u0434";
-        t[3] = "\u041c\u0430\u0441\u0442\u0435\u0440\u0441\u043a\u0430\u044f";
-        t[4] = "\u041a\u0430\u0442\u0430\u043b\u043e\u0433";
-        t[5] = "\u041b\u0430\u0431\u043e\u0440\u0430\u0442\u043e\u0440\u0438\u044f";
-        t[6] = "\u041a\u0430\u043b\u0435\u043d\u0434\u0430\u0440\u044c";
-        t[7] = "\u041e\u0431 \u0438\u0433\u0440\u0435";
-        t[8] = "500 \u0444\u0443\u043d\u043a\u0446\u0438\u0439";
+        String[] t = new String[10];
+        t[0] = "\u0421\u0442\u0430\u0440\u0442";
+        t[1] = "\u041A\u043E\u043C\u043D\u0430\u0442\u0430";
+        t[2] = "\u0421\u0431\u043E\u0440\u043A\u0430 \u041F\u041A";
+        t[3] = "\u0413\u043E\u0440\u043E\u0434";
+        t[4] = "\u041C\u0430\u0441\u0442\u0435\u0440\u0441\u043A\u0430\u044F";
+        t[5] = "\u041A\u0430\u0442\u0430\u043B\u043E\u0433";
+        t[6] = "\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F";
+        t[7] = "\u041A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C";
+        t[9] = "500 \u0444\u0443\u043D\u043A\u0446\u0438\u0439";
+        t[8] = "\u041E\u0431 \u0438\u0433\u0440\u0435";
         this.MENU_TITLES = t;
         this.catSel = 0;
         this.catTop = 0;
@@ -577,10 +590,42 @@ public class Game {
         rpc.Sound.bind(a);
         this.best = new int[this.db.levels.length];
         this.loadProgress();
+        // nothing saved yet: this is the first run, so it opens on the year
+        // picker rather than dropping the player into the same grey 1980
+        String s = this.host.load("save");
+        if (s == null || s.length() == 0) {
+            this.openStart();
+        }
     }
     
     public rpc.Db db() {
         return this.db;
+    }
+
+    /** the screen the game is on - the probes read it, the screens never do */
+    public int mode() {
+        return this.mode;
+    }
+
+    /** the opening screen, so the probes can watch the player fill it in */
+    public int startYear() {
+        return this.startYear;
+    }
+
+    public int startTod() {
+        return this.startTod;
+    }
+
+    public int startSeason() {
+        return this.startSeason;
+    }
+
+    public int startWeather() {
+        return this.startWeather;
+    }
+
+    public int startRow() {
+        return this.startRow;
     }
     
     public int credits() {
@@ -832,9 +877,10 @@ public class Game {
             this.toast = "";
         }
         int before = this.mode;
-        boolean newScreens = this.mode == M_MENU || this.mode == M_ROOM
-                || this.mode == M_TEA || this.mode == M_SLEEP
-                || this.mode == M_FUNCS || this.mode == M_ENDING;
+        boolean newScreens = this.mode == M_MENU || this.mode == M_START
+                || this.mode == M_ROOM || this.mode == M_TEA
+                || this.mode == M_SLEEP || this.mode == M_FUNCS
+                || this.mode == M_ENDING;
         if ((action == ACT_BACK || action == ACT_SOFT2) && !newScreens) {
             // legacy screens: BACK always returns to the previous screen
             this.navBack();
@@ -843,6 +889,9 @@ public class Game {
         switch (this.mode) {
             case M_MENU:
                 this.inputMenu(action);
+                break;
+            case M_START:
+                this.inputStart(action);
                 break;
             case M_ROOM:
                 this.inputRoom(action);
@@ -2036,30 +2085,38 @@ public class Game {
     private void menuAction() {
         switch (this.menuSel) {
             case 0:
+                // a new life: the year, the hour and the season are the
+                // player's, and the first step is onto the street
+                this.openStart();
+                break;
+            case 1:
                 this.mode = M_ROOM;
                 this.roomCursor = Room.HOT_MONITOR;
                 break;
-            case 1:
+            case 2:
                 this.startSandboxBuild();
                 break;
-            case 2:
+            case 3:
                 this.mode = 48;
                 break;
-            case 3:
+            case 4:
                 this.mode = 49;
                 break;
-            case 4:
+            case 5:
                 this.mode = 7;
                 this.catSel = 0;
                 this.catTop = 0;
                 break;
-            case 5:
+            case 6:
                 this.openExpList();
                 break;
-            case 6:
+            case 7:
                 this.mode = 52;
                 break;
-            case 7:
+            case 8:
+                this.openFuncs();
+                break;
+            case 9:
                 this.mode = 6;
                 break;
             default:
@@ -3361,12 +3418,6 @@ public class Game {
     }
 
     private void paintRoom() {
-        int dayBefore = this.life.curDay;
-        this.life.tickTime(1);
-        this.life.updateEnvironment();
-        if (this.life.curDay != dayBefore) {
-            this.onNewDay();
-        }
         // 434 тиканье часов: часы на стене тикают тихо, пока вы дома
         if ((this.life.animationTick % 45) == 0) {
             rpc.Sound.tick();
@@ -4296,6 +4347,13 @@ public class Game {
                 this.life.animationTick);
         this.g.setClip(0, 0, w, h);
 
+        // the clock on the corner, in the corner of the street: the hour of
+        // the world, not of the player.  The location tabs move down under it
+        // so nothing is ever drawn over the face.
+        int cd = 16;
+        this.drawClockFace(w - cd - 6, sceneTop + 4, cd,
+                this.life.curHour, this.life.curMinute);
+
         // the street: the weather on the pavement, and the traffic whatever
         // the weather is doing - cars going past, a horn, a door somewhere
         if ((this.life.animationTick % 14) == 0) {
@@ -4313,8 +4371,8 @@ public class Game {
             }
         }
 
-        // location tabs under the header
-        int tabY = sceneTop;
+        // location tabs under the header and under the corner clock
+        int tabY = sceneTop + cd + 6;
         int tabH = this.FH0 + 7;
         int n = rpc.City.LOC_NAMES.length;
         int tabW = (w - 10) / n;
@@ -4913,6 +4971,14 @@ public class Game {
         this.FH1 = this.g.textHeight(1);
         this.FH2 = this.g.textHeight(2);
         this.frame++;
+        // one game-minute per frame, in every screen: the clock in the room
+        // and the hour on the street have to keep moving while the player is
+        // standing outside
+        int dayBefore = this.life.curDay;
+        this.life.tickTime(1);
+        if (this.life.curDay != dayBefore) {
+            this.onNewDay();
+        }
         this.g.setColor(Theme.BG);
         this.g.fillRect(0, 0, this.W, this.H);
         this.g.setColor(Theme.BG2);
@@ -4924,6 +4990,9 @@ public class Game {
         switch (this.mode) {
             case M_MENU:
                 this.paintMenu();
+                break;
+            case M_START:
+                this.paintStart();
                 break;
             case M_ROOM:
                 this.paintRoom();
@@ -5104,8 +5173,14 @@ public class Game {
         int textW = this.g.textWidth(this.toast, 0);
         int boxW = Math.min(this.W - 10, textW + 18);
         int boxH = this.FH0 + 12;
-        int x = (this.W - boxW) / 2;
+        // Left-aligned, and never wider than the screen minus the corner the
+        // street clock sits in: a centred banner lands exactly on top of the
+        // clock for the two and a half seconds every toast is up.
+        int x = 6;
         int y = this.FH1 + 16;
+        if (boxW > this.W - 46) {
+            boxW = this.W - 46;
+        }
         // shadow + plate
         this.g.setColor(0x05070B);
         this.g.fillRoundRect(x + 1, y + 2, boxW, boxH, 6);
@@ -5256,7 +5331,7 @@ public class Game {
         this.g.setColor(Theme.PANEL);
         this.g.fillRect(6, barY, w - 12, this.FH0 + 3);
         Text.draw(this.g, Text.fit(prog, 0, w - 16), 10, barY + 2, 0, Theme.MUTED);
-        this.footer("\u2191\u2193 \u0432\u044b\u0431\u043e\u0440  1-8 \u0431\u044b\u0441\u0442\u0440\u043e", "OK");
+        this.footer("\u2191\u2193 \u0432\u044B\u0431\u043E\u0440  1-9 \u043B\u0435\u0439\u0441\u044B", "OK");
     }
 
     
@@ -7267,7 +7342,7 @@ public class Game {
                 this.g.drawText(this.fit(new StringBuffer("\u0441\u0438\u0441\u0442\u0435\u043c\u0430: ").append((this.osIndex < 0) ? rpc.Os.name(this.levelYear()) : rpc.Inst.all()[this.osIndex].name).toString(), this.W - 16, 0), 10, this.H - this.FH0 * 3 - 34, 0);
                 this.g.drawText(this.fit(new StringBuffer(String.valueOf((Object)String.valueOf((Object)rpc.Langs.t(this.osLang, 12)))).append(": ").append(rpc.Langs.NAME[this.osLang]).append(" \u2022 ").append(rpc.Langs.CODE[this.osLang]).toString(), this.W - 16, 0), 10, this.H - this.FH0 * 2 - 30, 0);
                 this.g.drawText(this.fit(new StringBuffer("\u0441\u0435\u0442\u044c: ").append(this.netKind()).toString(), this.W - 16, 0), 10, this.H - this.FH0 * 2 - 18, 0);
-                this.footer("\u2191\u2193 \u0432\u044b\u0431\u043e\u0440  1-8 \u0431\u044b\u0441\u0442\u0440\u043e", "OK");
+                this.footer("\u2191\u2193 \u0432\u044B\u0431\u043E\u0440  1-8 \u043B\u0435\u0439\u0441\u044B", "OK");
                 return;
             }
         } else {
@@ -10925,4 +11000,180 @@ public class Game {
             this.paintShell();
         }
     }
+
+    /**
+     * Which year, which hour and which season a new life opens in.
+     *
+     * The game is long - a run is measured in a thousand earned hours - and it
+     * used to open on 1980 at ten in the morning no matter what, so the first
+     * thing anyone saw was always the same grey room.  This screen is where
+     * the world gets its opening mood: the player picks the year and the
+     * hour, and the first step is onto the street in winter, in the evening.
+     */
+    private void paintStart() {
+        int w = this.W;
+        int h = this.H;
+        int top = this.FH1 + 14;
+        int avail = h - top - this.FH0 - 46;
+        int rh = avail / 4;
+        if (rh < 26) {
+            rh = 26;
+        }
+        this.header("\u0421\u0442\u0430\u0440\u0442", "1979-2027");
+        String[] names = new String[4];
+        names[0] = "\u0413\u043E\u0434";
+        names[1] = "\u0412\u0440\u0435\u043C\u044F \u0441\u0443\u0442\u043E\u043A";
+        names[2] = "\u0421\u0435\u0437\u043E\u043D";
+        names[3] = "\u041F\u043E\u0433\u043E\u0434\u0430";
+        String[] vals = new String[4];
+        vals[0] = Integer.toString(this.startYear);
+        vals[1] = rpc.LifeSim.TIME_NAMES[this.startTod];
+        vals[2] = rpc.LifeSim.SEASON_NAMES[this.startSeason];
+        vals[3] = rpc.LifeSim.WEATHER_NAMES[this.startWeather];
+        for (int i = 0; i < 4; i++) {
+            int y = top + i * rh;
+            boolean sel = i == this.startRow;
+            this.g.setColor(sel ? Theme.PANEL2 : Theme.PANEL);
+            this.g.fillRoundRect(6, y, w - 12, rh - 4, 5);
+            if (sel) {
+                this.g.setColor(Theme.ACCENT);
+                this.g.drawRoundRect(6, y, w - 12, rh - 4, 5);
+                this.g.fillRect(6, y + 4, 3, rh - 12);
+            }
+            int ty = y + (rh - this.FH0) / 2 - 2;
+            this.g.setColor(sel ? Theme.TEXT : Theme.DIM);
+            Text.draw(this.g, names[i], 18, ty, 0,
+                    sel ? Theme.TEXT : Theme.DIM);
+            Text.draw(this.g, vals[i],
+                    w - 34 - this.g.textWidth(vals[i], 0), ty, 0,
+                    Theme.ACCENT2);
+            this.g.setColor(Theme.LINE);
+            this.g.drawText(Integer.toString(i + 1), w - 14, ty, 0);
+        }
+        this.footer("\u2190\u2192 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435   \u2191\u2193 \u0441\u0442\u0440\u043E\u043A\u0430   1-4 \u0441\u0442\u0440\u043E\u043A\u0430", "OK");
+    }
+
+    /** The opening screen is a plain form: the arrows move the row, left and
+     *  right change the value on it, fire steps into the world. */
+    private void inputStart(int action) {
+        int n = 4;
+        if (action == ACT_UP || action == ACT_DOWN) {
+            this.startRow = (action == ACT_DOWN)
+                    ? (this.startRow + 1) % n : (this.startRow + n - 1) % n;
+            Sound.click();
+            return;
+        }
+        if (action >= ACT_NUM1 && action < ACT_NUM1 + n) {
+            this.startRow = action - ACT_NUM1;
+            Sound.click();
+            return;
+        }
+        if (action == ACT_LEFT || action == ACT_RIGHT) {
+            int d = (action == ACT_RIGHT) ? 1 : -1;
+            switch (this.startRow) {
+                case 0:
+                    // one year at a time, so the whole century can be walked
+                    // with the arrow and no year is ever skipped over
+                    this.startYear = Math.max(1979,
+                            Math.min(2027, this.startYear + d));
+                    break;
+                case 1:
+                    this.startTod = (this.startTod + d + 4) % 4;
+                    break;
+                case 2:
+                    this.startSeason = (this.startSeason + d + 4) % 4;
+                    break;
+                default:
+                    this.startWeather = (this.startWeather + d + 5) % 5;
+                    break;
+            }
+            Sound.click();
+            return;
+        }
+        if (action == ACT_FIRE || action == ACT_SOFT1) {
+            Sound.ok();
+            this.applyStartChoice();
+            return;
+        }
+        if (action == ACT_BACK || action == ACT_SOFT2) {
+            // cancelling goes back to the menu, not into a half-chosen world
+            this.mode = M_MENU;
+            Sound.creak();
+        }
+    }
+
+    /**
+     * Opens the year picker.
+     *
+     * The year starts on the one the player already lives in - so opening it
+     * again keeps the century - but the hour, the season and the weather
+     * default to the mood the game opens in: an evening in winter, on the
+     * street, with the snow coming down.
+     */
+    public void openStart() {
+        this.startYear = this.life.curYear;
+        if (this.startYear < 1979 || this.startYear > 2027) {
+            this.startYear = 1980;
+        }
+        this.startTod = LifeSim.TIME_SUNSET;
+        this.startSeason = LifeSim.SEASON_WINTER;
+        this.startWeather = LifeSim.WEATHER_SNOW;
+        this.startRow = 0;
+        this.mode = M_START;
+    }
+
+    /**
+     * Turns the chosen year, hour and season into the world the run opens in:
+     * the calendar is set so the season is the season, the hour is set so the
+     * time of day is the time of day, and the player steps out onto the
+     * street rather than into the room.
+     */
+    private void applyStartChoice() {
+        int[] hour = new int[] { 8, 14, 19, 23 };
+        int[] month = new int[] { 1, 4, 7, 10 };
+        int y = this.startYear;
+        this.life.reset(y);
+        this.life.curMonth = month[this.startSeason];
+        this.life.curDay = 1;
+        this.life.curHour = hour[this.startTod];
+        this.life.curMinute = 15;
+        this.life.updateEnvironment();
+        this.life.season = this.startSeason;
+        this.life.weather = this.startWeather;
+        // a new world has no screen to walk back into: the push that
+        // input() would record for the trip from the picker is dropped, so
+        // BACK from the street lands on the menu and not on the form
+        this.navDepth = 0;
+        this.navPopping = true;
+        this.mode = M_CITY;
+        this.toastMsg(new StringBuffer("\u0421\u0442\u0430\u0440\u0442 ").append(y).append(": \u0437\u0438\u043C\u043D\u0438\u0439 \u0432\u0435\u0447\u0435\u0440 \u043D\u0430 \u0443\u043B\u0438\u0446\u0435. \u041F\u0435\u0440\u0432\u043E\u0435, \u0447\u0442\u043E \u043D\u0443\u0436\u043D\u043E \u2014 \u0441\u043E\u0431\u0440\u0430\u0442\u044C \u041F\u041A.").toString());
+    }
+
+    /** A small analog clock - the one on the street corner. */
+    private void drawClockFace(int x, int y, int d, int hour, int minute) {
+        int cx = x + d / 2;
+        int cy = y + d / 2;
+        int r = d / 2 - 2;
+        this.g.setColor(0x0D1018);
+        this.g.fillRoundRect(x, y, d, d, 3);
+        this.g.setColor(0xE8EEF8);
+        this.g.fillRoundRect(x + 1, y + 1, d - 2, d - 2, 2);
+        this.g.setColor(0x2A2E38);
+        this.g.fillRect(cx, y + 2, 1, 2);
+        this.g.fillRect(cx, y + d - 4, 1, 2);
+        this.g.fillRect(x + 2, cy, 2, 1);
+        this.g.fillRect(x + d - 4, cy, 2, 1);
+        int h = (hour % 12) * 60 + minute;
+        double ha = Math.toRadians(h * 0.5 - 90);
+        double ma = Math.toRadians(minute * 6 - 90);
+        this.g.drawLine(cx, cy,
+                cx + (int) (Math.cos(ha) * (r - 3)),
+                cy + (int) (Math.sin(ha) * (r - 3)));
+        this.g.drawLine(cx, cy,
+                cx + (int) (Math.cos(ma) * r),
+                cy + (int) (Math.sin(ma) * r));
+        this.g.setColor(0xC03A3A);
+        this.g.fillRect(cx - 1, cy - 1, 2, 2);
+    }
+
 }

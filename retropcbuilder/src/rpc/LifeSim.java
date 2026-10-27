@@ -286,43 +286,18 @@ public class LifeSim {
     }
     
     public void updateEnvironment() {
-        int i = this.curHour;
-        label11: {
-            label13: {
-                if (i < 6) {
-                    break label13;
-                }
-                if (this.curHour >= 11) {
-                    break label13;
-                }
-                this.timeOfDay = 0;
-                break label11;
-            }
-            int i0 = this.curHour;
-            label12: {
-                if (i0 < 11) {
-                    break label12;
-                }
-                if (this.curHour >= 18) {
-                    break label12;
-                }
-                this.timeOfDay = 1;
-                break label11;
-            }
-            int i1 = this.curHour;
-            label9: {
-                label10: {
-                    if (i1 < 18) {
-                        break label10;
-                    }
-                    if (this.curHour < 22) {
-                        break label9;
-                    }
-                }
-                this.timeOfDay = 3;
-                break label11;
-            }
-            this.timeOfDay = 2;
+        // the time of day, from the hour: five to eleven is morning, eleven
+        // to five is day, five to nine in the evening is sunset and the rest
+        // of the night is night.  (The labelled-block version of this used to
+        // hand 6 AM the "night" face and 22:00 the "sunset" one.)
+        if (this.curHour >= 5 && this.curHour < 11) {
+            this.timeOfDay = TIME_MORNING;
+        } else if (this.curHour >= 11 && this.curHour < 17) {
+            this.timeOfDay = TIME_DAY;
+        } else if (this.curHour >= 17 && this.curHour < 21) {
+            this.timeOfDay = TIME_SUNSET;
+        } else {
+            this.timeOfDay = TIME_NIGHT;
         }
         int i2 = this.curMonth;
         label5: {
