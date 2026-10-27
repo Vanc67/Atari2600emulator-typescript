@@ -194,30 +194,9 @@ public final class Room {
             g.fillRect(x, y + h * i / bands, w, h / bands + 1);
         }
 
-        // the town behind the window, and it changes with the era
-        drawEraSkyline(g, life, x, y + h * 58 / 100, w, h * 30 / 100,
-                life.timeOfDay == LifeSim.TIME_NIGHT ? 1 : 0);
-
-        /* the yard behind the window wears the season too: a snowed-in
-         * fence in winter, dry grass in summer, bare branches in autumn */
-        int yardH = h * 17 / 100;
-        int yardY = y + h - yardH;
-        int night = life.timeOfDay == LifeSim.TIME_NIGHT ? 1 : 0;
-        int yard = night == 1 ? 0x161D29
-                : (life.season == LifeSim.SEASON_WINTER ? 0xE2EBF4
-                   : life.season == LifeSim.SEASON_AUTUMN ? 0x8B6B4B
-                   : life.season == LifeSim.SEASON_SPRING ? 0x7E8A62
-                   : 0x6F7A55);
-        g.setColor(yard);
-        g.fillRect(x, yardY, w, yardH);
-        g.setColor(night == 1 ? 0x0E1319 : 0x4A3B2A);
-        for (int i = 0; i < 5; i++) {
-            int fx = x + 7 + i * (w - 14) / 4;
-            g.fillRect(fx, yardY - 6, 2, yardH + 6);
-            g.fillRect(fx - 3, yardY - 6, 8, 2);
-        }
-        g.setColor(night == 1 ? 0x2A3550 : 0x9FB0D0);
-        g.fillRect(x, yardY, w, 1);
+        // the ordinary house opposite, then the street in front of it
+        drawHouse(g, life, x, y, w, h);
+        drawStreet(g, life, x, y, w, h, frame);
 
         // sun / moon
         int cx = x + w * 74 / 100;
@@ -284,26 +263,6 @@ public final class Room {
                 int lx = x + (i * 23 + tick * 2) % w;
                 int ly = y + (i * 19 + tick) % h;
                 g.fillRect(lx, ly, 2, 1);
-            }
-        }
-
-        // city skyline along the bottom of the window
-        int cw = w / 9;
-        int lights = life.timeOfDay == LifeSim.TIME_NIGHT || life.timeOfDay == LifeSim.TIME_SUNSET ? 1 : 0;
-        for (int i = 0; i < 9; i++) {
-            int bh = h * (10 + (i * 37) % 26) / 100;
-            int bx = x + i * cw;
-            g.setColor(lights == 1 ? 0x161C2C : 0x6A748C);
-            g.fillRect(bx, y + h - bh, cw - 1, bh);
-            if (lights == 1) {
-                for (int wy = 0; wy < bh - 4; wy += 5) {
-                    for (int wx2 = 0; wx2 < cw - 3; wx2 += 4) {
-                        if (((i + wy + wx2) & 3) == 0) {
-                            g.setColor(0xFFD98A);
-                            g.fillRect(bx + wx2 + 1, y + h - bh + wy + 2, 1, 1);
-                        }
-                    }
-                }
             }
         }
 
@@ -839,33 +798,225 @@ public final class Room {
     }
 
     /* ------------------------------------------------------------------
-     *  era skyline behind the window
+     *  the house opposite
      * ------------------------------------------------------------------ */
 
-    /** Era-dependent town seen through the window. */
-    public static void drawEraSkyline(Gfx g, LifeSim life, int x, int y,
-                                      int w, int h, int night) {
+    /**
+     * The building across the street: an ordinary Russian apartment block.
+     * Not a skyline - one house, a regular grid of windows, a door, an
+     * antenna and (from the 2000s) a satellite dish.  The era ages it.
+     */
+    private static void drawHouse(Gfx g, LifeSim life, int x, int y, int w, int h) {
+        int night = life.timeOfDay == LifeSim.TIME_NIGHT ? 1 : 0;
+        int dusk = life.timeOfDay == LifeSim.TIME_SUNSET ? 1 : 0;
         int year = life.curYear;
-        int tall = year < 1989 ? h * 34 / 100
-                : (year < 2000 ? h * 46 / 100 : h * 60 / 100);
-        int base = y + h;
-        g.setColor(night == 1 ? 0x141D33 : 0x9AAEC4);
-        for (int bx = x; bx < x + w;) {
-            int bw = 8 + (bx * 3) % 14;
-            int bh = tall - (bx % 5) * 6;
-            g.fillRect(bx, base - bh, bw, bh);
-            if (year >= 2000) {
-                g.setColor(night == 1 ? 0x2A3A56 : 0xC8DCF0);
-                for (int wy = base - bh + 3; wy < base - 2; wy += 4) {
-                    g.fillRect(bx + 1, wy, bw - 2, 1);
+        int top = y + h * 44 / 100;
+        int base = y + h * 72 / 100;
+        int houseH = base - top;
+
+        /* the wall - brick before the 90s, panel afterwards */
+        int wall = night == 1 ? 0x31303C : (dusk == 1 ? 0xC3AC92 : 0xC8B99F);
+        g.setColor(wall);
+        g.fillRect(x, top, w, houseH);
+
+        /* course and panel seams */
+        g.setColor(night == 1 ? 0x24232E : 0xA8967C);
+        for (int sy = top + 7; sy < base; sy += 9) {
+            g.fillRect(x, sy, w, 1);
+        }
+        for (int sx = x + 12; sx < x + w; sx += 22) {
+            g.fillRect(sx, top, 1, houseH);
+        }
+        /* a staircase of balconies on the right half */
+        g.setColor(night == 1 ? 0x282732 : 0xB09A7E);
+        for (int by = top + 14; by < base - 10; by += 20) {
+            g.fillRect(x + w * 62 / 100, by, w * 34 / 100, 4);
+        }
+        g.setColor(night == 1 ? 0x1A1922 : 0x8A7A62);
+        for (int by = top + 18; by < base - 10; by += 20) {
+            g.fillRect(x + w * 62 / 100, by, w * 34 / 100, 1);
+        }
+
+        /* the roof slab and its parapet */
+        g.setColor(night == 1 ? 0x1C1B24 : 0x7E6E5C);
+        g.fillRect(x - 2, top - 5, w + 4, 6);
+        g.setColor(night == 1 ? 0x2E2D38 : 0x9C8C76);
+        g.fillRect(x - 2, top - 8, w + 4, 3);
+
+        /* the window grid - some of the flats are home */
+        int cols = 7;
+        int rows = 2;
+        int margin = 6;
+        int winW = (w - margin * 2 - (cols - 1) * 5) / cols;
+        int winH = (houseH - 12 - (rows - 1) * 5) / rows;
+        if (winW < 2) {
+            winW = 2;
+        }
+        if (winH < 2) {
+            winH = 2;
+        }
+        for (int c = 0; c < cols; c++) {
+            for (int r = 0; r < rows; r++) {
+                int wx = x + margin + c * (winW + 5);
+                int wy = top + 6 + r * (winH + 5);
+                /* two flats in seven are dark, and one flickers */
+                int seed = (c * 3 + r * 7 + year) % 11;
+                boolean lit = seed != 3 && seed != 8;
+                if (lit && night == 1 && (year + c * 2 + r) % 17 == 0) {
+                    lit = (life.animationTick / 9) % 2 == 0;
                 }
+                g.setColor(lit ? (night == 1 ? 0xFFD98A : 0x8FB8DC)
+                               : (night == 1 ? 0x2B2A38 : 0x7E96AE));
+                g.fillRect(wx, wy, winW, winH);
+                g.setColor(night == 1 ? 0x191820 : 0x556578);
+                g.fillRect(wx, wy, winW, 1);
+                g.fillRect(wx, wy, 1, winH);
             }
-            if (year >= 2012) {
-                g.setColor(night == 1 ? 0x4AE0C0 : 0x6AF0D8);
-                g.fillRect(bx + bw - 3, base - bh - 3, 2, 2);
+        }
+
+        /* the entrance with its porch */
+        int dx = x + w * 38 / 100;
+        g.setColor(night == 1 ? 0x241F1A : 0x6E4E35);
+        g.fillRect(dx - 4, base - 12, 9, 12);
+        g.setColor(night == 1 ? 0x3A2E22 : 0x8A6A45);
+        g.fillRect(dx - 5, base - 14, 11, 3);
+        g.setColor(night == 1 ? 0x120E0A : 0x3A2A1E);
+        g.fillRect(dx - 2, base - 8, 4, 8);
+
+        /* the roof antennas */
+        if (year >= 1989) {
+            int ax = x + w * 80 / 100;
+            g.setColor(night == 1 ? 0x3A3A48 : 0x8A8A96);
+            g.drawLine(ax, top - 8, ax, top - 17);
+            g.drawLine(ax - 5, top - 15, ax + 5, top - 15);
+            g.drawLine(ax - 3, top - 18, ax + 3, top - 18);
+        }
+        if (year >= 2000) {
+            int ax = x + w * 88 / 100;
+            g.setColor(night == 1 ? 0x4A4A58 : 0xB0B0BC);
+            g.fillTriangle(ax, top - 10, ax - 5, top - 4, ax + 5, top - 4);
+            g.drawLine(ax, top - 10, ax, top - 5);
+        }
+    }
+
+    /* ------------------------------------------------------------------
+     *  the street in front
+     * ------------------------------------------------------------------ */
+
+    /**
+     * The street below the window, seen straight across: sidewalk, curb,
+     * road with its centre dashes, a tree, a street lamp, a parked car.
+     * Every season repaints it, and the weather is allowed on top.
+     */
+    private static void drawStreet(Gfx g, LifeSim life, int x, int y, int w, int h,
+                                   int frame) {
+        int night = life.timeOfDay == LifeSim.TIME_NIGHT ? 1 : 0;
+        int dusk = life.timeOfDay == LifeSim.TIME_SUNSET ? 1 : 0;
+        int top = y + h * 72 / 100;
+        int base = y + h;
+        int band = base - top;
+        int winter = life.season == LifeSim.SEASON_WINTER ? 1 : 0;
+        int autumn = life.season == LifeSim.SEASON_AUTUMN ? 1 : 0;
+        int spring = life.season == LifeSim.SEASON_SPRING ? 1 : 0;
+        int summer = life.season == LifeSim.SEASON_SUMMER ? 1 : 0;
+        int wet = (life.weather == LifeSim.WEATHER_RAIN
+                || life.weather == LifeSim.WEATHER_STORM) ? 1 : 0;
+
+        int walkH = band * 30 / 100;
+        int roadY = top + walkH;
+        int roadH = band - walkH;
+
+        /* the sidewalk */
+        g.setColor(night == 1 ? 0x292931 : (winter == 1 ? 0xE4E9F0 : 0xA8A6A0));
+        g.fillRect(x, top, w, walkH);
+        /* the road */
+        g.setColor(night == 1 ? 0x191922
+                : (wet == 1 ? 0x4A4A54 : (winter == 1 ? 0x6E7078 : 0x5E5852)));
+        g.fillRect(x, roadY, w, roadH);
+        /* the curb */
+        g.setColor(night == 1 ? 0x34343E : 0xC4C2BC);
+        g.fillRect(x, roadY - 2, w, 2);
+        /* the centre dashes */
+        g.setColor(night == 1 ? 0x4A4A2E : (dusk == 1 ? 0xD0A84A : 0xD8C04A));
+        for (int sx = x + 3; sx < x + w - 10; sx += 20) {
+            g.fillRect(sx, roadY + roadH * 48 / 100, 10, 2);
+        }
+        /* the puddles when it rains */
+        if (wet == 1 && night == 0) {
+            g.setColor(0x7E8EA4);
+            for (int i = 0; i < 5; i++) {
+                int px = x + (i * 47 + 9) % w;
+                g.fillRect(px, roadY + roadH * 62 / 100, 5 + (i % 3) * 2, 2);
             }
-            g.setColor(night == 1 ? 0x141D33 : 0x9AAEC4);
-            bx += bw + 2;
+        }
+
+        /* the tree on the sidewalk */
+        int tx = x + w * 15 / 100;
+        int ty = top + 1;
+        int trunkH = band * 44 / 100;
+        g.setColor(night == 1 ? 0x1E1A14 : 0x6E4A2E);
+        g.fillRect(tx - 2, ty, 4, trunkH);
+        int crown = night == 1 ? 0x14202A
+                : (winter == 1 ? 0xD8E0EC
+                   : autumn == 1 ? 0xC0763C
+                   : spring == 1 ? 0x6E9A5E : 0x4E7A3E);
+        g.setColor(crown);
+        g.fillRect(tx - 9, ty - 7, 18, 11);
+        g.fillRect(tx - 7, ty - 11, 14, 7);
+        if (winter == 1 && night == 0) {
+            g.setColor(0xFFFFFF);
+            g.fillRect(tx - 9, ty - 7, 18, 3);
+            g.fillRect(tx - 7, ty - 11, 14, 3);
+        }
+        if (autumn == 1 && night == 0) {
+            g.setColor(0xC0763C);
+            g.fillRect(tx - 11, ty + 4, 2, 2);
+            g.fillRect(tx + 7, ty + 9, 2, 2);
+        }
+
+        /* the street lamp and its pool of light */
+        int lx = x + w * 86 / 100;
+        int lh = band * 62 / 100;
+        g.setColor(night == 1 ? 0x3A3A48 : 0x6E6E78);
+        g.fillRect(lx, top + 1, 3, lh);
+        g.drawLine(lx + 1, top + 1, lx + 1, top - 6);
+        g.drawLine(lx + 1, top - 6, lx + 9, top - 4);
+        g.setColor(night == 1 ? 0xFFE0A0 : 0x9696A2);
+        g.fillRect(lx + 9, top - 6, 3, 3);
+        if (night == 1) {
+            g.setColor(0xFFD98A);
+            g.fillRect(lx + 8, top - 6, 5, 1);
+            g.fillRect(lx + 4, top + 3, 13, 1);
+            g.fillRect(lx + 1, top + roadH * 40 / 100, 21, 1);
+            g.fillRect(lx + 5, top + roadH * 70 / 100, 13, 1);
+        }
+
+        /* a parked car */
+        int cx = x + w * 44 / 100;
+        int cy = roadY + roadH * 66 / 100;
+        g.setColor(night == 1 ? 0x1A1A24 : (dusk == 1 ? 0x8A4A3A : 0x4A5A7A));
+        g.fillRect(cx, cy, 17, 6);
+        g.fillRect(cx + 4, cy - 4, 10, 5);
+        g.setColor(night == 1 ? 0xFFE0A0 : 0xFFF0C8);
+        g.fillRect(cx + 1, cy + 2, 2, 2);
+        g.fillRect(cx + 14, cy + 2, 2, 2);
+
+        /* a hedge on the left, and grass in the warm months */
+        if (spring == 1 || summer == 1) {
+            g.setColor(night == 1 ? 0x1E2A20 : 0x5E8A4E);
+            for (int bx = x + 2; bx < x + w * 30 / 100; bx += 6) {
+                g.fillRect(bx, top + walkH - 4, 4, 4);
+            }
+        }
+        if (winter == 1) {
+            g.setColor(0xF0F5FB);
+            g.fillRect(x, top, w, 2);
+            g.fillRect(x, roadY, w, 1);
+        }
+        /* the swing of the tree in the wind */
+        if (life.weather == LifeSim.WEATHER_STORM && frame % 6 == 0) {
+            g.setColor(night == 1 ? 0x14202A : 0x4E7A3E);
+            g.fillRect(tx - 9 + (frame / 6) % 3, ty - 7, 18, 2);
         }
     }
 }
