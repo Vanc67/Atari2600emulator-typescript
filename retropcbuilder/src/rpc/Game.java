@@ -863,6 +863,13 @@ public class Game {
                 this.inputLegacy(action);
                 break;
         }
+        if (this.mode != before && before != M_MENU && this.mode == M_MENU) {
+            // an accidental trip to the menu must not throw away the PC
+            // being built, the workshop's half-finished order or the runs
+            // already paid for - put the whole state away before the player
+            // can get distracted by the room
+            this.saveProgress();
+        }
         if (this.mode != before) {
             if (this.navPopping) {
                 this.navPopping = false;
@@ -897,6 +904,12 @@ public class Game {
             }
         }
         this.mode = (target >= 0 && target < 60) ? target : M_MENU;
+        if (this.mode == M_MENU) {
+            // the one trip that can lose the PC being built, the workshop's
+            // half-finished order and the runs already paid for - the menu
+            // is where the player gets distracted by the room
+            this.saveProgress();
+        }
         Sound.click();
     }
     
@@ -4822,7 +4835,7 @@ public class Game {
     /** Called once per repaint: age the autosave timer. */
     public void paint() {
         long now = System.currentTimeMillis();
-        if (now - this.lastSave > 300000L) {
+        if (now - this.lastSave > 60000L) {
             this.lastSave = now;
             this.saveProgress();
         }
