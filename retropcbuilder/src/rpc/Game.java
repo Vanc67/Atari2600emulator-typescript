@@ -1912,6 +1912,8 @@ public class Game {
                 Sound.click();
                 break;
             case Room.HOT_DOOR:
+                // 433: the door of the flat creaks on its hinges
+                rpc.Sound.door();
                 this.mode = M_CITY;
                 this.city.travelTo(0, this.life);
                 Sound.click();
@@ -2310,6 +2312,7 @@ public class Game {
         if (a0 != null) {
             this.cash = this.cash + a0.price * 70 / 100;
         }
+        rpc.Sound.coin();
         this.slots[this.shopSlot] = a;
         this.recalcSpent();
         rpc.Sound.ok();
@@ -2320,6 +2323,7 @@ public class Game {
         rpc.Part a = this.slots[i];
         if (a != null) {
             this.cash = this.cash + a.price * 70 / 100;
+            rpc.Sound.coin();
         }
         this.slots[i] = null;
         this.recalcSpent();
@@ -3288,9 +3292,46 @@ public class Game {
         return h < 190 ? h : h - 10;
     }
 
+    /**
+     * 479, 406, 407: every morning the world is autosaved quietly, the week
+     * tax is taken out and a fine waits for a dirty room.  Nothing here is
+     * asked of the player, it is just the calendar going by.
+     */
+    private void onNewDay() {
+        this.saveProgress();
+        if (this.life.curDay % 7 == 0) {
+            int tax = 300 + this.life.curYear * 10;
+            if (this.cash >= tax) {
+                this.cash -= tax;
+                rpc.Sound.coin();
+                this.toastMsg("\u041d\u0430\u043b\u043e\u0433 \u0437\u0430 \u043d\u0435\u0432\u0435\u0434\u0435\u0433\u0438: -" + tax
+                        + "\u0440");
+            } else {
+                this.toastMsg("\u041d\u0430\u043b\u043e\u0433: \u043d\u0435 \u0445\u0430\u0442\u0430\u044e\u0442\u0435\u0442 \u0434\u0435\u043d\u044b\u0445");
+            }
+        }
+        if (this.life.roomDust > 80 || this.life.trashCount > 4) {
+            int fine = 150;
+            if (this.cash >= fine) {
+                this.cash -= fine;
+                rpc.Sound.error();
+                this.toastMsg("\u0428\u0442\u0440\u0430\u0444 \u0437\u0430 \u0433\u0440\u044f\u0437\u0443: -" + fine
+                        + "\u0440");
+            }
+        }
+    }
+
     private void paintRoom() {
+        int dayBefore = this.life.curDay;
         this.life.tickTime(1);
         this.life.updateEnvironment();
+        if (this.life.curDay != dayBefore) {
+            this.onNewDay();
+        }
+        // 434: the wall clock ticks softly while you are at home
+        if ((this.life.animationTick % 45) == 0) {
+            rpc.Sound.tick();
+        }
 
         String head = "\u0423\u044e\u0442\u043d\u0430\u044f \u043a\u043e\u043c\u043d\u0430\u0442\u0430";
         String clock = "\u0434" + this.life.curDay + " "
@@ -3445,6 +3486,9 @@ public class Game {
     /** Adds money (used by the lottery entries and by the harness). */
     public void grantCredits(int n) {
         this.cash += n;
+        if (n != 0) {
+            rpc.Sound.coin();
+        }
     }
 
     /** How many PCs were built (sandbox rebuilds count too). */
@@ -3560,6 +3604,7 @@ public class Game {
             return;
         }
         this.cash -= cost;
+        rpc.Sound.coin();
         boolean first = !this.funcDone[id];
         if (first) {
             this.funcDone[id] = true;
@@ -3605,6 +3650,7 @@ public class Game {
             case 6:
                 int earn = 40 + (id % 7) * 15;
                 this.cash += earn;
+                rpc.Sound.coin();
                 extra = " +" + earn + "\u0440";
                 break;
             case 7:
@@ -4174,6 +4220,10 @@ public class Game {
                 || this.life.weather == LifeSim.WEATHER_SNOW)
                 && (this.life.animationTick % 14) == 0) {
             Sound.rain(this.life.weather == LifeSim.WEATHER_STORM ? 3 : 2);
+            if (this.life.weather == LifeSim.WEATHER_STORM
+                    && (this.life.animationTick % 90) == 0) {
+                Sound.thunder();
+            }
         }
 
         // location tabs under the header
@@ -4285,7 +4335,7 @@ public class Game {
     private void paintEnding() {
         int w = this.W;
         int h = this.H;
-        this.header("2027", "fin");
+        this.header("\u0418\u0442\u043e\u0433\u0438 2027", "fin");
         // banner
         this.g.setColor(Theme.PANEL2);
         this.g.fillRoundRect(8, this.FH1 + 12, w - 16, this.FH0 * 6 + 16, 6);
@@ -4300,7 +4350,10 @@ public class Game {
             "",
             "PC: " + this.buildsDone() + "  \u0444\u0430\u0449\u0439: " + this.funcsDone()
                 + "/500",
-            "XP: " + this.totalXp() + "  \u044d\u043d\u043e\u0433\u0438\u044f: " + this.life.energy + "%"
+            "XP: " + this.totalXp() + "  \u044d\u043d\u043e\u0433\u0438\u044f: " + this.life.energy + "%",
+            "\u0414\u043d\u0435\u0439: " + this.life.curDay + "  \u2022  \u0434\u0435\u043d\u044b\u0433: "
+                + Util.money(this.cash) + "\u0440  \u2022  \u0449\u0438\u0441\u043b\u0435\u043d\u0448\u0439: "
+                + this.hackLevel
         };
         for (int i = 0; i < lines.length; i++) {
             Text.draw(this.g, Text.fit(lines[i], 0, w - 30), 14,
