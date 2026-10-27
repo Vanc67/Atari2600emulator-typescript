@@ -3176,7 +3176,7 @@ public class Game {
                     }
                 } else {
                     this.g.setColor(16763196);
-                    this.g.drawText("\u0422\u0432\u0438\u043a\u0438 (\u043d\u0430\u0436\u043c\u0438\u0442\u0435 1-8 \u0438\u043b\u0438 \u0442\u0430\u043f\u0430\u0439\u0442\u0435):", 8, i10, 0);
+                    this.g.drawText("\u0422\u0432\u0438\u043a\u0438 (\u043d\u0430\u0436\u043c\u0438\u0442\u0435 1-6 \u0438\u043b\u0438 \u0442\u0430\u043f\u0430\u0439\u0442\u0435):", 8, i10, 0);
                     int i14 = 0;
                     while(i14 < 3) {
                         boolean b0 = (this.expStress.activeTweaks & 1 << i14) != 0;
@@ -3211,6 +3211,23 @@ public class Game {
     }
     
     private void inputExpRun(int i) {
+        if (i >= ACT_NUM1 && i <= ACT_NUM6) {
+            if (this.expTab == 2) {
+                // the tweak list is labelled "press 1-8": the keys toggle the
+                // tweak straight away, exactly like a tap on it does
+                int k = i - ACT_NUM1;
+                this.expStress.activeTweaks = this.expStress.activeTweaks ^ (1 << k);
+                this.expStress.recalcThermal();
+                rpc.Sound.click();
+                return;
+            }
+            if (i <= ACT_NUM4) {
+                // the footer promises "1-4: вкладки"
+                this.expTab = i - ACT_NUM1;
+                rpc.Sound.click();
+                return;
+            }
+        }
         label0: if (i != 4) {
             if (i != 0) {
                 if (i != 1) {
