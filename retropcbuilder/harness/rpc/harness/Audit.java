@@ -36,19 +36,47 @@ public final class Audit {
      * Random walks with restarts: every screen the game can show is
      * recorded together with the keys that opened it.
      */
+    static void applyPath(Game g, String path) {
+        int i = 0;
+        while (i < path.length()) {
+            int a = (path.charAt(i) - '0') * 10
+                    + (path.charAt(i + 1) - '0');
+            g.input(a);
+            i += 2;
+            if (i < path.length() && path.charAt(i) == ',') {
+                i++;
+            }
+        }
+    }
+
     static String[] explore(int[] modes, int[] count) {
         String[] table = new String[200];
         int[] seen = new int[200];
         int found = 0;
         long seed = 987654321L;
+        // A few restarts start from the bottom of the tree (the assembled
+        // PC and the city street) so the screens behind them are found too.
+        String[] seeds = {
+            "",
+            "04,10",
+            "04,06,04,04,07,04,09,00,06,05,04,01,04,08,02,04,05,04,04,04,02,00,"
+            + "01,15,13,04,00,08,08,05,04,04,04,11,05,11,04,04,04,04,00,09,07,04,"
+            + "00,10,04,12,04,04,13,00,04,00,10,04,09,08,04,10,04,05,04,04,16,04,"
+            + "04,05,10,00,00,04",
+        };
         for (int restart = 0; restart < 40 && found < 140; restart++) {
             Game g = new Game();
             g.init(host, gfx);
-            StringBuffer path = new StringBuffer();
+            String base = seeds[restart % seeds.length];
+            if (base.length() > 0) {
+                applyPath(g, base);
+                g.paint();
+            }
+            StringBuffer path = new StringBuffer(base);
             int m0 = g.currentMode();
             if (seen[m0] == 0) {
                 seen[m0] = 1;
-                table[m0] = "";
+                table[m0] = base;
                 found++;
             }
             for (int step = 0; step < 70; step++) {

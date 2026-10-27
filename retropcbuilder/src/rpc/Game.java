@@ -1537,7 +1537,9 @@ public class Game {
                                     int i10 = this.table.n;
                                     if (i10 > 0) {
                                         if (i != 0) {
-                                            if (i == 1) {
+                                            if (i == 1 || i == 3) {
+                                                // DOWN and RIGHT both step
+                                                // forward through the grid
                                                 this.benchSel = (this.benchSel + 1) % i10;
                                             }
                                         } else {
@@ -4312,7 +4314,7 @@ public class Game {
                     : "\u0411\u043b\u0430\u0433\u043e\u0434\u0438\u0442\u0435 \u0447\u043e\u0440\u0438\u0449 \u0438\u0437 2027",
                 w / 2, this.FH1 + 4 + this.FH0 * 6, 0, Gfx.HCENTER,
                 secret == 1 ? Theme.VIOLET : Theme.MUTED);
-        this.footer("OK: \u0435\u043f\u0438\u0433 \u043e 2027", "\u041b\u0421\u041a: \u043b\u0430\u0431");
+        this.footer("OK: \u044d\u043f\u0438\u043b\u043e\u0433 \u043e 2027", "\u041b\u0421\u041a: \u043b\u0430\u0431");
     }
 
     private void inputEnding(int action) {
