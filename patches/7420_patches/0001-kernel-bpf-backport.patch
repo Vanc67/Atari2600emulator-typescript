@@ -1,0 +1,39 @@
+From 1029384756102938475610293847561029384756 Mon Sep 17 00:00:00 2001
+From: Exynos 7420 Developer <dev@universal7420.org>
+Date: Mon, 15 Jan 2024 10:00:00 +0000
+Subject: [PATCH 1/2] BACKPORT: bpf: minimal sys_bpf backport for Linux 3.10 kernel on Android 13
+
+---
+ include/uapi/linux/bpf.h | 12 ++++++++++++
+ kernel/bpf/syscall.c    | 18 ++++++++++++++++++
+ 2 files changed, 30 insertions(+)
+
+diff --git a/include/uapi/linux/bpf.h b/include/uapi/linux/bpf.h
+index 1029384..5678901 100644
+--- a/include/uapi/linux/bpf.h
++++ b/include/uapi/linux/bpf.h
+@@ -10,6 +10,18 @@
+ enum bpf_cmd {
+	BPF_MAP_CREATE,
+	BPF_MAP_LOOKUP_ELEM,
++	BPF_MAP_UPDATE_ELEM,
++	BPF_MAP_DELETE_ELEM,
++	BPF_MAP_GET_NEXT_KEY,
++	BPF_PROG_LOAD,
+ };
+
+ #endif /* _UAPI__LINUX_BPF_H__ */
+diff --git a/kernel/bpf/syscall.c b/kernel/bpf/syscall.c
+index 2039485..9102938 100644
+--- a/kernel/bpf/syscall.c
++++ b/kernel/bpf/syscall.c
+@@ -15,4 +15,22 @@
+
+ SYSCALL_DEFINE3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, size)
+ {
++	if (!sysctl_unprivileged_bpf_disabled)
++		return -EPERM;
+	return -ENOSYS;
+ }
+--
+2.34.1
