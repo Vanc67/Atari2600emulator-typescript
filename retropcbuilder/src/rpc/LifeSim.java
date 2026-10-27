@@ -494,6 +494,7 @@ public class LifeSim {
         this.radioOn = !this.radioOn;
         if (this.radioOn) {
             this.radioStation = (this.radioStation + 1) % this.radioTracks.length;
+            rpc.Sound.radio(this.radioStation);
             rpc.Sound.ok();
             this.lastEventMsg = new StringBuffer("\u0420\u0430\u0434\u0438\u043e \u0432\u043a\u043b\u044e\u0447\u0435\u043d\u043e: ").append(this.radioTracks[this.radioStation]).toString();
         } else {

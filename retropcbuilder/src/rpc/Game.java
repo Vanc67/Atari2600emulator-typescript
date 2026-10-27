@@ -3371,6 +3371,24 @@ public class Game {
         if ((this.life.animationTick % 45) == 0) {
             rpc.Sound.tick();
         }
+        // the radio is on: each station's loop is about seven seconds, so
+        // the next one starts just as the previous one runs out
+        if (this.life.radioOn && (this.life.animationTick % 110) == 0) {
+            rpc.Sound.radio(this.life.radioStation);
+        }
+        // and the street under the window, muffled through the glass
+        if ((this.life.weather == LifeSim.WEATHER_RAIN
+                || this.life.weather == LifeSim.WEATHER_STORM)
+                && (this.life.animationTick % 22) == 0) {
+            rpc.Sound.rain(this.life.weather == LifeSim.WEATHER_STORM ? 3 : 2);
+        } else if (this.life.weather == LifeSim.WEATHER_SNOW
+                && (this.life.animationTick % 30) == 0) {
+            rpc.Sound.snow();
+        } else if (!this.life.radioOn
+                && (this.life.animationTick % 95) == 0
+                && this.life.timeOfDay != LifeSim.TIME_NIGHT) {
+            rpc.Sound.street();
+        }
 
         String head = "\u0423\u044e\u0442\u043d\u0430\u044f \u043a\u043e\u043c\u043d\u0430\u0442\u0430";
         String clock = "\u0434" + this.life.curDay + " "
@@ -4273,15 +4291,20 @@ public class Game {
                 this.life.animationTick);
         this.g.setClip(0, 0, w, h);
 
-        // street sound when it rains or snows outside
-        if ((this.life.weather == LifeSim.WEATHER_RAIN
-                || this.life.weather == LifeSim.WEATHER_STORM
-                || this.life.weather == LifeSim.WEATHER_SNOW)
-                && (this.life.animationTick % 14) == 0) {
-            Sound.rain(this.life.weather == LifeSim.WEATHER_STORM ? 3 : 2);
-            if (this.life.weather == LifeSim.WEATHER_STORM
-                    && (this.life.animationTick % 90) == 0) {
-                Sound.thunder();
+        // the street: the weather on the pavement, and the traffic whatever
+        // the weather is doing - cars going past, a horn, a door somewhere
+        if ((this.life.animationTick % 14) == 0) {
+            if (this.life.weather == LifeSim.WEATHER_RAIN
+                    || this.life.weather == LifeSim.WEATHER_STORM) {
+                Sound.rain(this.life.weather == LifeSim.WEATHER_STORM ? 3 : 2);
+                if (this.life.weather == LifeSim.WEATHER_STORM
+                        && (this.life.animationTick % 90) == 0) {
+                    Sound.thunder();
+                }
+            } else if (this.life.weather == LifeSim.WEATHER_SNOW) {
+                Sound.snow();
+            } else if ((this.life.animationTick % 28) == 0) {
+                Sound.street();
             }
         }
 
