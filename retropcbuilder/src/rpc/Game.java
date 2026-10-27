@@ -7832,15 +7832,16 @@ public class Game {
         rpc.Part a0 = this.slots[0];
         rpc.Part a1 = this.slots[1];
         rpc.Part a2 = this.slots[7];
-        int i0 = 0;
+        long i9 = 0L;
         int i1 = 0;
         while(i1 < 4) {
             if (this.slots[2 + i1] != null) {
-                i0 = i0 + this.slots[2 + i1].f[1];
+                i9 = i9 + (this.slots[2 + i1].f[1] & 0xFFFFFFFFL);
             }
             i1 = i1 + 1;
         }
-        int i2 = rpc.Inst.blocker(a, a0, a1, i0, (long)(a2 != null && a2.f[1] != 0 ? 1 : 0), this.tpmOn, this.secureOn, this.uefiOn, this.patches);
+        int i0 = (int)(i9 > 2000000000L ? 2000000000L : i9);
+        int i2 = rpc.Inst.blocker(a, a0, a1, i0, (long)(a2 != null ? (a2.f[1] & 0xFFFFFFFFL) : 0L), this.tpmOn, this.secureOn, this.uefiOn, this.patches);
         if (i2 == 0) {
             this.openLang(a, 0);
             return;
@@ -8332,14 +8333,15 @@ public class Game {
         rpc.Part a0 = this.slots[0];
         rpc.Part a1 = this.slots[1];
         rpc.Part a2 = this.slots[7];
-        int i2 = 0;
+        long i9 = 0L;
         int i3 = 0;
         while(i3 < 4) {
             if (this.slots[2 + i3] != null) {
-                i2 = i2 + this.slots[2 + i3].f[1];
+                i9 = i9 + (this.slots[2 + i3].f[1] & 0xFFFFFFFFL);
             }
             i3 = i3 + 1;
         }
+        int i2 = (int)(i9 > 2000000000L ? 2000000000L : i9);
         int i4 = 0;
         while(true) {
             if (i4 < i1) {
@@ -8356,7 +8358,7 @@ public class Game {
                     this.g.drawText(this.fit(a3.name, this.W - 70, 0), 8, i6 + 3, 0);
                     this.g.setColor(8297134);
                     if (b0) {
-                        int i7 = rpc.Inst.blocker(a3, a0, a1, i2, (long)(a2 != null && a2.f[1] != 0 ? 1 : 0), this.tpmOn, this.secureOn, this.uefiOn, this.patches);
+                        int i7 = rpc.Inst.blocker(a3, a0, a1, i2, (long)(a2 != null ? (a2.f[1] & 0xFFFFFFFFL) : 0L), this.tpmOn, this.secureOn, this.uefiOn, this.patches);
                         s = (i7 != 0) ? rpc.Inst.blockerText(i7) : new StringBuffer("\u043c\u043e\u0436\u043d\u043e, ~").append(rpc.Inst.timeText(rpc.Inst.minutes(a3, a0, a2))).toString();
                     } else {
                         s = new StringBuffer("\u043f\u043e\u044f\u0432\u0438\u0442\u0441\u044f \u0432 ").append(a3.year).toString();
