@@ -16,6 +16,16 @@ final class AppCanvas extends Canvas implements Runnable {
 
     private static final int LOOP_MS = 70;
 
+    /**
+     * How long the same key may arrive twice for free.  Some Motorola/Nokia
+     * firmwares deliver one physical press twice, and that double event
+     * must not move the selection twice.  The window is real time: the
+     * splash counter this used to be measured against stops ticking the
+     * moment the catalogue is loaded, and every second press of the same
+     * key was then thrown away - the menu froze on the second entry.
+     */
+    private static final long KEY_DEBOUNCE_MS = 90L;
+
     private final RetroPcMIDlet midlet;
     private final HostImpl host;
     final GfxImpl gfx = new GfxImpl();
@@ -28,7 +38,7 @@ final class AppCanvas extends Canvas implements Runnable {
     private volatile String fatal;
     private int splashTick;
     private int lastKeyAction = -1;
-    private int lastKeyTick;
+    private long lastKeyTick;
 
     AppCanvas(RetroPcMIDlet midlet, HostImpl host) {
         this.midlet = midlet;
@@ -159,8 +169,8 @@ final class AppCanvas extends Canvas implements Runnable {
         }
         // debounce accidental double delivery of the same key on some
         // Motorola/Nokia firmwares
-        int now = splashTick;
-        if (action == lastKeyAction && now - lastKeyTick < 1) {
+        long now = System.currentTimeMillis();
+        if (action == lastKeyAction && now - lastKeyTick < KEY_DEBOUNCE_MS) {
             return;
         }
         lastKeyAction = action;

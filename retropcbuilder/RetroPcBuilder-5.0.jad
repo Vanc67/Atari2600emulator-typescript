@@ -5,4 +5,4 @@ MIDlet-1: Retro PC Builder, /icon.png, rpc.j2me.RetroPcMIDlet
 MicroEdition-Configuration: CLDC-1.1
 MicroEdition-Profile: MIDP-2.0
 MIDlet-Jar-URL: RetroPcBuilder-5.0.jar
-MIDlet-Jar-Size: 2633567
+MIDlet-Jar-Size: 2633646
