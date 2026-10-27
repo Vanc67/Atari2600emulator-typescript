@@ -286,6 +286,8 @@ public class Game {
     private int frame;
     /** Animation counters of the tea / sleep screens. */
     private int teaTick;
+    /** 0 = drink the cup, 1 = brew a fresh one (UP/DOWN swaps them) */
+    private int teaSel;
     private int teaBrewed;
     private int sleepTick;
     private int W;
@@ -1834,6 +1836,7 @@ public class Game {
                 this.mode = M_TEA;
                 this.teaTick = 0;
                 this.teaBrewed = 0;
+                this.teaSel = 0;
                 Sound.click();
                 break;
             case Room.HOT_CAT:
@@ -1877,24 +1880,40 @@ public class Game {
             this.navBack();
             return;
         }
+        if (action == ACT_UP || action == ACT_DOWN) {
+            // the arrows choose which of the two actions OK runs
+            this.teaSel = 1 - this.teaSel;
+            Sound.click();
+            return;
+        }
         if (action == ACT_FIRE || action == ACT_SOFT1
                 || action == ACT_NUM1) {
-            String msg = this.life.drinkTea();
-            this.teaTick = 0;
-            this.teaBrewed = this.life.teaLevel <= 0 ? 1 : this.teaBrewed;
-            this.toastMsg(msg);
-            if (this.life.teaLevel <= 0) {
-                // the cup is empty: press again to brew a fresh one
-                this.teaBrewed = 1;
+            if (this.teaSel == 0) {
+                String msg = this.life.drinkTea();
+                this.teaTick = 0;
+                this.teaBrewed = this.life.teaLevel <= 0 ? 1
+                        : this.teaBrewed;
+                this.toastMsg(msg);
+                if (this.life.teaLevel <= 0) {
+                    // the cup is empty: press again to brew a fresh one
+                    this.teaBrewed = 1;
+                }
+            } else {
+                this.brewTea();
             }
         } else if (action == ACT_NUM2) {
-            this.life.teaLevel = 100;
-            this.life.teaHot = true;
-            this.teaBrewed = 1;
-            this.teaTick = 0;
-            Sound.ok();
-            this.toastMsg("\u0421\u0432\u0435\u0436\u0438\u0439 \u0447\u0430\u0439 \u0437\u0430\u0432\u0430\u0440\u0435\u043d");
+            this.brewTea();
         }
+    }
+
+    /** A fresh pot: the cup is full again and the meter is green. */
+    private void brewTea() {
+        this.life.teaLevel = 100;
+        this.life.teaHot = true;
+        this.teaBrewed = 1;
+        this.teaTick = 0;
+        Sound.ok();
+        this.toastMsg("\u0421\u0432\u0435\u0436\u0438\u0439 \u0447\u0430\u0439 \u0437\u0430\u0432\u0430\u0440\u0435\u043d");
     }
 
     /* ==================================================================
@@ -3272,15 +3291,16 @@ public class Game {
                 + this.life.mood + "%", 5, row2, 0, Theme.ACCENT2);
         String weather = LifeSim.WEATHER_NAMES[this.life.weather] + ", "
                 + LifeSim.SEASON_NAMES[this.life.season];
-        Text.draw(this.g, Text.fit(weather, 0, this.W / 2 - 10),
-                this.W / 2 + 4, row2, 0, Theme.DIM);
+        int moodW = this.g.textWidth("\u043d\u0430\u0441\u0442\u0440\u043e\u0434\u0435\u043d\u0438\u0435 100%", 0);
+        Text.draw(this.g, Text.fit(weather, 0, this.W - moodW - 20),
+                moodW + 12, row2, 0, Theme.ACCENT2);
         // radio
         String radio = this.life.radioOn
                 ? "\u0440\u0430\u0434\u0438\u043e: " + this.life.radioTracks[this.life.radioStation]
                 : "\u0440\u0430\u0434\u0438\u043e: \u0442\u0438\u0448\u0438\u043d\u0430";
         Text.draw(this.g, Text.fit(radio, 0, this.W - 10), 5, row3, 0,
                 this.life.radioOn ? Theme.GREEN : Theme.MUTED);
-        this.footer(this.roomHint(), "\u041b\u0421\u041a: 500");
+        this.footer(this.roomHint(), "\u041b\u0421\u041a: 500   \u0442\u0430\u043f: \u043d\u0430 \u043f\u0440\u0435\u0434\u0435\u043c\u0435\u043d\u0442");
     }
 
     /** "OK: <verb> <object>" hint for the current cursor position. */
@@ -3291,6 +3311,13 @@ public class Game {
 
     /** Total XP collected (catalog, experiments, builds). */
     /** Position of the character outside (the harness watches it). */
+    public int roomCursor() { return this.roomCursor; }
+    public int FH1() { return this.FH1; }
+    public int roomSceneTop() { return this.roomSceneTop; }
+    public int roomSceneH() { return this.roomSceneH; }
+    public int funcsIdxN() { return this.funcsIdxN; }
+    public int funcsSel() { return this.funcsSel; }
+    public int funcsTop() { return this.funcsTop; }
     public int[] cityCharPos() {
         return new int[] { this.cityChar.x, this.cityChar.y, this.cityChar.face };
     }
@@ -3602,10 +3629,11 @@ public class Game {
                         x, cardY + 6 + this.FH0 * 2, 0, Theme.ORANGE);
             }
         }
-        this.footer("OK: выполнить  \u2190\u2192 глава  1-9: глава",
+        this.footer("OK: выполнить  \u2190\u2192 глава  1-9: глава  \u0442\u0430\u043f: глава/\u0440\u044f\u0434",
                 "ЛСК: назад");
     }
 
+    /** "OK: <verb> <object>" hint for the current cursor position. */
     private String roomHint() {
         switch (this.roomCursor) {
             case Room.HOT_MONITOR: return "OK: \u0441\u0435\u0441\u0442\u044c \u0437\u0430 \u041f\u041a";
@@ -3616,6 +3644,107 @@ public class Game {
             case Room.HOT_DOOR: return "OK: \u0432 \u0433\u043e\u0440\u043e\u0434";
             case Room.HOT_TOOLS: return "OK: \u043c\u0430\u0441\u0442\u0435\u0440\u0441\u043a\u0430\u044f";
             default: return "OK: \u0440\u0430\u0434\u0438\u043e";
+        }
+    }
+
+    /* ==================================================================
+     *  taps: the room, the street and the 500 functions all answer
+     * ================================================================== */
+
+    /** A tap inside the room lands on the object it touches. */
+    private void pointerRoom(int x, int y) {
+        int top = this.roomSceneTop;
+        int sceneH = this.roomSceneH;
+        if (y < top || y >= top + sceneH) {
+            return;                     // the status strip and the footer
+        }
+        int sy = y - top;
+        for (int i = 0; i < Room.HOT_COUNT; i++) {
+            int[] r = Room.rect(i, this.W, sceneH);
+            if (x >= r[0] && x < r[0] + r[2] && sy >= r[1]
+                    && sy < r[1] + r[3]) {
+                if (i != this.roomCursor) {
+                    this.roomCursor = i;
+                    Sound.click();
+                }
+                this.useRoomObject(i);
+                return;
+            }
+        }
+    }
+
+    /** A tap on the street: a location tab or one of the replies. */
+    private void pointerCity(int x, int y) {
+        int w = this.W;
+        int sceneTop = this.FH1 + 12;
+        int tabH = this.FH0 + 7;
+        int n = rpc.City.LOC_NAMES.length;
+        int tabW = (w - 10) / n;
+        if (y >= sceneTop && y < sceneTop + tabH && x >= 5 && x < w - 5) {
+            int i = (x - 5) / tabW;
+            if (i >= 0 && i < n && i != this.city.curLocation) {
+                this.city.curLocation = i;
+                this.city.selectedOption = 0;
+                this.city.setupLocationEvent(i, this.life.curYear);
+                Sound.click();
+            }
+            return;
+        }
+        int cardY = sceneTop + tabH + 4;
+        int cardH = this.H - this.FH0 - 11 - cardY;
+        int npcH = this.FH0 * 3 + 12;
+        if (cardH > npcH + this.FH0 * 2 + 8) {
+            cardH = npcH + this.FH0 * 2 + 8;
+        }
+        int oy = cardY + npcH + 4;
+        int optH = this.FH0 + 6;
+        int room = cardY + cardH - oy;
+        int shown = Math.min(this.city.dialogueOptions.length,
+                room / (optH + 2));
+        if (y >= oy && y < cardY + cardH && x >= 6 && x < w - 6) {
+            int i = (y - oy) / (optH + 2);
+            if (i >= 0 && i < shown) {
+                this.city.selectedOption = i;
+                this.toastMsg(this.city.executeOption(i, this.life, this));
+            }
+        }
+    }
+
+    /** A tap on the catalogue: a chapter tab or a row of the list. */
+    private void pointerFuncs(int x, int y) {
+        int w = this.W;
+        int tabY = this.FH1 + 12;
+        int tabH = 20;
+        int gap = 2;
+        int tw = (w - 8 - gap * (Funcs.CATS - 1)) / Funcs.CATS;
+        if (y >= tabY && y < tabY + tabH) {
+            int c = (x - 4) / (tw + gap);
+            if (c >= 0 && c <= Funcs.CATS) {
+                this.funcsTab = c - 1;
+                this.funcsSel = 0;
+                this.funcsTop = 0;
+                this.rebuildFuncs();
+                Sound.click();
+            }
+            return;
+        }
+        int py = tabY + tabH + 3;
+        int listTop = py + this.FH0 + 3;
+        int rowH = this.FH0 + 9;
+        int footerTop = this.H - this.FH0 - 11;
+        int cardH = this.FH0 * 3 + 16;
+        int cardY = footerTop - cardH - 4;
+        int rows = (cardY - listTop - 4) / rowH;
+        if (rows < 1) {
+            rows = 1;
+        }
+        if (y >= listTop && y < cardY && x >= 4 && x < w - 4) {
+            int r = (y - listTop) / rowH;
+            int idx = this.funcsTop + r;
+            if (r >= 0 && r < rows && idx >= 0 && idx < this.funcsIdxN) {
+                this.funcsSel = idx;
+                this.applyFunc(this.funcAt(idx));
+            }
         }
     }
 
@@ -3813,8 +3942,10 @@ public class Game {
         rowY += this.FH0 + 1;
         Text.draw(this.g, Text.fit(this.life.lastEventMsg, 0, w - 20), 10,
                 rowY, 0, Theme.DIM);
-        this.footer("OK: \u043f\u0438\u0442\u044c   2: \u0437\u0430\u0432\u0430\u0440\u0438\u0442\u044c",
-                "\u041d\u0430\u0437\u0430\u0434");
+        this.footer(this.teaSel == 0
+                        ? "OK: \u0432\u044b\u043f\u0442\u044c   2: \u0437\u0430\u0432\u0430\u0440\u0438\u0442\u044c"
+                        : "OK: \u0437\u0430\u0432\u0430\u0440\u0438\u0442\u044c   1: \u0432\u044b\u043f\u0438\u0442\u044c",
+                "\u2191\u2193: \u0434\u0435\u043b\u043e\u0445\u0438\u0438   \u041d\u0430\u0437\u0430\u0444");
     }
 
 
@@ -3882,7 +4013,7 @@ public class Game {
             this.g.drawText("Z", w / 2 + 26 + i * 9, h * 44 / 100 - phase * 2,
                     (i == 1) ? 2 : 1);
         }
-        this.footer("OK: \u0441\u043f\u0430\u0442\u044c", "\u041d\u0430\u0437\u0430\u0434");
+        this.footer("OK: \u0441\u043f\u0430\u0442\u044c  \u0442\u0430\u043f: \u0441\u043f\u0430\u0442\u044c", "\u041d\u0430\u0437\u0430\u0434");
     }
 
     
@@ -3993,7 +4124,7 @@ public class Game {
         String era = this.eraName();
         Text.draw(this.g, era, w - this.g.textWidth(era, 0) - 6, cardY + 3, 0,
                 Theme.MUTED);
-        this.footer("OK: разговор  \u2190\u2192 \u0430\u0441\u0435\u0430\u0434", "\u041b\u0421\u041a: \u0431\u0430\u0437");
+        this.footer("OK: разговор  \u2190\u2192 \u0430\u0441\u0435\u0430\u0434  \u0442\u0430\u043f: \u043d\u043e\u0431\u0435\u0440", "\u041b\u0421\u041a: \u0431\u0430\u0437");
     }
 
     /** Short era label for the city screen. */
@@ -8313,6 +8444,18 @@ public class Game {
     public void pointer(int i, int i0) {
         if (this.toastActive()) {
             this.toast = "";
+        }
+        if (this.mode == M_ROOM) {
+            this.pointerRoom(i, i0);
+            return;
+        }
+        if (this.mode == M_CITY) {
+            this.pointerCity(i, i0);
+            return;
+        }
+        if (this.mode == M_FUNCS) {
+            this.pointerFuncs(i, i0);
+            return;
         }
         if (this.mode == 45) {
             this.pointerExpList(i, i0);

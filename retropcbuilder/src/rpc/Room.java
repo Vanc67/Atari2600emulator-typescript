@@ -195,8 +195,29 @@ public final class Room {
         }
 
         // the town behind the window, and it changes with the era
-        drawEraSkyline(g, life, x, y + h * 66 / 100, w, h * 26 / 100,
+        drawEraSkyline(g, life, x, y + h * 58 / 100, w, h * 30 / 100,
                 life.timeOfDay == LifeSim.TIME_NIGHT ? 1 : 0);
+
+        /* the yard behind the window wears the season too: a snowed-in
+         * fence in winter, dry grass in summer, bare branches in autumn */
+        int yardH = h * 17 / 100;
+        int yardY = y + h - yardH;
+        int night = life.timeOfDay == LifeSim.TIME_NIGHT ? 1 : 0;
+        int yard = night == 1 ? 0x161D29
+                : (life.season == LifeSim.SEASON_WINTER ? 0xE2EBF4
+                   : life.season == LifeSim.SEASON_AUTUMN ? 0x8B6B4B
+                   : life.season == LifeSim.SEASON_SPRING ? 0x7E8A62
+                   : 0x6F7A55);
+        g.setColor(yard);
+        g.fillRect(x, yardY, w, yardH);
+        g.setColor(night == 1 ? 0x0E1319 : 0x4A3B2A);
+        for (int i = 0; i < 5; i++) {
+            int fx = x + 7 + i * (w - 14) / 4;
+            g.fillRect(fx, yardY - 6, 2, yardH + 6);
+            g.fillRect(fx - 3, yardY - 6, 8, 2);
+        }
+        g.setColor(night == 1 ? 0x2A3550 : 0x9FB0D0);
+        g.fillRect(x, yardY, w, 1);
 
         // sun / moon
         int cx = x + w * 74 / 100;
@@ -250,11 +271,13 @@ public final class Room {
             }
         } else if (life.weather == LifeSim.WEATHER_SNOW) {
             g.setColor(0xFFFFFF);
-            for (int i = 0; i < 30; i++) {
-                int sx = x + (i * 31 + tick) % w;
-                int sy = y + (i * 13 + tick * 2) % h;
+            for (int i = 0; i < 48; i++) {
+                int sx = x + (i * 37 + tick) % w;
+                int sy = y + (i * 23 + tick * 2) % h;
                 g.fillRect(sx, sy, 2, 2);
             }
+            // and the sill is white with it
+            g.fillRect(x - 5, y + h, w + 10, 3);
         } else if (life.weather == LifeSim.WEATHER_LEAVES) {
             g.setColor(0xD08A3C);
             for (int i = 0; i < 12; i++) {
@@ -290,6 +313,15 @@ public final class Room {
         g.fillRect(x, y + h / 2 - 1, w, 3);
         g.setColor(0xA8AEC0);
         g.fillRect(x - 4, y + h + 3, w + 8, 3);
+
+        // snow on the frame when the yard is white
+        if (life.season == LifeSim.SEASON_WINTER
+                && life.weather != LifeSim.WEATHER_RAIN
+                && life.weather != LifeSim.WEATHER_STORM) {
+            g.setColor(0xF4F8FF);
+            g.fillRect(x - 4, y - 4, w + 8, 2);
+            g.fillRect(x - 4, y + h + 2, w + 8, 2);
+        }
 
         // curtains
         g.setColor(life.timeOfDay == LifeSim.TIME_NIGHT ? 0x4A2036 : 0x7A3350);
