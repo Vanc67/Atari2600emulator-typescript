@@ -6,7 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
-*.zip
+out/pixel_overlay_build/
 device/samsung/universal7420-common
 device/samsung/zeroltexx
-manifests

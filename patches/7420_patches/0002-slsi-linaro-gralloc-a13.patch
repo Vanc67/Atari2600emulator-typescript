@@ -1,0 +1,23 @@
+From 9876543210987654321098765432109876543210 Mon Sep 17 00:00:00 2001
+From: Exynos 7420 Developer <dev@universal7420.org>
+Date: Mon, 15 Jan 2024 10:30:00 +0000
+Subject: [PATCH 2/2] gralloc: adjust buffer usage flags for Android 13 SurfaceFlinger compatibility
+
+---
+ gralloc/gralloc_module.cpp | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/gralloc/gralloc_module.cpp b/gralloc/gralloc_module.cpp
+index 1122334..5566778 100644
+--- a/gralloc/gralloc_module.cpp
++++ b/gralloc/gralloc_module.cpp
+@@ -20,6 +20,16 @@ int gralloc_alloc_buffer(alloc_device_t* dev, size_t size, int usage, buffer_h
+ {
++    /* Android 13 SurfaceFlinger usage flag alignment */
++    if (usage & GRALLOC_USAGE_HW_COMPOSER) {
++        usage |= GRALLOC_USAGE_SW_READ_OFTEN;
++    }
+     return 0;
+ }
+--
+2.34.1
