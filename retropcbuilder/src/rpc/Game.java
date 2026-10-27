@@ -87,7 +87,18 @@ public class Game {
     final public static int M_FUNCS = 55;
     /** the 2027 finale */
     final public static int M_ENDING = 56;
+    /** the year of the opening screen, 1979..2027 */
+    private int startYear;
+    /** 0 = morning, 1 = day, 2 = sunset, 3 = night */
+    private int startTod;
+    /** 0 = winter, 1 = spring, 2 = summer, 3 = autumn */
+    private int startSeason;
+    private int startWeather;
+    /** which row of the opening screen is highlighted */
+    private int startRow;
     final public static int M_SLEEP = 54;
+    /** the opening screen: which year, which hour, which season the run starts in */
+    final public static int M_START = 57;
     final public static int C_BG = 923168;
     final public static int C_BG2 = 1318956;
     final public static int C_PANEL = 1780536;
@@ -467,27 +478,29 @@ public class Game {
         this.expTab = 0;
         this.expFiltered = new int[1000];
         this.expFilteredCount = 0;
-        String[] a = new String[9];
-        a[0] = "\u0423\u044e\u0442\u043d\u0430\u044f \u043a\u043e\u043c\u043d\u0430\u0442\u0430 & \u0416\u0438\u0437\u043d\u044c (Life-Sim)";
-        a[1] = "\u041f\u0435\u0441\u043e\u0447\u043d\u0438\u0446\u0430: \u0421\u0431\u043e\u0440\u043a\u0430 \u041f\u041a (1979-2027)";
-        a[2] = "\u0412\u044b\u0445\u043e\u0434 \u0432 \u0433\u043e\u0440\u043e\u0434 (\u041c\u0438\u0442\u0438\u043d\u043e, \u041a\u043b\u0443\u0431, \u041a\u0430\u0444\u0435)";
-        a[3] = "\u041c\u0430\u0441\u0442\u0435\u0440\u0441\u043a\u0430\u044f: \u0418\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442\u044b (\u041f\u0438\u043d\u0446\u0435\u0442, \u041f\u0430\u0439\u043a\u0430)";
-        a[4] = "\u041a\u0430\u0442\u0430\u043b\u043e\u0433 \u0436\u0435\u043b\u0435\u0437\u0430 & \u041c\u0443\u0437\u0435\u0439";
-        a[5] = "\u041b\u0430\u0431\u043e\u0440\u0430\u0442\u043e\u0440\u0438\u044f: 1000 \u042d\u043a\u0441\u043f\u0435\u0440\u0438\u043c\u0435\u043d\u0442\u043e\u0432";
-        a[6] = "\u041a\u0430\u043b\u0435\u043d\u0434\u0430\u0440\u044c 1980-2027 & \u0414\u043e\u0441\u0442\u0438\u0436\u0435\u043d\u0438\u044f";
-        a[7] = "\u041e\u0431 \u0438\u0433\u0440\u0435 & \u0412\u044b\u0445\u043e\u0434";
-        a[8] = "500 \u0444\u0443\u043d\u043a\u0446\u0438\u0439: \u043f\u043e\u043b\u043d\u044b\u0439 \u043a\u0430\u0442\u0430\u043b\u043e\u0433";
+        String[] a = new String[10];
+        a[0] = "\u0421\u0442\u0430\u0440\u0442: \u0433\u043E\u0434, \u0447\u0430\u0441 \u0438 \u0441\u0435\u0437\u043E\u043D \u043D\u043E\u0432\u043E\u0439 \u0436\u0438\u0437\u043D\u0438";
+        a[1] = "\u0423\u044E\u0442\u043D\u0430\u044F \u043A\u043E\u043C\u043D\u0430\u0442\u0430 & \u0416\u0438\u0437\u043D\u044C (Life-Sim)";
+        a[2] = "\u041F\u043E\u0441\u0442\u0430\u0432\u0438\u0442\u044C: \u0421\u0431\u043E\u0440\u043A\u0430 \u041F\u041A (1979-2027)";
+        a[3] = "\u0412\u044B\u0432\u043E\u0434 \u0432 \u0433\u043E\u0440\u044B (\u041C\u0438\u0442\u0438\u043D\u043E, \u041A\u043B\u0443\u0431, \u041A\u0430\u0444\u0435)";
+        a[4] = "\u041C\u0430\u0441\u0442\u0435\u0440\u0441\u043A\u0430\u044F: \u0418\u043D\u0441\u0442\u0440\u0443\u043A\u0442\u044B (\u041F\u0438\u043D\u0447\u0435\u0442, \u041F\u0430\u0439\u043A\u0430)";
+        a[5] = "\u041A\u0430\u0442\u0430\u043B\u043E\u0433 \u0436\u0435\u043B\u0435\u0437\u0430 & \u041C\u0443\u0437\u0435\u0439";
+        a[6] = "\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F: 1000 \u044D\u043A\u0441\u043F\u0435\u0440\u0438\u043C\u0435\u043D\u0442\u043E\u0432";
+        a[7] = "\u041A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C 1980-2027 & \u0414\u043E\u0441\u0442\u0438\u0436\u0435\u043D\u0438\u044F";
+        a[9] = "500 \u0444\u0443\u043D\u043A\u0446\u0438\u0439: \u043F\u043E\u043B\u043D\u044B\u0439 \u043A\u0430\u0442\u0430\u043B\u043E\u0433";
+        a[8] = "\u041E\u0431 \u0438\u0433\u0440\u0435 & \u0412\u044B\u0432\u043E\u0434";
         this.MENU_ITEMS = a;
-        String[] t = new String[9];
-        t[0] = "\u041a\u043e\u043c\u043d\u0430\u0442\u0430";
-        t[1] = "\u0421\u0431\u043e\u0440\u043a\u0430 \u041f\u041a";
-        t[2] = "\u0413\u043e\u0440\u043e\u0434";
-        t[3] = "\u041c\u0430\u0441\u0442\u0435\u0440\u0441\u043a\u0430\u044f";
-        t[4] = "\u041a\u0430\u0442\u0430\u043b\u043e\u0433";
-        t[5] = "\u041b\u0430\u0431\u043e\u0440\u0430\u0442\u043e\u0440\u0438\u044f";
-        t[6] = "\u041a\u0430\u043b\u0435\u043d\u0434\u0430\u0440\u044c";
-        t[7] = "\u041e\u0431 \u0438\u0433\u0440\u0435";
-        t[8] = "500 \u0444\u0443\u043d\u043a\u0446\u0438\u0439";
+        String[] t = new String[10];
+        t[0] = "\u0421\u0442\u0430\u0440\u0442";
+        t[1] = "\u041A\u043E\u043C\u043D\u0430\u0442\u0430";
+        t[2] = "\u0421\u0431\u043E\u0440\u043A\u0430 \u041F\u041A";
+        t[3] = "\u0413\u043E\u0440\u043E\u0434";
+        t[4] = "\u041C\u0430\u0441\u0442\u0435\u0440\u0441\u043A\u0430\u044F";
+        t[5] = "\u041A\u0430\u0442\u0430\u043B\u043E\u0433";
+        t[6] = "\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F";
+        t[7] = "\u041A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C";
+        t[9] = "500 \u0444\u0443\u043D\u043A\u0446\u0438\u0439";
+        t[8] = "\u041E\u0431 \u0438\u0433\u0440\u0435";
         this.MENU_TITLES = t;
         this.catSel = 0;
         this.catTop = 0;
@@ -577,10 +590,42 @@ public class Game {
         rpc.Sound.bind(a);
         this.best = new int[this.db.levels.length];
         this.loadProgress();
+        // nothing saved yet: this is the first run, so it opens on the year
+        // picker rather than dropping the player into the same grey 1980
+        String s = this.host.load("save");
+        if (s == null || s.length() == 0) {
+            this.openStart();
+        }
     }
     
     public rpc.Db db() {
         return this.db;
+    }
+
+    /** the screen the game is on - the probes read it, the screens never do */
+    public int mode() {
+        return this.mode;
+    }
+
+    /** the opening screen, so the probes can watch the player fill it in */
+    public int startYear() {
+        return this.startYear;
+    }
+
+    public int startTod() {
+        return this.startTod;
+    }
+
+    public int startSeason() {
+        return this.startSeason;
+    }
+
+    public int startWeather() {
+        return this.startWeather;
+    }
+
+    public int startRow() {
+        return this.startRow;
     }
     
     public int credits() {
@@ -832,9 +877,10 @@ public class Game {
             this.toast = "";
         }
         int before = this.mode;
-        boolean newScreens = this.mode == M_MENU || this.mode == M_ROOM
-                || this.mode == M_TEA || this.mode == M_SLEEP
-                || this.mode == M_FUNCS || this.mode == M_ENDING;
+        boolean newScreens = this.mode == M_MENU || this.mode == M_START
+                || this.mode == M_ROOM || this.mode == M_TEA
+                || this.mode == M_SLEEP || this.mode == M_FUNCS
+                || this.mode == M_ENDING;
         if ((action == ACT_BACK || action == ACT_SOFT2) && !newScreens) {
             // legacy screens: BACK always returns to the previous screen
             this.navBack();
@@ -843,6 +889,9 @@ public class Game {
         switch (this.mode) {
             case M_MENU:
                 this.inputMenu(action);
+                break;
+            case M_START:
+                this.inputStart(action);
                 break;
             case M_ROOM:
                 this.inputRoom(action);
@@ -862,6 +911,13 @@ public class Game {
             default:
                 this.inputLegacy(action);
                 break;
+        }
+        if (this.mode != before && before != M_MENU && this.mode == M_MENU) {
+            // an accidental trip to the menu must not throw away the PC
+            // being built, the workshop's half-finished order or the runs
+            // already paid for - put the whole state away before the player
+            // can get distracted by the room
+            this.saveProgress();
         }
         if (this.mode != before) {
             if (this.navPopping) {
@@ -897,10 +953,81 @@ public class Game {
             }
         }
         this.mode = (target >= 0 && target < 60) ? target : M_MENU;
+        if (this.mode == M_MENU) {
+            // the one trip that can lose the PC being built, the workshop's
+            // half-finished order and the runs already paid for - the menu
+            // is where the player gets distracted by the room
+            this.saveProgress();
+        }
         Sound.click();
     }
     
     private void inputLegacy(int i) {
+        if (i == ACT_NUM1 && this.mode == M_INSTALL) {
+            // paintInstall() promises "1: прервать" and nothing listened
+            this.installingOs = null;
+            this.navBack();
+            return;
+        }
+        // Arrow keys that the screen handlers never implemented: the player
+        // expects them to move the highlight, so give them a job here
+        // instead of letting them fall through and do nothing.
+        if (i == ACT_LEFT || i == ACT_RIGHT) {
+            if (this.mode == M_CATALOG) {
+                int n = CAT_ORDER.length;
+                this.catSel = (this.catSel + (i == ACT_RIGHT ? 1 : n - 1)) % n;
+                rpc.Sound.click();
+                return;
+            }
+            if (this.mode == M_SHOP && i == ACT_LEFT) {
+                int n2 = this.shopList.length;
+                if (n2 > 0) {
+                    this.shopSel = (this.shopSel + n2 - 1) % n2;
+                    rpc.Sound.click();
+                }
+                return;
+            }
+            if (this.mode == M_EVENT_NEWS && i == ACT_DOWN) {
+                boolean reached = this.life.curYear >= 2027;
+                this.life.curYear = Math.min(2027, this.life.curYear + 1);
+                if (this.life.curYear >= 2027 && !reached) {
+                    this.toastMsg("\u041f\u0443\u0447\u0435\u0441\u0442\u044b\u0439 \u0433\u043e\u0434 \u2014 \u0444\u0438\u043d\u0438\u0448 \u043f\u043e\u0434\u0438\u0442 \u043a \u043a\u043e\u043d\u0446\u0443");
+                }
+                rpc.Sound.click();
+                return;
+            }
+        }
+        if (i >= ACT_NUM1 && i <= ACT_NUM9) {
+            if (this.mode == M_CATALOG) {
+                // number keys pick the category straight away
+                int nc = CAT_ORDER.length;
+                int ic = i - ACT_NUM1;
+                if (ic < nc) {
+                    this.catSel = ic;
+                    rpc.Sound.click();
+                }
+                return;
+            }
+            if (this.mode == M_SHOP) {
+                int ns = this.shopList.length;
+                if (ns > 0) {
+                    this.shopSel = (i - ACT_NUM1) % ns;
+                    this.shopTop = Math.max(0, this.shopSel - 3);
+                    rpc.Sound.click();
+                }
+                return;
+            }
+            if (this.mode == M_CATPARTS) {
+                // number keys jump to the n-th part of the opened category
+                int n3 = this.partList.length;
+                if (n3 > 0) {
+                    this.partSel = (i - ACT_NUM1) % n3;
+                    this.partTop = 0;
+                    rpc.Sound.click();
+                }
+                return;
+            }
+        }
         label0: if (this.mode != 0) {
             if (this.mode != 1) {
                 if (this.mode != 2) {
@@ -1478,7 +1605,9 @@ public class Game {
                                     int i10 = this.table.n;
                                     if (i10 > 0) {
                                         if (i != 0) {
-                                            if (i == 1) {
+                                            if (i == 1 || i == 3) {
+                                                // DOWN and RIGHT both step
+                                                // forward through the grid
                                                 this.benchSel = (this.benchSel + 1) % i10;
                                             }
                                         } else {
@@ -1758,10 +1887,10 @@ public class Game {
 
     private void inputMenu(int action) {
         int n = this.MENU_ITEMS.length;
-        if (action == ACT_DOWN) {
+        if (action == ACT_DOWN || action == ACT_RIGHT) {
             this.menuSel = (this.menuSel + 1) % n;
             Sound.click();
-        } else if (action == ACT_UP) {
+        } else if (action == ACT_UP || action == ACT_LEFT) {
             this.menuSel = (this.menuSel + n - 1) % n;
             Sound.click();
         } else if (action == ACT_FIRE || action == ACT_SOFT1) {
@@ -1851,6 +1980,8 @@ public class Game {
                 Sound.click();
                 break;
             case Room.HOT_DOOR:
+                // 433 скрип двери: дверь квартиры скрипит на петлях
+                rpc.Sound.door();
                 this.mode = M_CITY;
                 this.city.travelTo(0, this.life);
                 Sound.click();
@@ -1878,6 +2009,13 @@ public class Game {
     private void inputTea(int action) {
         if (action == ACT_BACK || action == ACT_SOFT2) {
             this.navBack();
+            return;
+        }
+        if (action == ACT_LEFT || action == ACT_RIGHT) {
+            // the two actions are laid out as a strip, so the horizontal
+            // arrows switch between them exactly like UP/DOWN do
+            this.teaSel = 1 - this.teaSel;
+            Sound.click();
             return;
         }
         if (action == ACT_UP || action == ACT_DOWN) {
@@ -1947,30 +2085,38 @@ public class Game {
     private void menuAction() {
         switch (this.menuSel) {
             case 0:
+                // a new life: the year, the hour and the season are the
+                // player's, and the first step is onto the street
+                this.openStart();
+                break;
+            case 1:
                 this.mode = M_ROOM;
                 this.roomCursor = Room.HOT_MONITOR;
                 break;
-            case 1:
+            case 2:
                 this.startSandboxBuild();
                 break;
-            case 2:
+            case 3:
                 this.mode = 48;
                 break;
-            case 3:
+            case 4:
                 this.mode = 49;
                 break;
-            case 4:
+            case 5:
                 this.mode = 7;
                 this.catSel = 0;
                 this.catTop = 0;
                 break;
-            case 5:
+            case 6:
                 this.openExpList();
                 break;
-            case 6:
+            case 7:
                 this.mode = 52;
                 break;
-            case 7:
+            case 8:
+                this.openFuncs();
+                break;
+            case 9:
                 this.mode = 6;
                 break;
             default:
@@ -2242,6 +2388,7 @@ public class Game {
         if (a0 != null) {
             this.cash = this.cash + a0.price * 70 / 100;
         }
+        rpc.Sound.coin();
         this.slots[this.shopSlot] = a;
         this.recalcSpent();
         rpc.Sound.ok();
@@ -2252,6 +2399,7 @@ public class Game {
         rpc.Part a = this.slots[i];
         if (a != null) {
             this.cash = this.cash + a.price * 70 / 100;
+            rpc.Sound.coin();
         }
         this.slots[i] = null;
         this.recalcSpent();
@@ -2537,25 +2685,29 @@ public class Game {
         }
     }
     
-    private void pointerExpList(int i, int i0) {
-        int i1 = this.FH1 + 10;
-        int i2 = this.FH0 + 9;
-        if (i0 >= i1 && i0 < i1 + i2) {
-            if (i >= this.W / 2) {
-                this.inputExpList(3);
-            } else {
-                this.inputExpList(2);
-            }
+    private void pointerExpList(int x, int y) {
+        // the same geometry as paintExpList, row for row: a tap zone that
+        // is a few pixels off makes every tap select the wrong experiment
+        int top = this.FH1 + 12;
+        int barH = this.FH0 + 8;
+        int rowH = this.FH0 * 2 + 9;
+        int listTop = top + barH + 3;
+        int footerTop = this.H - this.FH0 - 12;
+        int rows = (footerTop - listTop) / rowH;
+        if (rows < 1) {
+            rows = 1;
+        }
+        // the filter bar: left half is the platform, right half the kind
+        if (y >= top && y < top + barH) {
+            this.inputExpList(x >= this.W / 2 ? 3 : 2);
             return;
         }
-        int i3 = this.FH0 * 2 + 6;
-        int i4 = i1 + i2;
-        int i5 = this.expTop + (i0 - i4) / i3;
-        if (i5 >= 0 && i5 < this.expFilteredCount) {
-            if (this.expSel != i5) {
-                this.expSel = i5;
+        int idx = this.expTop + (y - listTop) / rowH;
+        if (idx >= 0 && idx < this.expFilteredCount) {
+            if (this.expSel != idx) {
+                this.expSel = idx;
             } else {
-                this.openExpRun(this.expFiltered[i5]);
+                this.openExpRun(this.expFiltered[idx]);
             }
         }
     }
@@ -3087,7 +3239,7 @@ public class Game {
                     }
                 } else {
                     this.g.setColor(16763196);
-                    this.g.drawText("\u0422\u0432\u0438\u043a\u0438 (\u043d\u0430\u0436\u043c\u0438\u0442\u0435 1-8 \u0438\u043b\u0438 \u0442\u0430\u043f\u0430\u0439\u0442\u0435):", 8, i10, 0);
+                    this.g.drawText("\u0422\u0432\u0438\u043a\u0438 (\u043d\u0430\u0436\u043c\u0438\u0442\u0435 1-6 \u0438\u043b\u0438 \u0442\u0430\u043f\u0430\u0439\u0442\u0435):", 8, i10, 0);
                     int i14 = 0;
                     while(i14 < 3) {
                         boolean b0 = (this.expStress.activeTweaks & 1 << i14) != 0;
@@ -3122,6 +3274,23 @@ public class Game {
     }
     
     private void inputExpRun(int i) {
+        if (i >= ACT_NUM1 && i <= ACT_NUM6) {
+            if (this.expTab == 2) {
+                // the tweak list is labelled "press 1-8": the keys toggle the
+                // tweak straight away, exactly like a tap on it does
+                int k = i - ACT_NUM1;
+                this.expStress.activeTweaks = this.expStress.activeTweaks ^ (1 << k);
+                this.expStress.recalcThermal();
+                rpc.Sound.click();
+                return;
+            }
+            if (i <= ACT_NUM4) {
+                // the footer promises "1-4: вкладки"
+                this.expTab = i - ACT_NUM1;
+                rpc.Sound.click();
+                return;
+            }
+        }
         label0: if (i != 4) {
             if (i != 0) {
                 if (i != 1) {
@@ -3220,9 +3389,62 @@ public class Game {
         return h < 190 ? h : h - 10;
     }
 
+    /**
+     * 479 автосохранение, 406 налоги, 407 штрафы: каждое утро мир тихо
+     * сохраняется, раз в неделю уходит налог, за грязную комнату - штраф.
+     */
+    private void onNewDay() {
+        this.saveProgress();
+        if (this.life.curDay % 7 == 0) {
+            int tax = 300 + this.life.curYear * 10;
+            if (this.cash >= tax) {
+                this.cash -= tax;
+                rpc.Sound.coin();
+                this.toastMsg("\u041d\u0430\u043b\u043e\u0433 \u0437\u0430 \u043d\u0435\u0432\u0435\u0434\u0435\u0433\u0438: -" + tax
+                        + "\u0440");
+            } else {
+                this.toastMsg("\u041d\u0430\u043b\u043e\u0433: \u043d\u0435 \u0445\u0430\u0442\u0430\u044e\u0442\u0435\u0442 \u0434\u0435\u043d\u044b\u0445");
+            }
+        }
+        if (this.life.roomDust > 80 || this.life.trashCount > 4) {
+            int fine = 150;
+            if (this.cash >= fine) {
+                this.cash -= fine;
+                rpc.Sound.error();
+                this.toastMsg("\u0428\u0442\u0440\u0430\u0444 \u0437\u0430 \u0433\u0440\u044f\u0437\u0443: -" + fine
+                        + "\u0440");
+            }
+        }
+    }
+
     private void paintRoom() {
-        this.life.tickTime(1);
-        this.life.updateEnvironment();
+        // 434 тиканье часов: часы на стене тикают тихо, пока вы дома
+        if ((this.life.animationTick % 45) == 0) {
+            rpc.Sound.tick();
+        }
+        // the radio is on: a generated song per station, one after another
+        if (this.life.radioOn && (this.life.animationTick % 110) == 0) {
+            rpc.Sound.radio(this.life.radioStation, this.life.curYear);
+        }
+        // and the machine itself: its fan and its storage, loud or quiet by
+        // what was actually built into it
+        if (this.pcPowered && (this.life.animationTick % 80) == 0) {
+            rpc.Sound.pcSystem(this.pcNoise(), this.life.curYear,
+                    this.pcSpinningDisk());
+        }
+        // and the street under the window, muffled through the glass
+        if ((this.life.weather == LifeSim.WEATHER_RAIN
+                || this.life.weather == LifeSim.WEATHER_STORM)
+                && (this.life.animationTick % 22) == 0) {
+            rpc.Sound.rain(this.life.weather == LifeSim.WEATHER_STORM ? 3 : 2);
+        } else if (this.life.weather == LifeSim.WEATHER_SNOW
+                && (this.life.animationTick % 30) == 0) {
+            rpc.Sound.snow();
+        } else if (!this.life.radioOn
+                && (this.life.animationTick % 95) == 0
+                && this.life.timeOfDay != LifeSim.TIME_NIGHT) {
+            rpc.Sound.street();
+        }
 
         String head = "\u0423\u044e\u0442\u043d\u0430\u044f \u043a\u043e\u043c\u043d\u0430\u0442\u0430";
         String clock = "\u0434" + this.life.curDay + " "
@@ -3300,7 +3522,7 @@ public class Game {
                 : "\u0440\u0430\u0434\u0438\u043e: \u0442\u0438\u0448\u0438\u043d\u0430";
         Text.draw(this.g, Text.fit(radio, 0, this.W - 10), 5, row3, 0,
                 this.life.radioOn ? Theme.GREEN : Theme.MUTED);
-        this.footer(this.roomHint(), "\u041b\u0421\u041a: 500   \u0442\u0430\u043f: \u043d\u0430 \u043f\u0440\u0435\u0434\u0435\u043c\u0435\u043d\u0442");
+        this.footer(this.roomHint(), "\u041b\u0421\u041a: \u043d\u0430\u0437\u0430\u0434   \u0442\u0430\u043f: \u043d\u0430 \u043f\u0440\u0435\u0434\u0436\u0435\u0442");
     }
 
     /** "OK: <verb> <object>" hint for the current cursor position. */
@@ -3313,11 +3535,58 @@ public class Game {
     /** Position of the character outside (the harness watches it). */
     public int roomCursor() { return this.roomCursor; }
     public int FH1() { return this.FH1; }
+    public int FH0() { return this.FH0; }
+    public int W() { return this.W; }
+    public int H() { return this.H; }
     public int roomSceneTop() { return this.roomSceneTop; }
     public int roomSceneH() { return this.roomSceneH; }
     public int funcsIdxN() { return this.funcsIdxN; }
     public int funcsSel() { return this.funcsSel; }
     public int funcsTop() { return this.funcsTop; }
+    public int menuSel() { return this.menuSel; }
+    public int menuItems() { return this.MENU_ITEMS.length; }
+    public int partSel() { return this.partSel; }
+    public int partListLen() {
+        return this.partList == null ? 0 : this.partList.length;
+    }
+    public int cityLoc() { return this.city.curLocation; }
+    public int teaSel() { return this.teaSel; }
+    public int funcsTab() { return this.funcsTab; }
+    public int catSel() { return this.catSel; }
+    public int shopSel() { return this.shopSel; }
+    public int taskSel() { return this.taskSel; }
+    public int progSel() { return this.progSel; }
+    public int editorSel() { return this.editorSel; }
+    public int setupSel() { return this.setupSel; }
+    public int offerSel() { return this.offerSel; }
+    public int langSel() { return this.langSel; }
+    public int expSel() { return this.expSel; }
+    public int expCount() { return this.expFilteredCount; }
+    public int museumSel() { return this.museumSel; }
+    public int workshopTool() {
+        return this.workshop == null ? -1 : this.workshop.activeTool;
+    }
+    public int expVoltage() {
+        return this.expStress == null ? -1 : this.expStress.curVoltage;
+    }
+    public int expFreq() {
+        return this.expStress == null ? -1 : this.expStress.curFreq;
+    }
+    public int expCooling() {
+        return this.expStress == null ? -1 : this.expStress.curCooling;
+    }
+    public int expStatus() {
+        return this.expStress == null ? -1 : this.expStress.status;
+    }
+    public int expTop() { return this.expTop; }
+    public int expFilterPlat() { return this.expFilterPlat; }
+    public int expFilterKind() { return this.expFilterKind; }
+    public String toastText() { return this.toast; }
+    public int citySel() { return this.city.selectedOption; }
+    public int cityOpts() {
+        return this.city.dialogueOptions == null ? 0
+                : this.city.dialogueOptions.length;
+    }
     public int[] cityCharPos() {
         return new int[] { this.cityChar.x, this.cityChar.y, this.cityChar.face };
     }
@@ -3333,6 +3602,9 @@ public class Game {
     /** Adds money (used by the lottery entries and by the harness). */
     public void grantCredits(int n) {
         this.cash += n;
+        if (n != 0) {
+            rpc.Sound.coin();
+        }
     }
 
     /** How many PCs were built (sandbox rebuilds count too). */
@@ -3414,8 +3686,15 @@ public class Game {
             Sound.click();
             return;
         }
-        if (action >= ACT_NUM1 && action <= ACT_NUM9) {
-            this.funcsTab = action - ACT_NUM1;
+        if (action == ACT_NUM1) {
+            // the footer promises "1: выход" - honour it
+            this.navBack();
+            return;
+        }
+        if (action >= ACT_NUM2 && action <= ACT_NUM9) {
+            // number keys pick the chapter straight away (2..9 -> 0..7,
+            // the last two chapters are reached with the arrows)
+            this.funcsTab = action - ACT_NUM1 - 1;
             this.funcsSel = 0;
             this.rebuildFuncs();
             Sound.click();
@@ -3441,18 +3720,28 @@ public class Game {
             return;
         }
         int cost = Funcs.cost(id);
-        if (cost > this.credits()) {
+        boolean first = !this.funcDone[id];
+        if (first && cost > this.credits()) {
+            // the first run is the job that needs the tools and the parts
             this.funcsResult = "не хватает денег";
             this.toastMsg("не хватает денег: нужно " + cost + "\u0440");
             Sound.click();
             return;
         }
-        this.cash -= cost;
-        boolean first = !this.funcDone[id];
+        if (first) {
+            this.cash -= cost;
+        } else {
+            // the same job done again is wage work - it is what buys the
+            // next graphics card, so the 500 entries are a loop, not a list
+            this.cash += Funcs.wage(id);
+        }
+        rpc.Sound.coin();
         if (first) {
             this.funcDone[id] = true;
             this.funcsDoneCount++;
             this.totalXp += Funcs.xp(id);
+        } else {
+            this.totalXp += Funcs.repeatXp(id);
         }
         this.life.energy = clamp100(this.life.energy + Funcs.energy(id));
         this.life.mood = clamp100(this.life.mood + Funcs.mood(id));
@@ -3493,6 +3782,7 @@ public class Game {
             case 6:
                 int earn = 40 + (id % 7) * 15;
                 this.cash += earn;
+                rpc.Sound.coin();
                 extra = " +" + earn + "\u0440";
                 break;
             case 7:
@@ -3506,7 +3796,8 @@ public class Game {
                 break;
         }
         this.funcsResult = first ? "+" + Funcs.xp(id) + " XP" + extra
-                                 : "уже делали" + extra;
+                                 : "+" + Funcs.repeatXp(id) + " XP, +"
+                                   + Funcs.wage(id) + "\u0440" + extra;
         this.toastMsg(Funcs.title(id) + ":" + extra);
         if (first) {
             Sound.ok();
@@ -3945,7 +4236,7 @@ public class Game {
         this.footer(this.teaSel == 0
                         ? "OK: \u0432\u044b\u043f\u0442\u044c   2: \u0437\u0430\u0432\u0430\u0440\u0438\u0442\u044c"
                         : "OK: \u0437\u0430\u0432\u0430\u0440\u0438\u0442\u044c   1: \u0432\u044b\u043f\u0438\u0442\u044c",
-                "\u2191\u2193: \u0434\u0435\u043b\u043e\u0445\u0438\u0438   \u041d\u0430\u0437\u0430\u0444");
+                "\u2191\u2193: \u0434\u0435\u0439\u0436\u0435\u0432\u0438\u0435   \u041d\u0430\u0437\u0430\u0434");
     }
 
 
@@ -4056,16 +4347,32 @@ public class Game {
                 this.life.animationTick);
         this.g.setClip(0, 0, w, h);
 
-        // street sound when it rains or snows outside
-        if ((this.life.weather == LifeSim.WEATHER_RAIN
-                || this.life.weather == LifeSim.WEATHER_STORM
-                || this.life.weather == LifeSim.WEATHER_SNOW)
-                && (this.life.animationTick % 14) == 0) {
-            Sound.rain(this.life.weather == LifeSim.WEATHER_STORM ? 3 : 2);
+        // the clock on the corner, in the corner of the street: the hour of
+        // the world, not of the player.  The location tabs move down under it
+        // so nothing is ever drawn over the face.
+        int cd = 16;
+        this.drawClockFace(w - cd - 6, sceneTop + 4, cd,
+                this.life.curHour, this.life.curMinute);
+
+        // the street: the weather on the pavement, and the traffic whatever
+        // the weather is doing - cars going past, a horn, a door somewhere
+        if ((this.life.animationTick % 14) == 0) {
+            if (this.life.weather == LifeSim.WEATHER_RAIN
+                    || this.life.weather == LifeSim.WEATHER_STORM) {
+                Sound.rain(this.life.weather == LifeSim.WEATHER_STORM ? 3 : 2);
+                if (this.life.weather == LifeSim.WEATHER_STORM
+                        && (this.life.animationTick % 90) == 0) {
+                    Sound.thunder();
+                }
+            } else if (this.life.weather == LifeSim.WEATHER_SNOW) {
+                Sound.snow();
+            } else if ((this.life.animationTick % 28) == 0) {
+                Sound.street();
+            }
         }
 
-        // location tabs under the header
-        int tabY = sceneTop;
+        // location tabs under the header and under the corner clock
+        int tabY = sceneTop + cd + 6;
         int tabH = this.FH0 + 7;
         int n = rpc.City.LOC_NAMES.length;
         int tabW = (w - 10) / n;
@@ -4173,7 +4480,7 @@ public class Game {
     private void paintEnding() {
         int w = this.W;
         int h = this.H;
-        this.header("2027", "fin");
+        this.header("\u0418\u0442\u043e\u0433\u0438 2027", "fin");
         // banner
         this.g.setColor(Theme.PANEL2);
         this.g.fillRoundRect(8, this.FH1 + 12, w - 16, this.FH0 * 6 + 16, 6);
@@ -4188,7 +4495,10 @@ public class Game {
             "",
             "PC: " + this.buildsDone() + "  \u0444\u0430\u0449\u0439: " + this.funcsDone()
                 + "/500",
-            "XP: " + this.totalXp() + "  \u044d\u043d\u043e\u0433\u0438\u044f: " + this.life.energy + "%"
+            "XP: " + this.totalXp() + "  \u044d\u043d\u043e\u0433\u0438\u044f: " + this.life.energy + "%",
+            "\u0414\u043d\u0435\u0439: " + this.life.curDay + "  \u2022  \u0434\u0435\u043d\u044b\u0433: "
+                + Util.money(this.cash) + "\u0440  \u2022  \u0449\u0438\u0441\u043b\u0435\u043d\u0448\u0439: "
+                + this.hackLevel
         };
         for (int i = 0; i < lines.length; i++) {
             Text.draw(this.g, Text.fit(lines[i], 0, w - 30), 14,
@@ -4202,7 +4512,7 @@ public class Game {
                     : "\u0411\u043b\u0430\u0433\u043e\u0434\u0438\u0442\u0435 \u0447\u043e\u0440\u0438\u0449 \u0438\u0437 2027",
                 w / 2, this.FH1 + 4 + this.FH0 * 6, 0, Gfx.HCENTER,
                 secret == 1 ? Theme.VIOLET : Theme.MUTED);
-        this.footer("OK: \u0435\u043f\u0438\u0433 \u043e 2027", "\u041b\u0421\u041a: \u043b\u0430\u0431");
+        this.footer("OK: \u044d\u043f\u0438\u043b\u043e\u0433 \u043e 2027", "\u041b\u0421\u041a: \u043b\u0430\u0431");
     }
 
     private void inputEnding(int action) {
@@ -4408,7 +4718,10 @@ public class Game {
                                 break label2;
                             }
                         }
-                        this.workshop.useToolAction(i);
+                        String fb = this.workshop.useToolAction(i);
+                        if (fb != null) {
+                            this.toastMsg(fb);
+                        }
                         break label0;
                     }
                     label1: {
@@ -4648,7 +4961,7 @@ public class Game {
     /** Called once per repaint: age the autosave timer. */
     public void paint() {
         long now = System.currentTimeMillis();
-        if (now - this.lastSave > 300000L) {
+        if (now - this.lastSave > 60000L) {
             this.lastSave = now;
             this.saveProgress();
         }
@@ -4658,6 +4971,14 @@ public class Game {
         this.FH1 = this.g.textHeight(1);
         this.FH2 = this.g.textHeight(2);
         this.frame++;
+        // one game-minute per frame, in every screen: the clock in the room
+        // and the hour on the street have to keep moving while the player is
+        // standing outside
+        int dayBefore = this.life.curDay;
+        this.life.tickTime(1);
+        if (this.life.curDay != dayBefore) {
+            this.onNewDay();
+        }
         this.g.setColor(Theme.BG);
         this.g.fillRect(0, 0, this.W, this.H);
         this.g.setColor(Theme.BG2);
@@ -4669,6 +4990,9 @@ public class Game {
         switch (this.mode) {
             case M_MENU:
                 this.paintMenu();
+                break;
+            case M_START:
+                this.paintStart();
                 break;
             case M_ROOM:
                 this.paintRoom();
@@ -4849,8 +5173,14 @@ public class Game {
         int textW = this.g.textWidth(this.toast, 0);
         int boxW = Math.min(this.W - 10, textW + 18);
         int boxH = this.FH0 + 12;
-        int x = (this.W - boxW) / 2;
+        // Left-aligned, and never wider than the screen minus the corner the
+        // street clock sits in: a centred banner lands exactly on top of the
+        // clock for the two and a half seconds every toast is up.
+        int x = 6;
         int y = this.FH1 + 16;
+        if (boxW > this.W - 46) {
+            boxW = this.W - 46;
+        }
         // shadow + plate
         this.g.setColor(0x05070B);
         this.g.fillRoundRect(x + 1, y + 2, boxW, boxH, 6);
@@ -5001,7 +5331,7 @@ public class Game {
         this.g.setColor(Theme.PANEL);
         this.g.fillRect(6, barY, w - 12, this.FH0 + 3);
         Text.draw(this.g, Text.fit(prog, 0, w - 16), 10, barY + 2, 0, Theme.MUTED);
-        this.footer("\u2191\u2193 \u0432\u044b\u0431\u043e\u0440  1-8 \u0431\u044b\u0441\u0442\u0440\u043e", "OK");
+        this.footer("\u2191\u2193 \u0432\u044B\u0431\u043E\u0440  1-9 \u043B\u0435\u0439\u0441\u044B", "OK");
     }
 
     
@@ -7012,7 +7342,7 @@ public class Game {
                 this.g.drawText(this.fit(new StringBuffer("\u0441\u0438\u0441\u0442\u0435\u043c\u0430: ").append((this.osIndex < 0) ? rpc.Os.name(this.levelYear()) : rpc.Inst.all()[this.osIndex].name).toString(), this.W - 16, 0), 10, this.H - this.FH0 * 3 - 34, 0);
                 this.g.drawText(this.fit(new StringBuffer(String.valueOf((Object)String.valueOf((Object)rpc.Langs.t(this.osLang, 12)))).append(": ").append(rpc.Langs.NAME[this.osLang]).append(" \u2022 ").append(rpc.Langs.CODE[this.osLang]).toString(), this.W - 16, 0), 10, this.H - this.FH0 * 2 - 30, 0);
                 this.g.drawText(this.fit(new StringBuffer("\u0441\u0435\u0442\u044c: ").append(this.netKind()).toString(), this.W - 16, 0), 10, this.H - this.FH0 * 2 - 18, 0);
-                this.footer("\u2191\u2193 \u0432\u044b\u0431\u043e\u0440  1-8 \u0431\u044b\u0441\u0442\u0440\u043e", "OK");
+                this.footer("\u2191\u2193 \u0432\u044B\u0431\u043E\u0440  1-8 \u043B\u0435\u0439\u0441\u044B", "OK");
                 return;
             }
         } else {
@@ -7658,15 +7988,16 @@ public class Game {
         rpc.Part a0 = this.slots[0];
         rpc.Part a1 = this.slots[1];
         rpc.Part a2 = this.slots[7];
-        int i0 = 0;
+        long i9 = 0L;
         int i1 = 0;
         while(i1 < 4) {
             if (this.slots[2 + i1] != null) {
-                i0 = i0 + this.slots[2 + i1].f[1];
+                i9 = i9 + (this.slots[2 + i1].f[1] & 0xFFFFFFFFL);
             }
             i1 = i1 + 1;
         }
-        int i2 = rpc.Inst.blocker(a, a0, a1, i0, (long)(a2 != null && a2.f[1] != 0 ? 1 : 0), this.tpmOn, this.secureOn, this.uefiOn, this.patches);
+        int i0 = (int)(i9 > 2000000000L ? 2000000000L : i9);
+        int i2 = rpc.Inst.blocker(a, a0, a1, i0, (long)(a2 != null ? (a2.f[1] & 0xFFFFFFFFL) : 0L), this.tpmOn, this.secureOn, this.uefiOn, this.patches);
         if (i2 == 0) {
             this.openLang(a, 0);
             return;
@@ -8158,14 +8489,15 @@ public class Game {
         rpc.Part a0 = this.slots[0];
         rpc.Part a1 = this.slots[1];
         rpc.Part a2 = this.slots[7];
-        int i2 = 0;
+        long i9 = 0L;
         int i3 = 0;
         while(i3 < 4) {
             if (this.slots[2 + i3] != null) {
-                i2 = i2 + this.slots[2 + i3].f[1];
+                i9 = i9 + (this.slots[2 + i3].f[1] & 0xFFFFFFFFL);
             }
             i3 = i3 + 1;
         }
+        int i2 = (int)(i9 > 2000000000L ? 2000000000L : i9);
         int i4 = 0;
         while(true) {
             if (i4 < i1) {
@@ -8182,7 +8514,7 @@ public class Game {
                     this.g.drawText(this.fit(a3.name, this.W - 70, 0), 8, i6 + 3, 0);
                     this.g.setColor(8297134);
                     if (b0) {
-                        int i7 = rpc.Inst.blocker(a3, a0, a1, i2, (long)(a2 != null && a2.f[1] != 0 ? 1 : 0), this.tpmOn, this.secureOn, this.uefiOn, this.patches);
+                        int i7 = rpc.Inst.blocker(a3, a0, a1, i2, (long)(a2 != null ? (a2.f[1] & 0xFFFFFFFFL) : 0L), this.tpmOn, this.secureOn, this.uefiOn, this.patches);
                         s = (i7 != 0) ? rpc.Inst.blockerText(i7) : new StringBuffer("\u043c\u043e\u0436\u043d\u043e, ~").append(rpc.Inst.timeText(rpc.Inst.minutes(a3, a0, a2))).toString();
                     } else {
                         s = new StringBuffer("\u043f\u043e\u044f\u0432\u0438\u0442\u0441\u044f \u0432 ").append(a3.year).toString();
@@ -10199,7 +10531,47 @@ public class Game {
         this.bootTotalFrames = i4;
         this.bootFrame = 0;
         this.mode = 43;
-        rpc.Sound.boot();
+        rpc.Sound.bootFor(this.levelYear());
+    }
+
+    /**
+     * How loud the machine is, 0..100, written from what the player put in
+     * it: the cooler, the CPU and the graphics card, the dust, and whether
+     * the storage still spins.
+     */
+    public int pcNoise() {
+        int n = 0;
+        rpc.Part cooler = this.slots[12];
+        rpc.Part cpu = this.slots[0];
+        rpc.Part gpu = this.slots[6];
+        if (cooler != null) {
+            // a big air cooler or a water block is quiet, a small fan is not
+            n += 25 + Math.min(40, Math.max(0, cooler.f[1]) / 20);
+        } else {
+            n += 52;
+        }
+        if (cpu != null) {
+            n += Math.min(22, cpu.f[3] / 4);           // the TDP drives the fan
+        }
+        if (gpu != null) {
+            n += Math.min(12, gpu.f[4] / 8);
+        }
+        n += Math.min(14, rpc.Diag.dustOf(this.slots) * 3 / 20);
+        if (this.pcSpinningDisk()) {
+            n += 8;                                    // a mechanical drive clatters
+        }
+        return (n > 100) ? 100 : n;
+    }
+
+    /** True when one of the three drive bays holds a spinning disk. */
+    public boolean pcSpinningDisk() {
+        for (int i = 7; i <= 9; i++) {
+            rpc.Part a = this.slots[i];
+            if (a != null && (a.cat == 5 || a.cat == 6)) {
+                return true;
+            }
+        }
+        return false;
     }
     
     private void paintBootAnim() {
@@ -10628,4 +11000,180 @@ public class Game {
             this.paintShell();
         }
     }
+
+    /**
+     * Which year, which hour and which season a new life opens in.
+     *
+     * The game is long - a run is measured in a thousand earned hours - and it
+     * used to open on 1980 at ten in the morning no matter what, so the first
+     * thing anyone saw was always the same grey room.  This screen is where
+     * the world gets its opening mood: the player picks the year and the
+     * hour, and the first step is onto the street in winter, in the evening.
+     */
+    private void paintStart() {
+        int w = this.W;
+        int h = this.H;
+        int top = this.FH1 + 14;
+        int avail = h - top - this.FH0 - 46;
+        int rh = avail / 4;
+        if (rh < 26) {
+            rh = 26;
+        }
+        this.header("\u0421\u0442\u0430\u0440\u0442", "1979-2027");
+        String[] names = new String[4];
+        names[0] = "\u0413\u043E\u0434";
+        names[1] = "\u0412\u0440\u0435\u043C\u044F \u0441\u0443\u0442\u043E\u043A";
+        names[2] = "\u0421\u0435\u0437\u043E\u043D";
+        names[3] = "\u041F\u043E\u0433\u043E\u0434\u0430";
+        String[] vals = new String[4];
+        vals[0] = Integer.toString(this.startYear);
+        vals[1] = rpc.LifeSim.TIME_NAMES[this.startTod];
+        vals[2] = rpc.LifeSim.SEASON_NAMES[this.startSeason];
+        vals[3] = rpc.LifeSim.WEATHER_NAMES[this.startWeather];
+        for (int i = 0; i < 4; i++) {
+            int y = top + i * rh;
+            boolean sel = i == this.startRow;
+            this.g.setColor(sel ? Theme.PANEL2 : Theme.PANEL);
+            this.g.fillRoundRect(6, y, w - 12, rh - 4, 5);
+            if (sel) {
+                this.g.setColor(Theme.ACCENT);
+                this.g.drawRoundRect(6, y, w - 12, rh - 4, 5);
+                this.g.fillRect(6, y + 4, 3, rh - 12);
+            }
+            int ty = y + (rh - this.FH0) / 2 - 2;
+            this.g.setColor(sel ? Theme.TEXT : Theme.DIM);
+            Text.draw(this.g, names[i], 18, ty, 0,
+                    sel ? Theme.TEXT : Theme.DIM);
+            Text.draw(this.g, vals[i],
+                    w - 34 - this.g.textWidth(vals[i], 0), ty, 0,
+                    Theme.ACCENT2);
+            this.g.setColor(Theme.LINE);
+            this.g.drawText(Integer.toString(i + 1), w - 14, ty, 0);
+        }
+        this.footer("\u2190\u2192 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435   \u2191\u2193 \u0441\u0442\u0440\u043E\u043A\u0430   1-4 \u0441\u0442\u0440\u043E\u043A\u0430", "OK");
+    }
+
+    /** The opening screen is a plain form: the arrows move the row, left and
+     *  right change the value on it, fire steps into the world. */
+    private void inputStart(int action) {
+        int n = 4;
+        if (action == ACT_UP || action == ACT_DOWN) {
+            this.startRow = (action == ACT_DOWN)
+                    ? (this.startRow + 1) % n : (this.startRow + n - 1) % n;
+            Sound.click();
+            return;
+        }
+        if (action >= ACT_NUM1 && action < ACT_NUM1 + n) {
+            this.startRow = action - ACT_NUM1;
+            Sound.click();
+            return;
+        }
+        if (action == ACT_LEFT || action == ACT_RIGHT) {
+            int d = (action == ACT_RIGHT) ? 1 : -1;
+            switch (this.startRow) {
+                case 0:
+                    // one year at a time, so the whole century can be walked
+                    // with the arrow and no year is ever skipped over
+                    this.startYear = Math.max(1979,
+                            Math.min(2027, this.startYear + d));
+                    break;
+                case 1:
+                    this.startTod = (this.startTod + d + 4) % 4;
+                    break;
+                case 2:
+                    this.startSeason = (this.startSeason + d + 4) % 4;
+                    break;
+                default:
+                    this.startWeather = (this.startWeather + d + 5) % 5;
+                    break;
+            }
+            Sound.click();
+            return;
+        }
+        if (action == ACT_FIRE || action == ACT_SOFT1) {
+            Sound.ok();
+            this.applyStartChoice();
+            return;
+        }
+        if (action == ACT_BACK || action == ACT_SOFT2) {
+            // cancelling goes back to the menu, not into a half-chosen world
+            this.mode = M_MENU;
+            Sound.creak();
+        }
+    }
+
+    /**
+     * Opens the year picker.
+     *
+     * The year starts on the one the player already lives in - so opening it
+     * again keeps the century - but the hour, the season and the weather
+     * default to the mood the game opens in: an evening in winter, on the
+     * street, with the snow coming down.
+     */
+    public void openStart() {
+        this.startYear = this.life.curYear;
+        if (this.startYear < 1979 || this.startYear > 2027) {
+            this.startYear = 1980;
+        }
+        this.startTod = LifeSim.TIME_SUNSET;
+        this.startSeason = LifeSim.SEASON_WINTER;
+        this.startWeather = LifeSim.WEATHER_SNOW;
+        this.startRow = 0;
+        this.mode = M_START;
+    }
+
+    /**
+     * Turns the chosen year, hour and season into the world the run opens in:
+     * the calendar is set so the season is the season, the hour is set so the
+     * time of day is the time of day, and the player steps out onto the
+     * street rather than into the room.
+     */
+    private void applyStartChoice() {
+        int[] hour = new int[] { 8, 14, 19, 23 };
+        int[] month = new int[] { 1, 4, 7, 10 };
+        int y = this.startYear;
+        this.life.reset(y);
+        this.life.curMonth = month[this.startSeason];
+        this.life.curDay = 1;
+        this.life.curHour = hour[this.startTod];
+        this.life.curMinute = 15;
+        this.life.updateEnvironment();
+        this.life.season = this.startSeason;
+        this.life.weather = this.startWeather;
+        // a new world has no screen to walk back into: the push that
+        // input() would record for the trip from the picker is dropped, so
+        // BACK from the street lands on the menu and not on the form
+        this.navDepth = 0;
+        this.navPopping = true;
+        this.mode = M_CITY;
+        this.toastMsg(new StringBuffer("\u0421\u0442\u0430\u0440\u0442 ").append(y).append(": \u0437\u0438\u043C\u043D\u0438\u0439 \u0432\u0435\u0447\u0435\u0440 \u043D\u0430 \u0443\u043B\u0438\u0446\u0435. \u041F\u0435\u0440\u0432\u043E\u0435, \u0447\u0442\u043E \u043D\u0443\u0436\u043D\u043E \u2014 \u0441\u043E\u0431\u0440\u0430\u0442\u044C \u041F\u041A.").toString());
+    }
+
+    /** A small analog clock - the one on the street corner. */
+    private void drawClockFace(int x, int y, int d, int hour, int minute) {
+        int cx = x + d / 2;
+        int cy = y + d / 2;
+        int r = d / 2 - 2;
+        this.g.setColor(0x0D1018);
+        this.g.fillRoundRect(x, y, d, d, 3);
+        this.g.setColor(0xE8EEF8);
+        this.g.fillRoundRect(x + 1, y + 1, d - 2, d - 2, 2);
+        this.g.setColor(0x2A2E38);
+        this.g.fillRect(cx, y + 2, 1, 2);
+        this.g.fillRect(cx, y + d - 4, 1, 2);
+        this.g.fillRect(x + 2, cy, 2, 1);
+        this.g.fillRect(x + d - 4, cy, 2, 1);
+        int h = (hour % 12) * 60 + minute;
+        double ha = Math.toRadians(h * 0.5 - 90);
+        double ma = Math.toRadians(minute * 6 - 90);
+        this.g.drawLine(cx, cy,
+                cx + (int) (Math.cos(ha) * (r - 3)),
+                cy + (int) (Math.sin(ha) * (r - 3)));
+        this.g.drawLine(cx, cy,
+                cx + (int) (Math.cos(ma) * r),
+                cy + (int) (Math.sin(ma) * r));
+        this.g.setColor(0xC03A3A);
+        this.g.fillRect(cx - 1, cy - 1, 2, 2);
+    }
+
 }

@@ -550,6 +550,23 @@ public final class Funcs {
         return 0;
     }
 
+    /**
+     * What doing the same job again pays.  A repeated entry is wage work:
+     * it costs nothing and pays a wage, so performing the 500 entries is a
+     * loop that funds the build instead of a checklist to tick off.
+     */
+    public static int wage(int id) {
+        return cost(id) * 2 / 3;
+    }
+
+    /**
+     * XP for a repeat - a trickle on purpose, so the first time stays the
+     * thing the player is chasing and repeats are the steady grind.
+     */
+    public static int repeatXp(int id) {
+        return Math.max(1, xp(id) / 4);
+    }
+
     /** Human readable effect line used by the list and the detail card. */
     public static String effectLine(int id) {
         int cost = cost(id);

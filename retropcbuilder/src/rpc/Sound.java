@@ -1,9 +1,22 @@
 package rpc;
 
+import java.util.Random;
+
 public class Sound {
     private static rpc.Host host;
     private static rpc.AudioEngine engine;
-    
+    private static final Random rnd = new Random();
+
+    /* MIDI note numbers, the same ones Manager.playTone() takes.  The
+     * sequence player reads them raw when the octave byte is 3. */
+    private static final int N_C2 = 36, N_D2 = 38, N_E2 = 40, N_F2 = 41, N_G2 = 43;
+    private static final int N_A2 = 45, N_B2 = 47;
+    private static final int N_C3 = 48, N_D3 = 50, N_E3 = 52, N_F3 = 53, N_G3 = 55;
+    private static final int N_A3 = 57, N_B3 = 59;
+    private static final int N_C4 = 60, N_D4 = 62, N_E4 = 64, N_F4 = 65, N_G4 = 67;
+    private static final int N_A4 = 69, N_B4 = 71;
+    private static final int N_C5 = 72, N_E5 = 76;
+
     static {
         engine = rpc.AudioEngine.getInstance();
     }
@@ -31,8 +44,20 @@ public class Sound {
         engine.playError();
     }
     
+    /** A random one of the eight boot personalities. */
     public static void boot() {
-        engine.playStartupSound();
+        playBootVariant(rnd.nextInt(8));
+    }
+
+    /**
+     * The boot noise a machine of this era makes, with the last word left to
+     * chance: a 1983 board cannot sound like a 2024 one, but two boards of
+     * the same year still differ.
+     */
+    public static void bootFor(int year) {
+        int era = (year < 1989) ? 0 : (year < 2000) ? 1 : (year < 2012) ? 2 : 3;
+        int[] pair = {0, 1, 2, 7, 6, 7, 3, 4};
+        playBootVariant(pair[era * 2 + rnd.nextInt(2)]);
     }
     
     public static void postOk() {
@@ -91,17 +116,27 @@ public class Sound {
         engine.playDoomRiff();
     }
     
-    public static void rain(int i) {
-        engine.playRainNoise(i);
+    /**
+     * Rain on the window.  {@code intensity} 2 is an ordinary shower, 3 is
+     * the storm version: more ticks, lower and longer.
+     */
+    public static void rain(int intensity) {
+        boolean storm = intensity >= 3;
+        int n = storm ? 40 : 26;
+        int dur = storm ? 2 : 3;
+        int low = storm ? 84 : 96;
+        int[][] a = new int[n][2];
+        for (int i = 0; i < n; i++) {
+            a[i][0] = dur;
+            a[i][1] = low + rnd.nextInt(40);
+        }
+        engine.playSequenceSafe(seq(260, a));
     }
     
     public static void purr() {
         engine.playCatPurr();
     }
     
-    public static void radio(int i) {
-        engine.playRadioChiptune(i);
-    }
     
     public static void tool(int i) {
         engine.playToolSound(i);
@@ -109,5 +144,324 @@ public class Sound {
     
     public static void floppy() {
         engine.playFloppyStep();
+    }
+
+    // --- the small sounds of everyday life ------------------------------
+    // Built from the same tone primitive as the rest, so they cost nothing
+    // on a feature phone and always play.
+
+    /** two bright notes: money changed hands */
+    public static void coin() {
+        engine.playToneSafe(1318, 14, 65, false);
+        engine.playToneSafe(1760, 24, 65, false);
+    }
+
+    /** leaflet / paper handled */
+    public static void paper() {
+        engine.playToneSafe(320, 10, 40, false);
+        engine.playToneSafe(250, 14, 35, false);
+    }
+
+    /** door of the flat */
+    public static void door() {
+        engine.playToneSafe(190, 30, 60, false);
+        engine.playToneSafe(120, 44, 55, false);
+    }
+
+    /** chair / floorboard under someone */
+    public static void creak() {
+        engine.playToneSafe(200, 26, 45, true);
+    }
+
+    /** wall clock, once per second */
+    public static void tick() {
+        engine.playToneSafe(2100, 5, 30, false);
+    }
+
+    /** alarm clock */
+    public static void alarm() {
+        engine.playToneSafe(880, 90, 70, false);
+        engine.playToneSafe(660, 90, 70, false);
+    }
+
+    /** one bubble out of the fish tank */
+    public static void bubble() {
+        engine.playToneSafe(680, 12, 45, false);
+        engine.playToneSafe(980, 16, 40, false);
+    }
+
+    /** A thunderclap: the crack, then the roll going away into the distance. */
+    public static void thunder() {
+        engine.playSequenceSafe(seq(80, new int[][] {
+            {6, 28}, {6, 26}, {6, 24},
+            {14, 31}, {14, 28}, {14, 26}, {14, 24},
+            {22, 22}, {22, 20}, {30, 18}, {44, 0}}));
+    }
+
+    /** Snow: quiet, sparse and high. */
+    public static void snow() {
+        int[][] a = new int[14][2];
+        for (int i = 0; i < a.length; i++) {
+            a[i][0] = 6;
+            a[i][1] = 96 + rnd.nextInt(30);
+        }
+        engine.playSequenceSafe(seq(300, a));
+    }
+
+    /** tea going into the cup */
+    public static void pour() {
+        engine.playToneSafe(620, 40, 45, false);
+        engine.playToneSafe(500, 40, 40, false);
+    }
+
+    /** camera shutter */
+    public static void shutter() {
+        engine.playToneSafe(1500, 6, 60, false);
+        engine.playToneSafe(900, 8, 50, false);
+    }
+
+    /** coin dropping into a slot / ticket stamped */
+    public static void stamp() {
+        engine.playToneSafe(1046, 8, 60, false);
+        engine.playToneSafe(1397, 10, 55, false);
+    }
+
+    /* ==================================================================
+     *  sequences
+     * ==================================================================
+     *  A ToneControl sequence is an octave byte, a tempo byte and then
+     *  (duration, note) pairs.  The duration is in 40ths of a second and
+     *  the note is a raw MIDI number; octave 3 leaves the numbers alone,
+     *  which is what the rest of the game already uses.  A note of 0 is
+     *  below the audible range, so it reads as a rest on any phone.
+     */
+
+    private static byte[] seq(int tempo, int[][] notes) {
+        byte[] b = new byte[2 + notes.length * 2];
+        b[0] = 3;
+        // a tempo above 255 or a note above 127 would wrap around the byte
+        // and land somewhere inaudible, so clamp both into their ranges
+        b[1] = (byte) clamp(tempo, 0, 255);
+        for (int i = 0; i < notes.length; i++) {
+            b[2 + i * 2] = (byte) clamp(notes[i][0], 0, 255);
+            b[3 + i * 2] = (byte) clamp(notes[i][1], 0, 127);
+        }
+        return b;
+    }
+
+    private static int clamp(int v, int lo, int hi) {
+        return v < lo ? lo : (v > hi ? hi : v);
+    }
+
+    /* ==================================================================
+     *  the PC switching on
+     * ==================================================================
+     *  Eight BIOS personalities across the 1979-2027 span, picked at random
+     *  so the machine never boots the same way twice.
+     */
+
+    /** 0 AMI, 1 Award, 2 Phoenix, 3 UEFI, 4 turbo sweep, 5 failed POST,
+     *  6 floppy spin-up, 7 late-90s splash. */
+    public static void playBootVariant(int k) {
+        if (k == 0) {
+            // AMI: two short identical beeps
+            engine.playSequenceSafe(seq(170, new int[][] {
+                {10, N_C5}, {8, 0}, {10, N_C5}, {34, 0}}));
+        } else if (k == 1) {
+            // Award: one short, one long
+            engine.playSequenceSafe(seq(150, new int[][] {
+                {10, N_G4}, {10, 0}, {34, N_G4}, {30, 0}}));
+        } else if (k == 2) {
+            // Phoenix: three quick rising beeps
+            engine.playSequenceSafe(seq(190, new int[][] {
+                {8, N_C4}, {8, 0}, {8, N_E4}, {8, 0}, {8, N_G4}, {34, 0}}));
+        } else if (k == 3) {
+            // a modern UEFI chime
+            engine.playSequenceSafe(seq(120, new int[][] {
+                {16, N_G4}, {12, 0}, {16, N_C5}, {12, 0}, {40, N_E5}, {30, 0}}));
+        } else if (k == 4) {
+            // an overclocked board spinning up: the sweep rises
+            engine.playSequenceSafe(seq(200, new int[][] {
+                {8, N_C3}, {8, N_D3}, {8, N_E3}, {8, N_F3}, {8, N_G3},
+                {8, N_A3}, {8, N_B3}, {8, N_C4}, {8, N_E4}, {8, N_G4}, {40, 0}}));
+        } else if (k == 5) {
+            // a failed POST: one long low tone, then the same again
+            engine.playSequenceSafe(seq(90, new int[][] {
+                {16, N_C2}, {16, 0}, {16, N_C2}, {16, 0}, {40, N_C2}, {30, 0}}));
+        } else if (k == 6) {
+            // a floppy-era machine: the click, then the drive winding up
+            engine.playSequenceSafe(seq(160, new int[][] {
+                {4, N_B4}, {6, N_A4}, {8, N_G4}, {8, N_A4}, {8, N_B4},
+                {8, N_C5}, {8, N_B4}, {8, N_A4}, {40, 0}}));
+        } else {
+            // a cheerful late-90s splash tone
+            engine.playSequenceSafe(seq(140, new int[][] {
+                {12, N_C4}, {10, N_E4}, {10, N_G4}, {10, N_E4},
+                {12, N_C4}, {10, N_E4}, {10, N_G4}, {10, N_C5}, {36, 0}}));
+        }
+    }
+
+    /* ==================================================================
+     *  the radio - a small lo-fi composer
+     * ==================================================================
+     *  Nothing here is a stored track.  The station and the year seed a
+     *  generator that picks a scale, a chord progression, a bass figure and
+     *  a top line, and then writes the whole piece out note by note - bass,
+     *  chord stabs, a melody and a beat.  Every station in every era gets
+     *  its own song, and the same station always gets the same one.
+     */
+
+    private static final int[] S_MINOR = {0, 2, 3, 5, 7, 8, 10};
+    private static final int[] S_DORIAN = {0, 2, 3, 5, 7, 9, 10};
+    private static final int[] S_MAJOR = {0, 2, 4, 5, 7, 9, 11};
+    private static final int[][] SCALES = {S_MINOR, S_DORIAN, S_MAJOR};
+
+    /** A complete lo-fi piece: four chords, about ten seconds, with a beat. */
+    private static byte[] lofiTrack(int seed) {
+        Random r = new Random((long) seed * 7919L + 101L);
+        int[] s = SCALES[r.nextInt(3)];
+        int root = 33 + r.nextInt(3) * 12;
+        int tempo = 96 + r.nextInt(32);
+        int beat = 24;                      // 40ths of a second per beat
+        int[][] a = new int[220][2];
+        int k = 0;
+        for (int c = 0; c < 4; c++) {
+            int d0 = r.nextInt(7);
+            int bass = root + s[d0];
+            int third = root + s[(d0 + 2) % 7];
+            int fifth = root + s[(d0 + 4) % 7];
+            // the top line's motif for this chord
+            int m0 = bass + 12 + s[r.nextInt(7)];
+            int m1 = bass + 12 + s[(d0 + 3) % 7];
+            for (int b = 0; b < 4; b++) {
+                if (b == 0 || b == 2) {
+                    a[k][0] = 10;
+                    a[k][1] = 33;
+                    k++;
+                }
+                a[k][0] = beat;
+                a[k][1] = bass;
+                k++;
+                a[k][0] = 5;
+                a[k][1] = 100 + r.nextInt(10);
+                k++;
+                if (b == 1 || b == 3) {
+                    a[k][0] = 7;
+                    a[k][1] = third;
+                    k++;
+                    a[k][0] = 7;
+                    a[k][1] = fifth;
+                    k++;
+                    a[k][0] = 6;
+                    a[k][1] = bass;
+                    k++;
+                }
+                if (b == 1 && r.nextInt(2) == 0) {
+                    a[k][0] = 14;
+                    a[k][1] = m0;
+                    k++;
+                }
+                if (b == 3) {
+                    a[k][0] = 18;
+                    a[k][1] = m1;
+                    k++;
+                }
+            }
+        }
+        int[][] out = new int[k][2];
+        for (int i = 0; i < k; i++) {
+            out[i][0] = a[i][0];
+            out[i][1] = a[i][1];
+        }
+        return seq(tempo, out);
+    }
+
+    /** The flat's radio: a generated song for the station and the era. */
+    public static void radio(int station, int year) {
+        engine.playSequenceSafe(lofiTrack(station * 131 + year));
+    }
+
+    /* ==================================================================
+     *  the machine itself
+     * ==================================================================
+     *  What the box sounds like while it is running, written from what the
+     *  player actually put in it: a water-cooled, solid-state, low-power
+     *  machine is a faint hum, a small-fanned, dusty, spinning-disk one
+     *  rattles the window.
+     */
+
+    /**
+     * The fan and the storage.  {@code noise} is 0..100 as computed from the
+     * build, {@code year} sets the character, {@code spinningDisk} adds the
+     * clatter of a mechanical drive.
+     */
+    public static void pcSystem(int noise, int year, boolean spinningDisk) {
+        if (noise <= 0) {
+            return;
+        }
+        if (noise <= 14) {
+            // water cooling, solid state, a low-power part: a whisper
+            engine.playToneSafe(147, 190, 8, true);
+            engine.playToneSafe(220, 140, 6, true);
+            return;
+        }
+        int vol = 14 + noise * 40 / 100;
+        // the fan's pitch rises with the load, and the year moves it too
+        int fan = 26 + noise * 8 / 100 + ((year >= 2000) ? 1 : 0);
+        engine.playToneSafe(fan, 240, vol, false);
+        engine.playToneSafe(fan + 7, 170, vol * 3 / 4, false);
+        if (spinningDisk && rnd.nextInt(6) == 0) {
+            engine.playSequenceSafe(seq(210, new int[][] {
+                {4, 62}, {4, 59}, {4, 62}, {4, 60}, {4, 62}, {4, 65},
+                {4, 62}, {4, 60}, {30, 0}}));
+        }
+    }
+
+    /* ==================================================================
+     *  the street
+     * ==================================================================
+     *  What a street sounds like when you are standing in it: cars going
+     *  past, a horn somewhere, a door.
+     */
+
+    /** A car going past - the pitch rises while it approaches, then falls. */
+    public static void car() {
+        int base = 43 + rnd.nextInt(14);
+        engine.playSequenceSafe(seq(210, new int[][] {
+            {6, base}, {6, base + 2}, {6, base + 4}, {6, base + 7},
+            {6, base + 9}, {6, base + 7}, {6, base + 4}, {6, base + 2},
+            {30, 0}}));
+    }
+
+    /** A horn from somewhere down the street. */
+    public static void horn() {
+        engine.playToneSafe(196, 170, 45, true);
+        engine.playToneSafe(147, 200, 40, true);
+    }
+
+    /** A door slamming in the house opposite. */
+    public static void slam() {
+        engine.playToneSafe(300, 60, 40, true);
+        engine.playToneSafe(180, 90, 30, true);
+    }
+
+    /** Whatever the street is doing this moment. */
+    public static void street() {
+        switch (rnd.nextInt(10)) {
+            case 0:
+            case 1:
+            case 2:
+                car();
+                break;
+            case 3:
+                horn();
+                break;
+            case 4:
+                slam();
+                break;
+            default:
+                engine.playToneSafe(110 + rnd.nextInt(70), 45, 22, true);
+                break;
+        }
     }
 }
