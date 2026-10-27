@@ -3589,8 +3589,15 @@ public class Game {
             Sound.click();
             return;
         }
-        if (action >= ACT_NUM1 && action <= ACT_NUM9) {
-            this.funcsTab = action - ACT_NUM1;
+        if (action == ACT_NUM1) {
+            // the footer promises "1: выход" - honour it
+            this.navBack();
+            return;
+        }
+        if (action >= ACT_NUM2 && action <= ACT_NUM9) {
+            // number keys pick the chapter straight away (2..9 -> 0..7,
+            // the last two chapters are reached with the arrows)
+            this.funcsTab = action - ACT_NUM1 - 1;
             this.funcsSel = 0;
             this.rebuildFuncs();
             Sound.click();
@@ -3616,19 +3623,28 @@ public class Game {
             return;
         }
         int cost = Funcs.cost(id);
-        if (cost > this.credits()) {
+        boolean first = !this.funcDone[id];
+        if (first && cost > this.credits()) {
+            // the first run is the job that needs the tools and the parts
             this.funcsResult = "не хватает денег";
             this.toastMsg("не хватает денег: нужно " + cost + "\u0440");
             Sound.click();
             return;
         }
-        this.cash -= cost;
+        if (first) {
+            this.cash -= cost;
+        } else {
+            // the same job done again is wage work - it is what buys the
+            // next graphics card, so the 500 entries are a loop, not a list
+            this.cash += Funcs.wage(id);
+        }
         rpc.Sound.coin();
-        boolean first = !this.funcDone[id];
         if (first) {
             this.funcDone[id] = true;
             this.funcsDoneCount++;
             this.totalXp += Funcs.xp(id);
+        } else {
+            this.totalXp += Funcs.repeatXp(id);
         }
         this.life.energy = clamp100(this.life.energy + Funcs.energy(id));
         this.life.mood = clamp100(this.life.mood + Funcs.mood(id));
@@ -3683,7 +3699,8 @@ public class Game {
                 break;
         }
         this.funcsResult = first ? "+" + Funcs.xp(id) + " XP" + extra
-                                 : "уже делали" + extra;
+                                 : "+" + Funcs.repeatXp(id) + " XP, +"
+                                   + Funcs.wage(id) + "\u0440" + extra;
         this.toastMsg(Funcs.title(id) + ":" + extra);
         if (first) {
             Sound.ok();
