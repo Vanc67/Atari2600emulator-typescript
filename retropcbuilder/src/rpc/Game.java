@@ -1912,7 +1912,7 @@ public class Game {
                 Sound.click();
                 break;
             case Room.HOT_DOOR:
-                // 433: the door of the flat creaks on its hinges
+                // 433 скрип двери: дверь квартиры скрипит на петлях
                 rpc.Sound.door();
                 this.mode = M_CITY;
                 this.city.travelTo(0, this.life);
@@ -3293,9 +3293,8 @@ public class Game {
     }
 
     /**
-     * 479, 406, 407: every morning the world is autosaved quietly, the week
-     * tax is taken out and a fine waits for a dirty room.  Nothing here is
-     * asked of the player, it is just the calendar going by.
+     * 479 автосохранение, 406 налоги, 407 штрафы: каждое утро мир тихо
+     * сохраняется, раз в неделю уходит налог, за грязную комнату - штраф.
      */
     private void onNewDay() {
         this.saveProgress();
@@ -3328,7 +3327,7 @@ public class Game {
         if (this.life.curDay != dayBefore) {
             this.onNewDay();
         }
-        // 434: the wall clock ticks softly while you are at home
+        // 434 тиканье часов: часы на стене тикают тихо, пока вы дома
         if ((this.life.animationTick % 45) == 0) {
             rpc.Sound.tick();
         }
