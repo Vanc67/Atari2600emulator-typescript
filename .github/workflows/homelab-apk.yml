@@ -1,0 +1,98 @@
+name: HomeLab APK
+
+# Собирает Android APK игры HomeLab (папка homelab/) и прикладывает файл к запуску.
+# Запуск: вручную (Actions → HomeLab APK → Run workflow) или тегом v*.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'arena/**']
+    paths:
+      - 'homelab/**'
+      - '.github/workflows/homelab-apk.yml'
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    name: Собрать APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: homelab
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: homelab/package-lock.json
+
+      - name: JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Зависимости
+        run: npm ci
+
+      - name: Тесты игры
+        run: npm run test:all
+
+      - name: Веб-сборка
+        run: npm run build
+
+      - name: Синхронизация с Android-проектом
+        run: npx cap sync android
+
+      - name: Проверить ключ подписи (или создать новый)
+        working-directory: homelab/android
+        run: |
+          set -e
+          if [ -f keystore.properties ] && keytool -list -keystore "keystore/$(sed -n 's/^storeFile=keystore\///p' keystore.properties)" \
+               -storepass "$(sed -n 's/^storePassword=//p' keystore.properties)" >/dev/null 2>&1; then
+            echo "✓ Ключ подписи на месте"
+          else
+            echo "Ключ не читается — создаём новый для этой сборки"
+            rm -f keystore.properties
+            ../scripts/make_keystore.sh ci-build.jks "homelab-$RANDOM-$RANDOM"
+            # подпись созданного ключа действует только для этого запуска
+          fi
+
+      - name: Сборка release APK
+        working-directory: homelab/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+
+      - name: Переименовать артефакт
+        working-directory: homelab
+        run: |
+          mkdir -p artifacts
+          VERSION=$(grep -m1 'versionName' android/app/build.gradle | sed -E 's/.*"([^"]+)".*/\1/')
+          cp android/app/build/outputs/apk/release/app-release.apk \
+             "artifacts/HomeLab-${VERSION}-${GITHUB_RUN_NUMBER}.apk"
+          ls -lh artifacts
+          sha256sum artifacts/*.apk > artifacts/SHA256SUMS.txt
+
+      - name: Загрузить APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: HomeLab-APK
+          path: homelab/artifacts/
+          if-no-files-found: error
+
+      - name: Приложить к релизу
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: homelab/artifacts/HomeLab-*.apk

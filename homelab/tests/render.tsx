@@ -6,6 +6,7 @@ import { ServerTab } from '../src/components/ServerTab';
 import { JobsTab } from '../src/components/JobsTab';
 import { PathTab } from '../src/components/PathTab';
 import { HUD } from '../src/components/HUD';
+import { BottomNav, DayFab, MobileHeader, MobileMenu } from '../src/components/MobileChrome';
 import { EventModal, HelpModal, ReportModal } from '../src/components/Modals';
 import { makePart } from '../src/game/market';
 import type { GameState } from '../src/game/types';
@@ -45,6 +46,21 @@ const cases: [string, () => string][] = [
     const st = { ...s, report: { day: 2, income: 500, expenses: 200, lines: [{ label: 'Оплата', amount: 500 }], events: [], failedContracts: [], served: 1, total: 1, electric: 10 } };
     return renderToStaticMarkup(<ReportModal report={st.report!} state={st} dispatch={dispatch} />);
   }],
+  ['MobileHeader', () => renderToStaticMarkup(<MobileHeader state={s} onMenu={noop} onNextDay={noop} />)],
+  ['BottomNav', () => renderToStaticMarkup(<BottomNav state={s} dispatch={dispatch} badge />)],
+  ['DayFab', () => renderToStaticMarkup(<DayFab state={s} dispatch={dispatch} />)],
+  ['MobileMenu', () => renderToStaticMarkup(
+    <MobileMenu
+      state={s}
+      dispatch={dispatch}
+      open
+      onClose={noop}
+      onHelp={noop}
+      onReset={noop}
+      logSlot={<div>log</div>}
+      installSlot={<button className="btn">Установить</button>}
+    />,
+  )],
   ['empty state', () => {
     const empty: GameState = { ...s, machines: [], inventory: [], selectedMachine: '', offers: [], contracts: [], listings: [] };
     return renderToStaticMarkup(<ServerTab state={empty} dispatch={dispatch} onCable={noop} />) + renderToStaticMarkup(<RoomTab state={empty} dispatch={dispatch} onCable={noop} />);
@@ -56,8 +72,9 @@ for (const [name, fn] of cases) {
   try {
     const html = fn();
     if (!html || html.length < 50) throw new Error('пустой вывод');
-    if (html.includes('undefined') || html.includes('NaN')) {
-      console.warn('⚠', name, 'содержит undefined/NaN');
+    const bad = html.match(/.{0,90}(undefined|NaN).{0,60}/);
+    if (bad) {
+      console.warn('⚠', name, 'содержит undefined/NaN:', bad[0].replace(/\s+/g, ' '));
     }
     console.log('✓', name, `(${(html.length / 1024).toFixed(1)} kB)`);
   } catch (e) {

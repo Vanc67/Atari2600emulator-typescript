@@ -3,3 +3,11 @@ dist/
 tests/.render.cjs
 tests/.render.mjs
 tests/.dom.cjs
+
+# артефакты Android-сборки
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/artifacts/
+artifacts/

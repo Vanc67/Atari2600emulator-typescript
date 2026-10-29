@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">HomeLab</string>
+    <string name="title_activity_main">HomeLab</string>
+    <string name="package_name">ru.homelab.server</string>
+    <string name="custom_url_scheme">ru.homelab.server</string>
+</resources>

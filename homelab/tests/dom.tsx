@@ -14,6 +14,8 @@ g.Node = dom.window.Node;
 g.Event = dom.window.Event;
 g.MouseEvent = dom.window.MouseEvent;
 Object.defineProperty(g, 'localStorage', { value: dom.window.localStorage, configurable: true });
+// Принудительно мобильный вид (в jsdom нет matchMedia с шириной экрана)
+dom.window.localStorage.setItem('homelab-mobile', '1');
 g.requestAnimationFrame = (cb: FrameRequestCallback) => setTimeout(() => cb(Date.now()), 0) as unknown as number;
 g.cancelAnimationFrame = (id: number) => clearTimeout(id);
 g.IS_REACT_ACT_ENVIRONMENT = true;
@@ -38,7 +40,10 @@ async function main() {
     }
   };
 
-  must(text().includes('HOMELAB'), 'шапка отрендерилась');
+  must(text().includes('Баланс'), 'мобильная шапка отрендерилась');
+  must(document.querySelectorAll('.bottomnav .bnav-btn').length === 5, 'нижняя навигация из 5 разделов');
+  must(!!document.querySelector('.dayfab'), 'кнопка «День» на месте');
+  must(!document.querySelector('.hud'), 'десктопная шапка скрыта на телефоне');
   must(text().includes('Как играть'), 'модалка правил при первом запуске');
   must(text().includes('Ты — человек'), 'описание правил на месте');
 
@@ -49,10 +54,17 @@ async function main() {
   await new Promise((r) => setTimeout(r, 80));
   must(!text().includes('Ты — человек'), 'правила закрылись');
   must(text().includes('Что делать дальше'), 'панель подсказок на месте');
+  // меню-шторка
+  document.querySelector<HTMLButtonElement>('.mhead-icon')?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 60));
+  must(!!document.querySelector('.sheet-menu'), 'шторка меню открывается');
+  document.querySelector<HTMLButtonElement>('.sheet-close')?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 60));
+  must(!document.querySelector('.sheet-menu'), 'шторка закрывается');
   must(text().includes('Родительский ПК'), 'стартовая машина видна');
 
   // Переход на вкладку «Машины и ОС»
-  byText('Машины и ОС')?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  document.querySelectorAll<HTMLButtonElement>('.bnav-btn')[1]?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   await new Promise((r) => setTimeout(r, 80));
   must(text().includes('Железо и сборка'), 'вкладка сборки открылась');
 
@@ -67,18 +79,27 @@ async function main() {
   must(text().includes('БЫСТРАЯ УСТАНОВКА') || text().includes('apt install'), 'терминал и пакеты доступны');
 
   // Барахолка
-  byText('Барахолка')?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  document.querySelectorAll<HTMLButtonElement>('.bnav-btn')[2]?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   await new Promise((r) => setTimeout(r, 80));
   must(text().includes('Торг'), 'лоты с торгом на месте');
 
   // Завершаем день и закрываем отчёт
-  byText('Завершить день')?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  document.querySelector<HTMLButtonElement>('.dayfab')?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   await new Promise((r) => setTimeout(r, 120));
   must(text().includes('Итоги дня'), 'отчёт о дне открылся');
   const nextBtn = byText('Продолжить') ?? byText('Дальше');
   nextBtn?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   await new Promise((r) => setTimeout(r, 120));
   must(text().includes('День') || text().includes('день'), 'день сменился');
+
+  // Нижняя навигация: переключение разделов
+  const navBtns = Array.from(document.querySelectorAll<HTMLButtonElement>('.bnav-btn'));
+  navBtns[3]?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 80));
+  must(text().includes('Активные договоры') || text().includes('Новых заказов'), 'раздел «Заказы» открывается из нижнего меню');
+  navBtns[2]?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 80));
+  must(text().includes('Барахолка'), 'раздел «Барахолка» открывается');
 
   console.log('после кликов, длина текста:', text().length);
   console.log(process.exitCode === 1 ? '❌ DOM-СМОУК ПРОВАЛЕН' : '✅ DOM-СМОУК ПРОЙДЕН');

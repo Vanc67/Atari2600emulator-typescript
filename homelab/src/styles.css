@@ -1311,3 +1311,498 @@ input {
     opacity: 0.45;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   МОБИЛЬНАЯ ОБОЛОЧКА: телефон, планшет в портрете, Android WebView
+   ════════════════════════════════════════════════════════════════════ */
+
+html.mobile-shell,
+html.mobile-shell body {
+  overscroll-behavior-y: none;
+  background: var(--bg);
+}
+
+html,
+body {
+  overscroll-behavior-y: contain;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+.tab,
+.bnav-btn,
+.desk-icon,
+.packet,
+.wire-cell,
+.choice {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.app.is-mobile {
+  padding: 0 10px calc(118px + env(safe-area-inset-bottom));
+  max-width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Модалка на телефоне не должна уезжать под системную навигацию */
+.app.is-mobile .modal {
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
+}
+
+/* Выделение текста отключено в игре, но не в терминале и логах */
+.app.is-mobile .panel,
+.app.is-mobile .btn,
+.app.is-mobile .chip {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ── Верхняя панель телефона ─────────────────────────────────────── */
+.mhead {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: 44px 1fr auto 44px;
+  align-items: center;
+  gap: 8px;
+  margin: 0 -10px;
+  padding: calc(6px + env(safe-area-inset-top)) 10px 6px;
+  background: linear-gradient(180deg, rgba(13, 20, 29, 0.98), rgba(10, 16, 23, 0.94));
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+}
+
+.mhead-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #101a25;
+  color: var(--text);
+}
+.mhead-icon:active {
+  background: #1a2735;
+}
+.mhead-next {
+  background: linear-gradient(180deg, #2fd57f, #1aa563);
+  border-color: #45e894;
+  color: #04150c;
+}
+
+.mhead-money,
+.mhead-day {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: transparent;
+  border: 0;
+  padding: 0 2px;
+  text-align: left;
+  min-width: 0;
+}
+.mhead-day {
+  text-align: right;
+  padding-right: 4px;
+}
+.mhead-label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim2);
+  white-space: nowrap;
+}
+.mhead-value {
+  font-weight: 800;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Нижняя навигация ────────────────────────────────────────────── */
+.bottomnav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+  padding: 5px 4px calc(5px + env(safe-area-inset-bottom));
+  background: rgba(9, 14, 20, 0.97);
+  border-top: 1px solid var(--line);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.bnav-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 54px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--dim);
+  font-size: 10.5px;
+  font-weight: 650;
+  transition: background 0.15s, color 0.15s, transform 0.08s;
+}
+.bnav-btn:active {
+  transform: scale(0.94);
+  background: #16222e;
+}
+.bnav-btn.active {
+  color: var(--green);
+  background: linear-gradient(180deg, #12241c, #0e1a15);
+}
+.bnav-ico {
+  display: grid;
+  place-items: center;
+  height: 22px;
+}
+.bnav-label {
+  line-height: 1;
+}
+.bnav-dot {
+  position: absolute;
+  top: 7px;
+  right: 22%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 8px var(--amber);
+}
+
+.dayfab {
+  position: fixed;
+  right: 12px;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  z-index: 61;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  border: 1px solid #45e894;
+  background: radial-gradient(circle at 35% 25%, #35e38a, #12a05f);
+  color: #04150c;
+  font-size: 10.5px;
+  font-weight: 850;
+  letter-spacing: 0.02em;
+  box-shadow: 0 10px 26px rgba(46, 214, 128, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.dayfab:active {
+  transform: scale(0.93);
+}
+.dayfab-stage {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  background: #0a1620;
+  border: 1px solid var(--line2);
+  color: var(--amber);
+  border-radius: 99px;
+  font-size: 10px;
+  padding: 1px 6px;
+}
+
+/* ── Шторки (bottom sheet) ───────────────────────────────────────── */
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgba(3, 6, 10, 0.72);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  animation: fade 0.16s ease;
+}
+.sheet {
+  width: 100%;
+  max-height: 92vh;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #131c27, #0c131b);
+  border-top: 1px solid var(--line2);
+  border-radius: 20px 20px 0 0;
+  padding: 8px 14px calc(14px + env(safe-area-inset-bottom));
+  animation: sheetup 0.22s cubic-bezier(0.2, 1, 0.4, 1);
+  -webkit-overflow-scrolling: touch;
+}
+@keyframes sheetup {
+  from {
+    transform: translateY(40px);
+    opacity: 0.6;
+  }
+}
+.sheet-grip {
+  width: 44px;
+  height: 4px;
+  border-radius: 99px;
+  background: #2c3d4e;
+  margin: 2px auto 10px;
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.sheet-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: #16212d;
+  border: 1px solid var(--line);
+  color: var(--dim);
+}
+.sheet-menu .sheet-log {
+  max-height: 34vh;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #0a1119;
+  padding: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+.sheet-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+.sheet-actions .btn {
+  min-height: 46px;
+  justify-content: center;
+}
+.sheet-actions .btn-primary {
+  grid-column: span 2;
+}
+
+/* ── Телефон: общие размеры и сетки ─────────────────────────────── */
+.app.is-mobile .panel {
+  border-radius: 14px;
+  padding: 11px;
+}
+.app.is-mobile .panel + .panel {
+  margin-top: 10px;
+}
+.app.is-mobile .panel-title {
+  font-size: 14px;
+}
+.app.is-mobile .panel-head {
+  margin-bottom: 9px;
+}
+.app.is-mobile .grid2,
+.app.is-mobile .grid3,
+.app.is-mobile .grid-auto {
+  grid-template-columns: minmax(0, 1fr);
+}
+.app.is-mobile .grid2.tight {
+  grid-template-columns: 1fr 1fr;
+}
+.app.is-mobile .slots {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.app.is-mobile .hero {
+  min-height: 150px;
+  border-radius: 14px;
+}
+.app.is-mobile .hero-title {
+  font-size: 17px;
+}
+.app.is-mobile .footer-note {
+  display: none;
+}
+
+/* Кнопки: удобные пальцу */
+.app.is-mobile .btn {
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  border-radius: 12px;
+}
+.app.is-mobile .btn-sm {
+  min-height: 40px;
+  padding: 8px 11px;
+  font-size: 12.5px;
+}
+.app.is-mobile .tab {
+  padding: 10px 12px;
+}
+
+/* Модалки как шторка снизу */
+.app.is-mobile .overlay {
+  align-items: flex-end;
+  padding: 0;
+}
+.app.is-mobile .modal {
+  width: 100%;
+  max-height: 92vh;
+  border-radius: 20px 20px 0 0;
+  padding: 16px 14px calc(18px + env(safe-area-inset-bottom));
+}
+.app.is-mobile .modal-title {
+  font-size: 17px;
+}
+.app.is-mobile .choice {
+  min-height: 58px;
+  padding: 13px 14px;
+}
+
+/* Чаты и выборы — крупнее */
+.app.is-mobile .chat {
+  max-height: 30vh;
+}
+.bubble {
+  font-size: 13.5px;
+}
+
+/* Тосты выше навигации */
+.app.is-mobile .toasts {
+  bottom: calc(150px + env(safe-area-inset-bottom));
+  left: 10px;
+  right: 10px;
+  transform: none;
+}
+.app.is-mobile .toast {
+  max-width: 100%;
+  font-size: 13px;
+  padding: 11px 14px;
+}
+
+/* ── Терминал на телефоне ────────────────────────────────────────── */
+.app.is-mobile .terminal {
+  border-radius: 14px;
+}
+.app.is-mobile .term-body {
+  height: 46vh;
+  min-height: 230px;
+  font-size: 12.5px;
+  -webkit-overflow-scrolling: touch;
+}
+.app.is-mobile .term-input {
+  padding: 8px 10px;
+  gap: 6px;
+}
+.app.is-mobile .term-input input {
+  font-size: 16px; /* чтобы Android не зумил при фокусе */
+  min-height: 28px;
+}
+.app.is-mobile .term-prompt {
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40%;
+}
+.app.is-mobile .term-hints {
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px;
+}
+.app.is-mobile .term-hints .btn {
+  min-height: 34px;
+  flex: none;
+}
+.term-tools {
+  display: flex;
+  gap: 6px;
+}
+.term-tools .btn {
+  min-height: 34px !important;
+  padding: 4px 10px !important;
+}
+
+/* ── Мини-игры ───────────────────────────────────────────────────── */
+@media (max-width: 760px) {
+  .wire {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .wire-cell {
+    height: 42px;
+    font-size: 12px;
+  }
+  .packet-grid {
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+  }
+  .packet {
+    font-size: 10px;
+  }
+}
+
+/* ── Windows-десктоп на телефоне ─────────────────────────────────── */
+@media (max-width: 760px) {
+  .desk-icons {
+    gap: 10px;
+    padding: 10px;
+  }
+  .desk-icon {
+    width: 64px;
+    font-size: 10.5px;
+  }
+  .desk-icon span.gl {
+    font-size: 24px;
+  }
+  .win-taskbar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+}
+
+/* ── Совсем маленькие экраны ─────────────────────────────────────── */
+@media (max-width: 380px) {
+  .app.is-mobile {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  .app.is-mobile .slots {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .packet-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+  .dayfab {
+    width: 60px;
+    height: 60px;
+  }
+}
+
+/* ── Ландшафт телефона: компактнее по вертикали ──────────────────── */
+@media (max-height: 480px) and (max-width: 900px) {
+  .app.is-mobile {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+  .app.is-mobile .term-body {
+    height: 40vh;
+  }
+  .hero {
+    min-height: 110px;
+  }
+  .dayfab {
+    width: 56px;
+    height: 56px;
+    bottom: calc(68px + env(safe-area-inset-bottom));
+  }
+}

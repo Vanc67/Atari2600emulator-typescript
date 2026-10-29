@@ -37,9 +37,19 @@ export function nextSteps(s: GameState): Hint[] {
       const services = needed.requirements.services?.filter((sv) => !s.machines.some((m) => m.services.includes(sv))) ?? [];
       if (services.length) {
         const svc = SERVICES[services[0]];
+        let how: string;
+        if (svc?.phoneOnly) {
+          how = 'создай машину из смартфона (Galaxy Ace), включи и нажми «Запустить tinyllm»';
+        } else if (best.os === 'linux') {
+          how = `введи в терминале: apt install ${svc?.linuxPackage}`;
+        } else if (best.os === 'windows') {
+          how = 'включи сервис на рабочем столе Windows';
+        } else {
+          how = 'сначала установи ОС на сервер';
+        }
         hints.push({
           icon: '📦',
-          text: `Для заказа «${needed.title}» нужен сервис ${svc?.name}. ${best.os === 'linux' ? `Введи в терминале: apt install ${svc?.linuxPackage}` : 'Включи его на рабочем столе Windows'}.`,
+          text: `Для заказа «${needed.title}» нужен сервис ${svc?.name}: ${how}.`,
           tone: 'amber',
         });
       } else if (needed.requirements.firewall && firewallScore(s) < needed.requirements.firewall) {

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Сохраняем прогресс игрока (localStorage WebView) при бэкапе приложения -->
+<full-backup-content>
+    <include domain="database" path="." />
+    <include domain="sharedpref" path="." />
+    <include domain="file" path="app_webview/" />
+</full-backup-content>
