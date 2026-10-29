@@ -70,8 +70,14 @@ jobs:
 
       - name: Тест интерфейса (jsdom)
         run: |
-          node -e "console.log('node', process.version)"
-          npm run test:dom
+          set +e
+          npm run test:dom > /tmp/dom.log 2>&1
+          code=$?
+          tail -40 /tmp/dom.log
+          if [ $code -ne 0 ]; then
+            echo "::error title=jsdom-fail::$(grep -Ei 'fail|crash|error' /tmp/dom.log | head -4 | tr '\n' ' | ' | cut -c1-800)"
+          fi
+          exit $code
 
       - name: Веб-сборка
         run: npm run build
