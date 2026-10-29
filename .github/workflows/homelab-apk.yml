@@ -26,10 +26,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Node.js 20
+      - name: Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: homelab/package-lock.json
 
@@ -75,7 +75,7 @@ jobs:
           code=$?
           tail -40 /tmp/dom.log
           if [ $code -ne 0 ]; then
-            echo "::error title=jsdom-fail::$(grep -Ei 'fail|crash|error' /tmp/dom.log | head -4 | tr '\n' ' | ' | cut -c1-800)"
+            echo "::error title=jsdom-fail::$(tail -14 /tmp/dom.log | tr '\n' ' | ' | cut -c1-1400)"
           fi
           exit $code
 
