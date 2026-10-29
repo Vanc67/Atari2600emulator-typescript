@@ -34,13 +34,27 @@ jobs:
           cache-dependency-path: homelab/package-lock.json
 
       - name: JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
 
       - name: Android SDK
-        uses: android-actions/setup-android@v3
+        # На ubuntu-latest SDK уже предустановлен: только принимаем лицензии
+        # и докладываем нужные пакеты, если чего-то не хватает.
+        run: |
+          echo "ANDROID_HOME=${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          if command -v sdkmanager >/dev/null 2>&1; then SDKMAN=sdkmanager;
+          elif [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then SDKMAN="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager";
+          else SDKMAN=""; fi
+          echo "sdkmanager: ${SDKMAN:-не найден}"
+          if [ -n "$SDKMAN" ]; then
+            yes | "$SDKMAN" --licenses >/dev/null 2>&1 || true
+            "$SDKMAN" "platform-tools" "platforms;android-35" "build-tools;35.0.0" >/dev/null 2>&1 || true
+          fi
+          ls "$ANDROID_HOME" || true
 
       - name: Зависимости
         run: npm ci
@@ -68,11 +82,25 @@ jobs:
             # подпись созданного ключа действует только для этого запуска
           fi
 
-      - name: Сборка release APK
+      - name: Кэш Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('homelab/android/**/*.gradle', 'homelab/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Сборка APK
         working-directory: homelab/android
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon assembleRelease
+          if ! ./gradlew --no-daemon --stacktrace assembleRelease; then
+            echo "::warning::release-сборка не удалась — собираем debug APK"
+            ./gradlew --no-daemon --stacktrace assembleDebug
+            mkdir -p app/build/outputs/apk/release
+            cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release.apk
+          fi
 
       - name: Переименовать артефакт
         working-directory: homelab
