@@ -59,8 +59,19 @@ jobs:
       - name: Зависимости
         run: npm ci
 
-      - name: Тесты игры
-        run: npm run test:all
+      - name: Тест логики
+        run: npm run test
+
+      - name: Тест баланса
+        run: npm run test:balance
+
+      - name: Тест рендера экранов
+        run: npm run test:render
+
+      - name: Тест интерфейса (jsdom)
+        run: |
+          node -e "console.log('node', process.version)"
+          npm run test:dom
 
       - name: Веб-сборка
         run: npm run build
