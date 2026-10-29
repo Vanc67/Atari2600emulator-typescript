@@ -151,3 +151,40 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: homelab/artifacts/HomeLab-*.apk
+
+      # Публикуем готовый APK в отдельную ветку homelab-builds,
+      # чтобы файл можно было скачать прямо из репозитория (Raw → Save).
+      - name: Опубликовать APK в ветку homelab-builds
+        working-directory: homelab
+        run: |
+          set -e
+          TMP="$(mktemp -d)"
+          cp artifacts/*.apk artifacts/SHA256SUMS.txt "$TMP"/
+          cd "$TMP"
+          git init -q
+          git checkout -q -b homelab-builds
+          {
+            echo "# HomeLab APK — готовые сборки"
+            echo
+            echo "Скачай APK из файлов этой ветки: $(ls *.apk)"
+            echo
+            echo "Установка: разреши «Установка из неизвестных источников» и открой файл."
+            echo "Сборка №$GITHUB_RUN_NUMBER, коммит \`${GITHUB_SHA::7}\`."
+            echo
+            echo '```'
+            cat SHA256SUMS.txt
+            echo '```'
+          } > README.md
+          git config user.name "homelab-build-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add -A
+          git -c commit.gpgsign=false commit -qm "HomeLab APK: сборка №$GITHUB_RUN_NUMBER"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:homelab-builds
+
+      - name: Постоянная ссылка на сборку
+        run: |
+          echo "### 📦 APK готов" >> $GITHUB_STEP_SUMMARY
+          echo "Ветка \`homelab-builds\`: https://github.com/${{ github.repository }}/tree/homelab-builds" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat homelab/artifacts/SHA256SUMS.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
