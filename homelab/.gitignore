@@ -1,0 +1,4 @@
+node_modules/
+dist/
+tests/.render.cjs
+tests/.render.mjs

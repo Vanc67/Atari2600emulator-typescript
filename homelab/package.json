@@ -1,0 +1,31 @@
+{
+  "name": "homelab-game",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port=3100 --host=0.0.0.0",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port=3100 --host=0.0.0.0",
+    "lint": "tsc --noEmit",
+    "test": "tsx tests/smoke.ts",
+    "test:balance": "tsx tests/balance.ts",
+    "test:render": "esbuild tests/render.tsx --bundle --platform=node --jsx=automatic --format=cjs --outfile=tests/.render.cjs --log-level=error && node tests/.render.cjs",
+    "test:all": "npm run test && npm run test:balance && npm run test:render"
+  },
+  "dependencies": {
+    "lucide-react": "^1.64.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.4",
+    "playwright": "^1.64.1",
+    "tsx": "^4.23.15",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}
