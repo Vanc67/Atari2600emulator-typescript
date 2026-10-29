@@ -112,12 +112,22 @@ jobs:
         working-directory: homelab/android
         run: |
           chmod +x gradlew
-          if ! ./gradlew --no-daemon --stacktrace assembleRelease; then
-            echo "::warning::release-сборка не удалась — собираем debug APK"
-            ./gradlew --no-daemon --stacktrace assembleDebug
+          set +e
+          ./gradlew --no-daemon --stacktrace assembleRelease > /tmp/gradle.log 2>&1
+          code=$?
+          if [ $code -ne 0 ]; then
+            echo "::error title=gradle-release::$(grep -Ei 'what went wrong|error:|failed' -A3 /tmp/gradle.log | tail -30 | tr '\n' ' | ' | cut -c1-1500)"
+            echo "--- release не собрался, пробуем debug ---"
+            ./gradlew --no-daemon --stacktrace assembleDebug > /tmp/gradle-debug.log 2>&1
+            dcode=$?
+            if [ $dcode -ne 0 ]; then
+              echo "::error title=gradle-debug::$(grep -Ei 'what went wrong|error:|failed' -A3 /tmp/gradle-debug.log | tail -30 | tr '\n' ' | ' | cut -c1-1500)"
+              exit $dcode
+            fi
             mkdir -p app/build/outputs/apk/release
             cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release.apk
           fi
+          ls -la app/build/outputs/apk/release/
 
       - name: Переименовать артефакт
         working-directory: homelab
