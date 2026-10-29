@@ -182,9 +182,10 @@ jobs:
           git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:homelab-builds
 
       - name: Постоянная ссылка на сборку
+        working-directory: homelab
         run: |
           echo "### 📦 APK готов" >> $GITHUB_STEP_SUMMARY
           echo "Ветка \`homelab-builds\`: https://github.com/${{ github.repository }}/tree/homelab-builds" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          cat homelab/artifacts/SHA256SUMS.txt >> $GITHUB_STEP_SUMMARY
+          cat artifacts/SHA256SUMS.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
