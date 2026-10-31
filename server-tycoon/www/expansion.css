@@ -1,0 +1,62 @@
+/* Expansion 2.0 — бренды, каталог, радио, контракты и инфраструктура. */
+.brand-copy { min-width: 0; }
+.brand-copy strong, .brand-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.icon-button.active { border-color: rgba(85,246,210,.45); color: var(--mint); background: rgba(40,115,99,.2); }
+.vendor-logo { position: absolute; z-index: 2; left: 5px; top: 5px; display: grid; place-items: center; width: 27px; height: 27px; padding: 5px; border: 1px solid var(--line-soft); border-radius: 8px; background: rgba(5,12,20,.78); color: var(--brand, var(--cyan)); }
+.vendor-logo svg { width: 100%; height: 100%; }
+.listing-art .vendor-logo { left: auto; right: 5px; width: 24px; height: 24px; padding: 4px; }
+.detail-art { position: relative; }
+.detail-vendor { position: absolute; right: 0; bottom: 0; display: grid; place-items: center; width: 32px; height: 32px; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: #0b1522; color: var(--brand, var(--cyan)); }
+.detail-vendor svg { width: 100%; height: 100%; }
+.catalog-card .listing-art > svg { width: 54px; height: 54px; margin-bottom: 15px; }
+.catalog-card .listing-desc { -webkit-line-clamp: 4; }
+.brand-filter { padding-bottom: 7px; }
+.pagination { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 16px 0; }
+.infra-button { margin: 0 0 12px; color: var(--cyan); font-size: 10px; }
+.infra-notice { margin-bottom: 12px; }
+.network-head { display: flex; align-items: center; gap: 10px; }
+.network-head > div { flex: 1; min-width: 0; }
+.network-head strong { display: block; font-size: 12px; }
+.network-head p { margin: 4px 0 0; color: var(--muted); font: 9px/1.45 var(--mono); }
+.network-head .room-icon { flex: 0 0 auto; width: 36px; height: 36px; }
+.network-card, .upgrade-card { margin-bottom: 10px; }
+.upgrade-pips { display: flex; gap: 6px; margin: 12px 0; }
+.upgrade-pips i { flex: 1; height: 5px; border-radius: 5px; background: #1c2b3a; }
+.upgrade-pips i.active { background: var(--mint); box-shadow: 0 0 8px rgba(85,246,210,.35); }
+.raid-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
+.raid-grid .btn { padding-left: 7px; padding-right: 7px; font-size: 9px; }
+.xp-meter { --meter-color: var(--violet); height: 7px; margin: 12px 0 9px; }
+.contract-active { padding: 12px; border: 1px solid rgba(85,246,210,.22); border-radius: 12px; background: rgba(85,246,210,.04); }
+.contract-active .meter { --meter-color: var(--mint); }
+.contract-meta { display: flex; justify-content: space-between; margin: 9px 0; font: 10px var(--mono); }
+.contract-offer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); }
+.contract-offer:last-child { border-bottom: 0; }
+.contract-offer strong { font-size: 11px; }
+.contract-offer p { margin: 4px 0 0; color: var(--muted); font: 8px/1.45 var(--mono); }
+.contract-reward { flex: 0 0 auto; text-align: right; }
+.contract-reward > strong { display: block; margin-bottom: 6px; color: var(--lime); font: 10px var(--mono); }
+.music-list { display: flex; flex-direction: column; gap: 7px; }
+.music-track { display: grid; grid-template-columns: 32px 1fr auto; gap: 10px; align-items: center; min-height: 52px; padding: 9px 11px; border: 1px solid var(--line-soft); border-radius: 12px; background: rgba(6,13,23,.45); color: var(--text); text-align: left; cursor: pointer; }
+.music-track.active { border-color: rgba(182,146,255,.48); background: rgba(182,146,255,.07); }
+.music-track strong { display: block; font-size: 10px; }
+.music-track small { display: block; margin-top: 4px; color: var(--muted); font: 8px var(--mono); }
+.music-track > b { color: var(--violet); font: 8px var(--mono); }
+.music-equalizer { display: flex; align-items: flex-end; justify-content: center; gap: 3px; width: 30px; height: 30px; padding: 7px; border-radius: 9px; background: rgba(182,146,255,.1); }
+.music-equalizer i { width: 3px; height: 7px; border-radius: 2px; background: var(--violet); }
+.music-equalizer i:nth-child(2) { height: 14px; }
+.music-equalizer i:nth-child(3) { height: 10px; }
+.music-track.active .music-equalizer i { animation: equalizer .65s infinite alternate; }
+.music-track.active .music-equalizer i:nth-child(2) { animation-delay: -.3s; }
+.music-track.active .music-equalizer i:nth-child(3) { animation-delay: -.5s; }
+@keyframes equalizer { to { height: 16px; } }
+.volume-row { display: grid; grid-template-columns: 20px 1fr 34px; gap: 10px; align-items: center; margin: 14px 0; color: var(--muted); font: 10px var(--mono); }
+.volume-row svg { width: 20px; height: 20px; }
+.volume-row input { width: 100%; accent-color: var(--violet); }
+.software-icon svg, .os-card svg { color: currentColor; }
+@media (max-width: 360px) {
+  .brand-copy strong { font-size: 11px; letter-spacing: .8px; }
+  .brand-copy span { font-size: 7px; letter-spacing: 1px; }
+  .brand-row { gap: 7px; }
+  .brand-row .icon-button { width: 38px; height: 38px; padding: 9px; }
+  .contract-offer { align-items: flex-start; }
+}

@@ -119,7 +119,15 @@
     jellyfin: wrap(`<path d="m12 2 9 16c-5 5-13 5-18 0l9-16Z" stroke="currentColor" stroke-width="1.7"/><path d="m12 8 5 9c-3 2-7 2-10 0l5-9Z" fill="currentColor" opacity=".3"/>`, '0 0 24 24'),
     files: wrap(`<path d="M3 6h7l2 3h9v11H3V6Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M3 10h18" stroke="currentColor" stroke-width="1.5"/>`, '0 0 24 24'),
     boinc: wrap(`<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="m7 15 3-8 3 8 4-6M5 12h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>`, '0 0 24 24'),
-    ai: wrap(`<path d="M8 4h8l4 5v7l-5 5H9l-5-5V8l4-4Z" stroke="currentColor" stroke-width="1.7"/><path d="M8 15V9l4 6V9m3 6V9h3m-3 3h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>`, '0 0 24 24')
+    ai: wrap(`<path d="M8 4h8l4 5v7l-5 5H9l-5-5V8l4-4Z" stroke="currentColor" stroke-width="1.7"/><path d="M8 15V9l4 6V9m3 6V9h3m-3 3h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>`, '0 0 24 24'),
+    gpu: wrap(`<path d="M3 6h16v12H3z" stroke="currentColor" stroke-width="1.6"/><path d="M19 9h2v7h-2M7 18v3m4-3v3m4-3v3" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.5"/><path d="m12 8 1.2 2.8L16 12l-2.8 1.2L12 16l-1.2-2.8L8 12l2.8-1.2L12 8Z" fill="currentColor" opacity=".45"/><path d="M5 8h2m-2 3h2m-2 3h2" stroke="currentColor"/>`, '0 0 24 24'),
+    music: wrap(`<path d="M9 18V5l11-2v13M9 8l11-2" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="6" cy="18" r="3" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="16" r="3" stroke="currentColor" stroke-width="1.8"/>`, '0 0 24 24'),
+    mute: wrap(`<path d="M9 18V5l11-2v13M9 8l11-2" stroke="currentColor" stroke-width="1.6"/><circle cx="6" cy="18" r="3" stroke="currentColor" stroke-width="1.6"/><path d="m14 14 7 7m0-7-7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>`, '0 0 24 24'),
+    shield: wrap(`<path d="m12 2 8 3v6c0 5-3 9-8 11-5-2-8-6-8-11V5l8-3Z" stroke="currentColor" stroke-width="1.7"/><path d="m8 12 3 3 5-6" stroke="currentColor" stroke-width="1.7"/>`, '0 0 24 24'),
+    network: wrap(`<circle cx="12" cy="5" r="2" stroke="currentColor" stroke-width="1.6"/><circle cx="5" cy="19" r="2" stroke="currentColor" stroke-width="1.6"/><circle cx="19" cy="19" r="2" stroke="currentColor" stroke-width="1.6"/><path d="M12 7v5m0 0-5.5 5.5M12 12l5.5 5.5M4 12h16" stroke="currentColor" stroke-width="1.6"/>`, '0 0 24 24'),
+    contract: wrap(`<path d="M6 2h9l4 4v16H6V2Z" stroke="currentColor" stroke-width="1.6"/><path d="M15 2v5h4M9 11h7M9 15h5m-6 4 2 2 4-4" stroke="currentColor" stroke-width="1.5"/>`, '0 0 24 24'),
+    raid: wrap(`<path d="M3 4h8v7H3V4Zm10 0h8v7h-8V4ZM3 13h8v7H3v-7Zm10 0h8v7h-8v-7Z" stroke="currentColor" stroke-width="1.6"/><path d="m7 7 2 2m6-2 2 2M7 16l2 2m6-2 2 2" stroke="currentColor" stroke-width="1.4"/>`, '0 0 24 24'),
+    star: wrap(`<path d="m12 2 3 6 7 .9-5 4.8 1.3 7-6.3-3.4-6.3 3.4 1.3-7-5-4.8L9 8l3-6Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>`, '0 0 24 24')
   };
 
   window.ICONS = Object.assign({}, hardware, ui);

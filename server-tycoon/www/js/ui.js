@@ -227,7 +227,7 @@
     }
 
     inventoryView() {
-      const filters = [['all','Всё'],['cpu','CPU'],['ram','ОЗУ'],['disk','Диски'],['cooling','Охлаждение'],['other','Прочее']];
+      const filters = [['all','Всё'],['cpu','CPU'],['gpu','GPU'],['ram','ОЗУ'],['disk','Диски'],['cooling','Охлаждение'],['other','Прочее']];
       const parts = this.game.state.inventory.filter(part => {
         if (this.inventoryFilter === 'all') return true;
         if (this.inventoryFilter === 'disk') return ['hdd','ssd'].includes(part.type);
@@ -253,6 +253,7 @@
 
     partSpec(part) {
       if (part.type === 'cpu') return `${part.socket} · ${part.cores} ядер · ${part.tdp}W`;
+      if (part.type === 'gpu') return `${part.vram} ГБ VRAM · ${part.tdp}W · ${part.compute} CU`;
       if (part.type === 'ram') return `${part.ramType} · ${part.capacity} ГБ · ${part.watts}W`;
       if (['hdd','ssd'].includes(part.type)) return `${capacity(part.capacity)} · SATA · ${part.watts}W`;
       if (part.type === 'cooler') return `TDP ${part.cooling}W · ${part.noise >= 0 ? '+' : ''}${part.noise} дБ`;
@@ -385,7 +386,9 @@
         const supported = server.os && app.os.includes(server.os);
         const cores = server.parts.cpu ? server.parts.cpu.cores : 0;
         const rate = app.rate + (app.coreRate || 0) * cores;
-        return `<div class="software-row"><div class="software-icon">${svgIcon(app.icon)}</div><div><div class="software-name">${app.name}</div><div class="software-spec">CPU ${app.cpu}% · RAM ${app.ram} ГБ · +${rate} ₽/ч<br>${supported ? app.description : `Нужна ОС: ${app.os.map(id => DATA.os(id).name).join(' / ')}`}</div></div><button class="btn ${installed ? 'btn-danger' : 'btn-primary'}" data-action="${installed ? 'uninstall-soft' : 'install-soft'}" data-id="${server.id}" data-soft="${app.id}" ${!installed && !supported ? 'disabled' : ''}>${installed ? 'Удалить' : 'Установить'}</button></div>`;
+        const description = app.description.replace(/ · \+\d+(?:\.\d+)? ₽\/ч$/, '');
+        const supportText = supported || !server.os ? description : `Нужна ОС: ${app.os.slice(0, 2).map(id => DATA.os(id).name).join(' / ')}${app.os.length > 2 ? ` и ещё ${app.os.length - 2}` : ''}`;
+        return `<div class="software-row"><div class="software-icon">${svgIcon(app.icon)}</div><div><div class="software-name">${app.name}</div><div class="software-spec">CPU ${app.cpu}% · RAM ${app.ram} ГБ · +${rate} ₽/ч<br>${supportText}</div></div><button class="btn ${installed ? 'btn-danger' : 'btn-primary'}" data-action="${installed ? 'uninstall-soft' : 'install-soft'}" data-id="${server.id}" data-soft="${app.id}" ${!installed && !supported ? 'disabled' : ''}>${installed ? 'Удалить' : 'Установить'}</button></div>`;
       }).join('');
       return html;
     }
@@ -412,6 +415,8 @@
       body += this.slotHTML(server, 'cpu', 'CPU SOCKET');
       for (let i = 0; i < server.chassis.ramSlots; i += 1) body += this.slotHTML(server, `ram${i}`, `DDR ${i + 1}`);
       body += this.slotHTML(server, 'cooler', 'CPU COOLER') + this.slotHTML(server, 'psu', 'POWER SUPPLY');
+      const pcieSlots = Number.isFinite(server.chassis.pcieSlots) ? server.chassis.pcieSlots : 1;
+      for (let i = 0; i < pcieSlots; i += 1) body += this.slotHTML(server, `gpu${i}`, `PCIE GPU ${i + 1}`);
       for (let i = 0; i < server.chassis.sataPorts; i += 1) body += this.slotHTML(server, `disk${i}`, `SATA ${i}`);
       body += `</div></div><div class="section-label"><span>Детали на полке</span><span>${this.selectedPartUid ? 'Теперь выберите слот' : 'Перетащите на плату'}</span></div>`;
       if (!parts.length) body += this.emptyState('inventory', 'Нет деталей для установки', 'Загляните на Авито за процессором, памятью, дисками, кулером и БП.', 'На Авито', 'go-market');
