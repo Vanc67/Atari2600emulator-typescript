@@ -8,7 +8,8 @@
   const fmt = value => Math.round(value).toLocaleString('ru-RU');
   const money = value => `${fmt(value)} ₽`;
   const compactMoney = value => Math.abs(value) >= 1000000 ? `${(value / 1000000).toFixed(2).replace('.', ',')} млн ₽` : money(value);
-  const capacity = gb => gb >= 1000 ? `${(gb / 1000).toFixed(gb % 1000 ? 1 : 0)} ТБ` : `${gb} ГБ`;
+  const memory = gb => gb < 1 ? `${Math.round(gb * 1024)} МБ` : `${Number(gb.toFixed(1))} ГБ`;
+  const capacity = gb => gb >= 1000 ? `${(gb / 1000).toFixed(gb % 1000 ? 1 : 0)} ТБ` : memory(gb);
 
   class GameUI {
     constructor() {
@@ -214,7 +215,7 @@
       const ram = template.ram.reduce((sum, id) => sum + DATA.part(id).capacity, 0);
       const disks = template.disks.reduce((sum, id) => sum + DATA.part(id).capacity, 0);
       const condition = listing.condition;
-      return `${cpu.cores} ядер · ${condition === 'noRam' ? 0 : ram} ГБ ОЗУ · ${condition === 'noDisks' ? 'без дисков' : capacity(disks)}`;
+      return `${cpu.cores} ядер · ${memory(condition === 'noRam' ? 0 : ram)} ОЗУ · ${condition === 'noDisks' ? 'без дисков' : capacity(disks)}`;
     }
 
     listingCard(listing) {
@@ -254,7 +255,7 @@
     partSpec(part) {
       if (part.type === 'cpu') return `${part.socket} · ${part.cores} ядер · ${part.tdp}W`;
       if (part.type === 'gpu') return `${part.vram} ГБ VRAM · ${part.tdp}W · ${part.compute} CU`;
-      if (part.type === 'ram') return `${part.ramType} · ${part.capacity} ГБ · ${part.watts}W`;
+      if (part.type === 'ram') return `${part.ramType} · ${memory(part.capacity)} · ${part.watts}W`;
       if (['hdd','ssd'].includes(part.type)) return `${capacity(part.capacity)} · SATA · ${part.watts}W`;
       if (part.type === 'cooler') return `TDP ${part.cooling}W · ${part.noise >= 0 ? '+' : ''}${part.noise} дБ`;
       if (part.type === 'psu') return `${part.watts}W · ${Math.round(part.efficiency * 100)}%${part.broken ? ' · СГОРЕЛ' : ''}`;
@@ -355,14 +356,14 @@
       const report = this.game.hardwareReport(server);
       const status = this.statusMeta(server);
       const powerLabel = server.powered ? 'Выключить' : 'Включить';
-      let html = `<div class="detail-hero"><div class="detail-art">${svgIcon(server.chassis.icon)}</div><div><h3 class="detail-name">${esc(server.name)}</h3><div class="detail-spec">${server.parts.cpu ? esc(server.parts.cpu.name) : 'CPU не установлен'}<br>${m.ramTotal} ГБ ОЗУ · ${capacity(report.diskTotal)}<br>${server.os ? DATA.os(server.os).name : 'Операционная система не установлена'}</div><span class="badge ${status.className}" style="margin-top:7px">${status.label}</span></div></div>`;
+      let html = `<div class="detail-hero"><div class="detail-art">${svgIcon(server.chassis.icon)}</div><div><h3 class="detail-name">${esc(server.name)}</h3><div class="detail-spec">${server.parts.cpu ? esc(server.parts.cpu.name) : 'CPU не установлен'}<br>${memory(m.ramTotal)} ОЗУ · ${capacity(report.diskTotal)}<br>${server.os ? DATA.os(server.os).name : 'Операционная система не установлена'}</div><span class="badge ${status.className}" style="margin-top:7px">${status.label}</span></div></div>`;
       if (server.crashed) html += `<div class="notice error" style="margin-top:12px">${svgIcon('warning')}<div><strong>Синий экран смерти</strong>Температура достигла 95°C. Переберите охлаждение перед запуском.</div></div>`;
       if (server.hung) html += `<div class="notice error" style="margin-top:12px">${svgIcon('warning')}<div><strong>Out of memory</strong>ОЗУ заполнена на 100%. Перезагрузите сервер и удалите часть софта.</div></div>`;
       if (server.broken) html += `<div class="notice error" style="margin-top:12px">${svgIcon('warning')}<div><strong>Не проходит POST</strong>Куплен как «кирпич». Нужна диагностика и ремонт платы.</div></div>`;
       html += `<div class="gauge-grid">
         ${this.gauge('Температура', `${Math.round(server.temp)}°C`, server.temp / 100 * 100, server.temp > 85 ? 'var(--red)' : 'var(--cyan)', `data-live-gauge="temp" data-id="${server.id}"`)}
         ${this.gauge('Нагрузка CPU', `${Math.round(m.cpuLoad)}%`, m.cpuLoad, server.throttling ? 'var(--amber)' : 'var(--mint)', `data-live-gauge="cpu" data-id="${server.id}"`)}
-        ${this.gauge('ОЗУ', `${m.ramUsed.toFixed(1)} / ${m.ramTotal} ГБ`, m.ramPercent, m.ramPercent >= 90 ? 'var(--red)' : 'var(--violet)', `data-live-gauge="ram" data-id="${server.id}"`)}
+        ${this.gauge('ОЗУ', `${memory(m.ramUsed)} / ${memory(m.ramTotal)}`, m.ramPercent, m.ramPercent >= 90 ? 'var(--red)' : 'var(--violet)', `data-live-gauge="ram" data-id="${server.id}"`)}
         ${this.gauge('Питание / шум', `${Math.round(m.watts)}W · ${Math.round(m.noise)}дБ`, m.watts / Math.max(1, this.game.room().powerLimit) * 100, 'var(--amber)', `data-live-gauge="watts" data-id="${server.id}"`)}
       </div>`;
       html += `<div class="action-grid"><button class="btn ${server.powered ? 'btn-danger' : 'btn-primary'}" data-action="power" data-id="${server.id}">${svgIcon('power')}${powerLabel}</button>`;
@@ -388,14 +389,14 @@
         const rate = app.rate + (app.coreRate || 0) * cores;
         const description = app.description.replace(/ · \+\d+(?:\.\d+)? ₽\/ч$/, '');
         const supportText = supported || !server.os ? description : `Нужна ОС: ${app.os.slice(0, 2).map(id => DATA.os(id).name).join(' / ')}${app.os.length > 2 ? ` и ещё ${app.os.length - 2}` : ''}`;
-        return `<div class="software-row"><div class="software-icon">${svgIcon(app.icon)}</div><div><div class="software-name">${app.name}</div><div class="software-spec">CPU ${app.cpu}% · RAM ${app.ram} ГБ · +${rate} ₽/ч<br>${supportText}</div></div><button class="btn ${installed ? 'btn-danger' : 'btn-primary'}" data-action="${installed ? 'uninstall-soft' : 'install-soft'}" data-id="${server.id}" data-soft="${app.id}" ${!installed && !supported ? 'disabled' : ''}>${installed ? 'Удалить' : 'Установить'}</button></div>`;
+        return `<div class="software-row"><div class="software-icon">${svgIcon(app.icon)}</div><div><div class="software-name">${app.name}</div><div class="software-spec">CPU ${app.cpu}% · RAM ${memory(app.ram)} · +${rate} ₽/ч<br>${supportText}</div></div><button class="btn ${installed ? 'btn-danger' : 'btn-primary'}" data-action="${installed ? 'uninstall-soft' : 'install-soft'}" data-id="${server.id}" data-soft="${app.id}" ${!installed && !supported ? 'disabled' : ''}>${installed ? 'Удалить' : 'Установить'}</button></div>`;
       }).join('');
       return html;
     }
 
     hardwareTab(server) {
       const report = this.game.hardwareReport(server);
-      return `<div class="detail-hero"><div class="detail-art">${svgIcon('motherboard')}</div><div><h3 class="detail-name">${esc(server.chassis.name)}</h3><div class="detail-spec">Сокет: ${server.chassis.socket}<br>Память: ${server.chassis.ramType} · ${server.chassis.ramSlots} слота<br>SATA: ${server.chassis.sataPorts} · охлаждение ×${server.chassis.coolingFactor}</div></div></div><div class="card" style="margin-top:13px"><div class="stat-grid"><div class="stat-box"><span>ТРЕБУЕТСЯ БП</span><strong>${report.requiredPsu}W</strong></div><div class="stat-box"><span>УСТАНОВЛЕНО</span><strong>${server.parts.psu ? server.parts.psu.watts : 0}W</strong></div><div class="stat-box"><span>ОЗУ</span><strong>${report.ramTotal} ГБ</strong></div><div class="stat-box"><span>ДИСКИ</span><strong>${capacity(report.diskTotal)}</strong></div></div></div><button class="btn btn-primary btn-wide" data-action="open-constructor" data-id="${server.id}">${svgIcon('chip')}Открыть 2D-конструктор</button><div class="action-grid"><button class="btn btn-ghost" data-action="dismantle-confirm" data-id="${server.id}">${svgIcon('trash')}Разобрать всё</button><button class="btn btn-ghost" data-action="repair" data-id="${server.id}" ${!server.broken && !server.crashed ? 'disabled' : ''}>${svgIcon('wrench')}Ремонт</button></div>${server.powered ? '<div class="notice warning" style="margin-top:12px">Для изменения конфигурации выключите сервер.</div>' : ''}`;
+      return `<div class="detail-hero"><div class="detail-art">${svgIcon('motherboard')}</div><div><h3 class="detail-name">${esc(server.chassis.name)}</h3><div class="detail-spec">Сокет: ${server.chassis.socket}<br>Память: ${server.chassis.ramType} · ${server.chassis.ramSlots} слота<br>SATA: ${server.chassis.sataPorts} · охлаждение ×${server.chassis.coolingFactor}</div></div></div><div class="card" style="margin-top:13px"><div class="stat-grid"><div class="stat-box"><span>ТРЕБУЕТСЯ БП</span><strong>${report.requiredPsu}W</strong></div><div class="stat-box"><span>УСТАНОВЛЕНО</span><strong>${server.parts.psu ? server.parts.psu.watts : 0}W</strong></div><div class="stat-box"><span>ОЗУ</span><strong>${memory(report.ramTotal)}</strong></div><div class="stat-box"><span>ДИСКИ</span><strong>${capacity(report.diskTotal)}</strong></div></div></div><button class="btn btn-primary btn-wide" data-action="open-constructor" data-id="${server.id}">${svgIcon('chip')}Открыть 2D-конструктор</button><div class="action-grid"><button class="btn btn-ghost" data-action="dismantle-confirm" data-id="${server.id}">${svgIcon('trash')}Разобрать всё</button><button class="btn btn-ghost" data-action="repair" data-id="${server.id}" ${!server.broken && !server.crashed ? 'disabled' : ''}>${svgIcon('wrench')}Ремонт</button></div>${server.powered ? '<div class="notice warning" style="margin-top:12px">Для изменения конфигурации выключите сервер.</div>' : ''}`;
     }
 
     renderNewServer() {
@@ -436,7 +437,7 @@
     renderWriteImage() {
       const usb = this.game.getPart(this.modal.partUid);
       if (!usb) { this.closeModal(); return; }
-      const body = `<div class="notice" style="margin-bottom:13px">${svgIcon('usb')}<div><strong>${esc(usb.name)}</strong>${usb.image ? `Сейчас записан ${DATA.os(usb.image).name}. Новый образ заменит старый.` : 'Выберите образ. Флешка останется в инвентаре и сможет устанавливать ОС повторно.'}</div></div><div class="os-grid">${DATA.OS_LIST.map(os => `<button class="os-card ${usb.image === os.id ? 'selected' : ''}" data-action="confirm-image" data-id="${usb.uid}" data-os="${os.id}">${svgIcon(os.icon)}<strong>${os.name}</strong><span>${os.description}<br>RAM от ${os.minRam} ГБ · диск от ${os.minDisk} ГБ</span><span class="${os.price ? 'amber' : 'mint'}" style="margin-top:8px">${os.price ? `Лицензия ${money(os.price)}` : 'БЕСПЛАТНО'}</span></button>`).join('')}</div>`;
+      const body = `<div class="notice" style="margin-bottom:13px">${svgIcon('usb')}<div><strong>${esc(usb.name)}</strong>${usb.image ? `Сейчас записан ${DATA.os(usb.image).name}. Новый образ заменит старый.` : 'Выберите образ. Флешка останется в инвентаре и сможет устанавливать ОС повторно.'}</div></div><div class="os-grid">${DATA.OS_LIST.map(os => `<button class="os-card ${usb.image === os.id ? 'selected' : ''}" data-action="confirm-image" data-id="${usb.uid}" data-os="${os.id}">${svgIcon(os.icon)}<strong>${os.name}</strong><span>${os.description}<br>RAM от ${memory(os.minRam)} · диск от ${capacity(os.minDisk)}</span><span class="${os.price ? 'amber' : 'mint'}" style="margin-top:8px">${os.price ? `Лицензия ${money(os.price)}` : 'БЕСПЛАТНО'}</span></button>`).join('')}</div>`;
       this.modalRoot.innerHTML = this.modalShell('Записать образ', 'USB WRITE // OFFLINE MEDIA', body);
     }
 
@@ -449,7 +450,7 @@
       else body += usbs.map(usb => {
         const check = this.game.checkOSInstall(server.id, usb.uid);
         const os = DATA.os(usb.image);
-        return `<article class="card"><div style="display:flex;align-items:center;gap:12px"><div style="width:58px;height:58px">${svgIcon('usb')}</div><div style="flex:1"><strong>${os.name}</strong><div class="part-spec">${esc(usb.name)} · RAM от ${os.minRam} ГБ · диск от ${os.minDisk} ГБ</div></div></div>${!check.ok ? `<div class="notice warning" style="margin-top:10px">${svgIcon('warning')}<div>${esc(check.message)}</div></div>` : ''}<button class="btn btn-primary btn-wide" style="margin-top:11px" data-action="start-os" data-id="${server.id}" data-usb="${usb.uid}" ${!check.ok ? 'disabled' : ''}>${svgIcon('os')}Начать установку</button></article>`;
+        return `<article class="card"><div style="display:flex;align-items:center;gap:12px"><div style="width:58px;height:58px">${svgIcon('usb')}</div><div style="flex:1"><strong>${os.name}</strong><div class="part-spec">${esc(usb.name)} · RAM от ${memory(os.minRam)} · диск от ${capacity(os.minDisk)}</div></div></div>${!check.ok ? `<div class="notice warning" style="margin-top:10px">${svgIcon('warning')}<div>${esc(check.message)}</div></div>` : ''}<button class="btn btn-primary btn-wide" style="margin-top:11px" data-action="start-os" data-id="${server.id}" data-usb="${usb.uid}" ${!check.ok ? 'disabled' : ''}>${svgIcon('os')}Начать установку</button></article>`;
       }).join('');
       this.modalRoot.innerHTML = this.modalShell('Загрузочные образы', 'Выберите USB-накопитель', body);
     }
@@ -558,7 +559,7 @@
         const values = {
           temp: [`${Math.round(server.temp)}°C`, server.temp],
           cpu: [`${Math.round(m.cpuLoad)}%`, m.cpuLoad],
-          ram: [`${m.ramUsed.toFixed(1)} / ${m.ramTotal} ГБ`, m.ramPercent],
+          ram: [`${memory(m.ramUsed)} / ${memory(m.ramTotal)}`, m.ramPercent],
           watts: [`${Math.round(m.watts)}W · ${Math.round(m.noise)}дБ`, m.watts / this.game.room().powerLimit * 100]
         };
         Object.keys(values).forEach(key => {

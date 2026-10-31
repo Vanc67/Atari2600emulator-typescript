@@ -1,0 +1,16 @@
+/* Mega Archive 3.0 — быстрый доступ к тысячам позиций. */
+.archive-search { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; margin: 0 0 11px; }
+.archive-search input { min-width: 0; height: 38px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 11px; outline: none; background: rgba(5,12,20,.75); color: var(--text); font: 10px var(--mono); }
+.archive-search input:focus { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(55,213,239,.08); }
+.archive-search input::placeholder { color: #557084; }
+.archive-search .btn { min-height: 38px; }
+.era-filter { margin-top: 2px; }
+.software-search { margin-top: 12px; }
+.software-filters { max-height: 84px; overflow-y: auto; padding-bottom: 5px; }
+.software-row .software-name { overflow-wrap: anywhere; }
+.software-row .software-spec { line-height: 1.4; }
+.catalog-card .listing-title { overflow-wrap: anywhere; }
+@media (max-width: 360px) {
+  .archive-search { grid-template-columns: minmax(0,1fr) 66px; }
+  .archive-search .btn { padding-left: 7px; padding-right: 7px; }
+}
