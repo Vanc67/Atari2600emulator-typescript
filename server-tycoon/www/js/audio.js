@@ -12,14 +12,20 @@
 
     settings() {
       if (!this.game.state.settings) {
-        this.game.state.settings = { music: true, sfx: true, volume: 0.32, track: 'electro' };
+        this.game.state.settings = { music: true, sfx: true, volume: 0.32, track: 'electro', musicMode: 'lofi' };
       }
+      if (!this.game.state.settings.musicMode) this.game.state.settings.musicMode = this.game.state.flags && this.game.state.flags.onboarded ? 'tracks' : 'lofi';
       return this.game.state.settings;
+    }
+
+    radio() {
+      if (!window.lofiRadio && window.LongLofiRadio) window.lofiRadio = new window.LongLofiRadio(this);
+      return window.lofiRadio || null;
     }
 
     unlock() {
       this.unlocked = true;
-      if (this.settings().sfx || this.settings().serverSounds) this.ensureContext();
+      if (this.settings().sfx || this.settings().serverSounds || this.settings().pcSounds !== false) this.ensureContext();
       if (this.settings().music) this.play(this.settings().track);
       if (this.settings().serverSounds && window.tycoonSoundscape) window.tycoonSoundscape.sync();
     }
@@ -47,7 +53,14 @@
     }
 
     play(trackId = 'electro') {
-      if (!this.unlocked || !this.settings().music || typeof window.Audio === 'undefined') return;
+      if (!this.unlocked || !this.settings().music) return;
+      if (this.settings().musicMode === 'lofi') {
+        const radio = this.radio();
+        if (radio) radio.start();
+        return;
+      }
+      if (window.lofiRadio) window.lofiRadio.stop();
+      if (typeof window.Audio === 'undefined') return;
       const track = (window.DATA.MUSIC_TRACKS || []).find(item => item.id === trackId) || (window.DATA.MUSIC_TRACKS || [])[0];
       if (!track) return;
       if (this.audio && this.trackId === track.id) {
@@ -78,6 +91,7 @@
       const settings = this.settings();
       settings.music = !settings.music;
       if (!settings.music && this.audio) this.audio.pause();
+      if (!settings.music && window.lofiRadio) window.lofiRadio.stop();
       if (settings.music) {
         this.unlocked = true;
         this.play(settings.track);
@@ -92,18 +106,29 @@
         this.audio.pause();
         this.audio = null;
       }
+      if (window.lofiRadio) window.lofiRadio.stop();
       this.trackId = null;
       this.settings().track = trackId;
+      this.settings().musicMode = 'tracks';
       this.settings().music = true;
       this.unlocked = true;
       this.play(trackId);
       this.game.save();
     }
 
+    setMusicMode(mode) {
+      if (!['lofi', 'tracks'].includes(mode)) return;
+      this.settings().musicMode = mode;
+      if (this.audio) this.audio.pause();
+      if (window.lofiRadio && mode !== 'lofi') window.lofiRadio.stop();
+      this.settings().music = true; this.unlocked = true; this.play(this.settings().track); this.game.save();
+    }
+
     setVolume(value) {
       const volume = Math.max(0, Math.min(1, Number(value)));
       this.settings().volume = volume;
       if (this.audio) this.audio.volume = volume;
+      if (window.lofiRadio) window.lofiRadio.setVolume();
       this.game.save();
     }
 
@@ -119,12 +144,9 @@
     }
 
     pauseForBackground() {
-      if (this.audio && !this.audio.paused) {
-        this.audio.pause();
-        this.resumeAfterBackground = true;
-      } else {
-        this.resumeAfterBackground = false;
-      }
+      this.resumeAfterBackground = this.settings().music;
+      if (this.audio && !this.audio.paused) this.audio.pause();
+      if (window.lofiRadio) window.lofiRadio.stop();
     }
 
     resumeFromBackground() {

@@ -18,4 +18,10 @@ The Ogg Vorbis files in `www/audio` were obtained from the `Stayingfalse/TechNew
 
 Server fan/HDD soundscapes are synthesized at runtime with WebAudio and do not use audio files.
 
+## Ultimate 7.0 procedural audio and graphics
+
+The 20-track, ten-hour lo-fi radio in `www/js/long-lofi.js` is generated at runtime from original oscillators, seeded arrangements and synthetic vinyl noise. It embeds no third-party recordings or samples. PC fan, HDD/SSD and coil sounds in `www/js/pc-sound.js` are also synthesized locally.
+
+PC cases, dumpster art, OS wallpapers and interface graphics are inline SVG created in the project source. No raster images are required.
+
 No asset is downloaded at runtime.
