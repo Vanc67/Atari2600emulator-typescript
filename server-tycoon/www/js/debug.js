@@ -31,12 +31,14 @@
         const m = game.metrics(server);
         return { id: server.id, name: server.name, templateId: server.templateId, os: server.os, status: server.status,
           powered: server.powered, temp: server.temp, health: server.health, software: server.software.slice(),
-          aiModel: server.aiModel, stress: server.stress, metrics: m };
+          aiModel: server.aiModel, stress: server.stress, labExperiment: server.labExperiment,
+          overclock: server.overclock, fanProfile: server.fanProfile, metrics: m };
       });
       return {
         generatedAt: new Date().toISOString(), version: state.version, timeline: game.timelineInfo(),
         farm: game.farmMetrics(), room: game.room(), network: game.network(),
         money: state.money, debt: state.debt, research: state.research, stats: state.stats,
+        lab: state.lab, achievements: state.achievements,
         servers, catalog: { servers: DATA.SERVER_TEMPLATES.length, parts: DATA.PARTS.length, services: DATA.SOFTWARE.length, os: DATA.OS_LIST.length },
         runtime: {
           userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'node', platform: typeof navigator !== 'undefined' ? navigator.platform : 'node',
@@ -138,7 +140,8 @@
   };
 
   const instrumented = ['togglePower', 'buyListing', 'buyCatalogServer', 'installSoftware', 'uninstallSoftware',
-    'installAIModel', 'startStress', 'stopStress', 'writeImage', 'finishOSInstall', 'buyResearch', 'upgradeNetwork', 'buyUpgrade'];
+    'installAIModel', 'startStress', 'stopStress', 'writeImage', 'finishOSInstall', 'buyResearch', 'upgradeNetwork', 'buyUpgrade',
+    'startLabExperiment', 'stopLabExperiment', 'setOverclock', 'setFanProfile', 'powerAll', 'serviceServer'];
   instrumented.forEach(method => {
     const base = proto[method];
     if (typeof base !== 'function') return;

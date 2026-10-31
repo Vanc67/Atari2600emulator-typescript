@@ -1,6 +1,38 @@
-# Server Tycoon: Datacenter Sandbox 5.0 — Time Machine
+# Server Tycoon: Datacenter Sandbox 6.0 — Deep Lab
 
 Мобильная offline-игра «Сисадмин: Песочница». Готовый установочный пакет: **`ServerTycoon.apk`**.
+
+## Deep Lab 6.0
+
+### Восемь измеримых протоколов
+
+- **Thermal Soak** — дополнительная CPU-нагрузка, пик температуры, троттлинг и возможный настоящий BSOD;
+- **Memory Mapping** — контролируемые 96% RAM, live-pressure и проверка стабильности без скрытого OOM;
+- **Packet Storm** — throughput и packet loss на текущем uplink с учётом CPU/RAM и аварии провайдера;
+- **Disk Endurance** — IOPS и МБ/с из реальных HDD/SSD и RAID, ресурс дисков уменьшается на 1%;
+- **RAID Failure Drill** — временный отказ диска на RAID 1/5/6/10, деградация ёмкости и восстановление без удаления ОС;
+- **PSU Transient** — импульсная нагрузка на БП и линию; превышение лимита действительно выбивает автомат;
+- **Overclock Stability** — временный разгон минимум +20%, рост производительности, нагрева и потребления;
+- **AI Inference Bench** — tokens/s выбранной локальной модели с учётом CPU, GPU, RAM и разгона.
+
+Каждый протокол выполняется в обычных тиках симуляции, показывает live SVG-графики и заканчивается отчётом с оценкой до 100 баллов. Хранятся последние 12 отчётов с samples, пиками и средними значениями. Перегрев, OOM, потеря питания и авария uplink засчитываются как настоящий провал. Во время измерений доход сервера остановлен.
+
+### Открытия и настройка железа
+
+- первый успех каждого протокола даёт **+1 RP, +1 500 ₽ и +150 XP**; повторы не позволяют фармить RP или бонус;
+- открытия применяются к конкретному серверу: cooling, RAM tuning, сетевой/AI-доход, storage factor, энергосбережение и допуск +30% OC;
+- постоянный CPU Overclock 0/10/20/30% меняется на выключенном сервере и влияет на CPU demand, доход, ватты и температуру;
+- профили **Silent / Balanced / Turbo** меняют охлаждение, шум и питание в реальном времени;
+- Deep Lab и прежние четыре Torture Test взаимоисключаются, но оба инструмента сохранены;
+- команды терминала: `lab`, `lab start <id>`, `lab stop`, `lab report`, `tune oc`, `tune fan`.
+
+### Fleet Operations и достижения
+
+- общая панель фермы: питание, линия, шум, максимальная температура и доход;
+- массовый запуск с проверкой БП/лимита и массовая остановка с сохранением отчётов;
+- регламентное обслуживание выключенных серверов: очистка и термопаста дают +4 cooling, toolkit снижает цену;
+- **14 достижений** за эксперименты, открытия, железо, развитие лет, экономику и обслуживание; каждое даёт 60 XP;
+- Debug Console дополнительно показывает Deep Lab actions, live-протоколы, tuning, reports и achievements.
 
 ## Time Machine 5.0
 
@@ -32,7 +64,7 @@
 
 - запуск работающего сервера в полноэкранную игровую ОС;
 - Windows desktop, Linux shell, Unix/legacy-терминалы, NAS/router/hypervisor web-панели имеют разные интерфейсы;
-- терминал выполняет реальные команды симулятора: `status`, `top`, `services`, `free`, `df`, `sensors`, `network`, `logs`, `install`, `remove`, `ai`, `stress`, `reboot`, `poweroff`;
+- терминал выполняет реальные команды симулятора: `status`, `top`, `services`, `free`, `df`, `sensors`, `network`, `logs`, `install`, `remove`, `ai`, `stress`, `lab`, `tune`, `reboot`, `poweroff`;
 - поддержаны знакомые алиасы: `systemctl status`, `docker ps`, `apt install`, `Get-Process`, `Get-Service`, `Restart-Computer`, `zpool status` и другие;
 - история команд стрелками, быстрые сенсорные кнопки, live-метрики CPU/RAM/температуры/питания;
 - BSOD, OOM, POST failure и отключение питания отображаются прямо в сессии; ремонт, снятие нагрузки и перезапуск доступны с аварийного экрана.
@@ -95,12 +127,12 @@
 
 ## Android
 
-- version **5.0.0**, versionCode **5**; package `ru.vanc67.servertycoon`;
+- version **6.0.0**, versionCode **6**; package `ru.vanc67.servertycoon`;
 - minSdk 23 (Android 6.0), targetSdk 35, портретная ориентация;
 - нативная WebView-оболочка без Capacitor/Cordova runtime;
 - `android.permission.INTERNET` отсутствует: код, каталоги, логотипы и музыка находятся в `assets/www`;
 - APK подписан тем же project debug-ключом, что и предыдущие версии; схемы подписи v1/v2/v3;
-- ключ сохранения остаётся `server-tycoon-save-v4`, нормализованная версия состояния — 7;
+- ключ сохранения остаётся `server-tycoon-save-v4`, нормализованная версия состояния — 8;
 - скачивание APK — единственный необходимый сетевой шаг.
 
 Сборка выполняется напрямую через AAPT2, ECJ, D8 и APK Signer скриптом `build_apk.py`. Путь к toolchain передаётся через `ANDROID_BUILD_TOOLS`.
@@ -113,6 +145,7 @@ node tests/expansion.test.cjs
 node tests/mega.test.cjs
 node tests/lab.test.cjs
 node tests/timeline.test.cjs
+node tests/deep-lab.test.cjs
 ```
 
 - 9 базовых сценариев: DDR, БП, ОС/BOINC, доход, перегрев, OOM, Авито, долги и дни;
@@ -120,7 +153,8 @@ node tests/timeline.test.cjs
 - 10 сценариев Mega Archive: масштаб, все годы и бренды, уникальные ID, каждая из 2 597 конфигураций, legacy-ОС/сервис и покупка;
 - 14 сценариев Control Room: лёгкий/тяжёлый AI, старые saves, CPU-троттлинг и BSOD, OOM, Chaos/1990, команды, звук и очистка нагрузки;
 - 15 сценариев Time Machine/Debug: все 37 стартовых лет, сервер 1995, ранние ОС, переход года, R&D, исследования, verbose-лог и миграция;
-- JSDOM click-through: Linux terminal, AI 0,5B, OOM/recovery, Windows desktop, NAS dashboard, lo-fi; отдельный сценарий старта 1995, совместимых пакетов, Research и обоих способов открыть debug;
-- Chromium 412×915: стартовый год, сервисы 1995, Research, Secret Debug, реальные WebAudio/WebView-совместимые потоки, отсутствие overflow, ошибок и внешних запросов.
+- 26 сценариев Deep Lab: все протоколы, реальные BSOD/OOM/автомат, RAID rebuild, награды без фарма, save/load посреди опыта, tuning, fleet, достижения и debug — **всего 86 Node-сценариев**;
+- JSDOM click-through: Linux terminal, AI 0,5B, OOM/recovery, Windows desktop, NAS dashboard, lo-fi; старт 1995 и debug; Deep Lab hub, live SVG, автоматическое завершение, отчёты, OC/fans, AI, fleet и награды;
+- Chromium 412×915: стартовый год, сервисы 1995, Research, Secret Debug; Deep Lab в реальном времени, авто-переход к отчёту, графики, обслуживание и достижения без overflow, ошибок и внешних запросов.
 
 Лицензии и источники встроенной графики/музыки перечислены в `THIRD_PARTY.md` и `www/audio/LICENSES.md`.

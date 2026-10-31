@@ -2,7 +2,7 @@
 'use strict';
 const assert = require('node:assert/strict');
 global.window = global;
-for (const name of ['icons','brands','data','expansion','mega','game','systems','lab','timeline','debug']) require(`../www/js/${name}.js`);
+for (const name of ['icons','brands','data','expansion','mega','game','systems','lab','timeline','deep-lab','debug']) require(`../www/js/${name}.js`);
 const Game = global.ServerTycoonGame;
 let passed = 0;
 function test(name, fn) { fn(); passed += 1; console.log(`✓ ${name}`); }
@@ -184,7 +184,7 @@ test('старый save без Time Machine остаётся в 2026 со все
   const game = fresh();
   delete game.state.startYear; delete game.state.currentYear; delete game.state.research;
   game.normalize();
-  assert.equal(game.state.version, 7);
+  assert.equal(game.state.version, 8);
   assert.equal(game.currentYear(), 2026);
   assert.equal(game.availableTemplates().length, 2597);
   assert.equal(game.availableOS().length, DATA.OS_LIST.length);

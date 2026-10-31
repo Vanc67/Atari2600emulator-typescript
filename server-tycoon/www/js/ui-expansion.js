@@ -59,7 +59,7 @@
 
     proto.marketView = function () {
       const catalog = this.marketFilter === 'catalog';
-      let html = this.viewHead('USED // MARKET // 5.0', 'Авито и каталог', `${DATA.SERVER_TEMPLATES.length} моделей · ${DATA.PARTS.length} деталей · б/у и новое железо.`);
+      let html = this.viewHead('USED // MARKET // 6.0', 'Авито и каталог', `${DATA.SERVER_TEMPLATES.length} моделей · ${DATA.PARTS.length} деталей · б/у и новое железо.`);
       html += `<div style="display:flex;gap:8px;margin-bottom:13px"><button class="btn btn-primary" style="flex:1" data-action="refresh-market">${svgIcon('refresh')}Обновить лоты</button><span class="day-chip" style="display:flex;align-items:center">${this.game.state.listings.length} лотов</span></div>`;
       html += `<div class="filter-row">${[['all','Авито'],['servers','Серверы'],['parts','Запчасти'],['catalog',`Каталог ${DATA.SERVER_TEMPLATES.length}`]].map(([id,label]) => `<button class="filter-chip ${this.marketFilter === id ? 'active' : ''}" data-action="market-filter" data-filter="${id}">${label}</button>`).join('')}</div>`;
       if (catalog) return html + this.catalogView();
