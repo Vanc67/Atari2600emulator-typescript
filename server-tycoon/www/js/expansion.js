@@ -345,7 +345,9 @@
   DATA.MUSIC_TRACKS = [
     { id: 'electro', name: 'Neon Rack · Electro Swing', file: 'audio/electro-swing-type.ogg', author: 'G_P · CC0' },
     { id: 'funky', name: 'Avito Dealer · Funky Menu', file: 'audio/funky-menu-loop.ogg', author: 'iamoneabe · CC0' },
-    { id: 'coffee', name: 'Night Shift · Coffee House', file: 'audio/coffee-house-bump.ogg', author: 'OatCog · CC0' }
+    { id: 'coffee', name: 'Night Shift · Coffee House', file: 'audio/coffee-house-bump.ogg', author: 'OatCog · CC0' },
+    { id: 'lofi-rack', name: 'Night Rack · Lo-Fi', file: 'audio/night-rack-lofi.ogg', author: 'Server Tycoon · original synthesis' },
+    { id: 'lofi-aisle', name: 'Cold Aisle · Lo-Fi', file: 'audio/cold-aisle-lofi.ogg', author: 'Server Tycoon · original synthesis' }
   ];
   DATA.ROOMS.push(
     { id: 'warehouse', name: 'Серверный ангар', subtitle: 'Линия 30 кВт · 20 мест', slots: 20, rent: 18000, ambient: 14, powerLimit: 30000, noiseLimit: 92, price: 650000 },

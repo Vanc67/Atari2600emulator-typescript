@@ -1,6 +1,12 @@
 # Music licences
 
-Every track here is CC0 (public domain dedication): no credit needed, free for commercial use, including
+## Server Tycoon original synthesis
+
+`night-rack-lofi.ogg` and `cold-aisle-lofi.ogg` were synthesized specifically for Server Tycoon 4.0 by `tools/generate_lofi.py`. They contain original procedural chords, bass, drums and noise; no third-party recordings or samples are used. These two files are not covered by the third-party table below.
+
+## Third-party CC0 tracks
+
+Every third-party track in the table below is CC0 (public domain dedication): no credit needed, free for commercial use, including
 social video. Each was checked on its OpenGameArt page, which lists CC0 among its licences (where a page
 offers several, we use it under CC0).
 

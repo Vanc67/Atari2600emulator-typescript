@@ -2,7 +2,7 @@
 'use strict';
 const assert = require('node:assert/strict');
 global.window = global;
-for (const name of ['icons', 'brands', 'data', 'expansion', 'game', 'systems']) require(`../www/js/${name}.js`);
+for (const name of ['icons', 'brands', 'data', 'expansion', 'game', 'systems', 'lab']) require(`../www/js/${name}.js`);
 const Game = global.ServerTycoonGame;
 let passed = 0;
 function test(name, fn) {
@@ -29,7 +29,7 @@ test('каталог: 80+ серверов, 190+ деталей, 20+ ОС и 35+
   assert.ok(DATA.PARTS.length >= 190);
   assert.ok(DATA.OS_LIST.length >= 20);
   assert.ok(DATA.SOFTWARE.length >= 35);
-  assert.equal(DATA.MUSIC_TRACKS.length, 3);
+  assert.equal(DATA.MUSIC_TRACKS.length, 5);
 });
 
 test('все шаблоны имеют совместимые сокеты, DDR, PSU и PCIe', () => {

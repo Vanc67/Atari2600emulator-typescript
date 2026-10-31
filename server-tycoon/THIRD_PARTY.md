@@ -12,4 +12,10 @@ The Ogg Vorbis files in `www/audio` were obtained from the `Stayingfalse/TechNew
 - Funky Menu Loop — iamoneabe — CC0.
 - Coffee House Bump — OatCog — CC0.
 
+## Original procedural lo-fi
+
+`night-rack-lofi.ogg` and `cold-aisle-lofi.ogg` were created specifically for Server Tycoon 4.0 with the reproducible `tools/generate_lofi.py` synthesizer. They use generated chords, bass, drums and vinyl noise, with no third-party samples.
+
+Server fan/HDD soundscapes are synthesized at runtime with WebAudio and do not use audio files.
+
 No asset is downloaded at runtime.

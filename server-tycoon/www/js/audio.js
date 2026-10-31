@@ -19,8 +19,9 @@
 
     unlock() {
       this.unlocked = true;
-      if (this.settings().sfx) this.ensureContext();
+      if (this.settings().sfx || this.settings().serverSounds) this.ensureContext();
       if (this.settings().music) this.play(this.settings().track);
+      if (this.settings().serverSounds && window.tycoonSoundscape) window.tycoonSoundscape.sync();
     }
 
     ensureContext() {
