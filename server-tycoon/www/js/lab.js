@@ -259,7 +259,7 @@
       case 'clear': return { ok: true, lines: [], clear: true };
       case 'exit': return { ok: true, lines: ['Сессия завершена'], close: true };
       case 'whoami': return ok(os.family === 'windows' ? 'nt authority\\system' : 'root');
-      case 'uname': return ok(`${os.name} · ${os.family} · Server Tycoon Control Room 4.0`);
+      case 'uname': return ok(`${os.name} · ${os.family} · Server Tycoon Control Room 5.0`);
       case 'echo': return ok(parts.join(' '));
       case 'status': case 'top': case 'uptime':
         return ok([`${server.name} · ${os.name}`, `CPU ${round(m.cpuLoad)}% (спрос ${round(m.cpuDemand)}%) · RAM ${memory(m.ramUsed)} / ${memory(m.ramTotal)}`, `${round(server.temp)}°C · ${round(m.watts)}W · ${round(m.noise)}дБ · ${server.throttling ? 'THROTTLING' : 'stable'}`, server.stress ? `TORTURE LAB: ${DATA.STRESS_TESTS[server.stress.id].name} · доход 0` : `Доход ${round(this.hourlyServerRevenue(server))} ₽/ч`]);

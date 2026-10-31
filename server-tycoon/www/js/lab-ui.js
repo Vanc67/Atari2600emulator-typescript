@@ -50,7 +50,7 @@
       const running = server.powered && server.os && !server.crashed && !server.hung && !server.broken;
       const model = server.aiModel && DATA.AI_MODELS[server.aiModel];
       const stress = server.stress && DATA.STRESS_TESTS[server.stress.id];
-      let html = `<div class="card control-room-card"><h3 class="card-title"><span>${svgIcon('os')}Control Room 4.0</span><span class="badge ${running ? 'good' : ''}">${running ? 'LIVE' : 'OFFLINE'}</span></h3><p class="muted tiny">Запустите ОС: desktop, web-панель или терминал зависят от системы. Команды управляют реальным состоянием сервера.</p><button class="btn btn-cyan btn-wide" data-action="open-session" data-id="${server.id}" ${running ? '' : 'disabled'}>${svgIcon('os')}Запустить интерактивную систему</button>`;
+      let html = `<div class="card control-room-card"><h3 class="card-title"><span>${svgIcon('os')}Control Room 5.0</span><span class="badge ${running ? 'good' : ''}">${running ? 'LIVE' : 'OFFLINE'}</span></h3><p class="muted tiny">Запустите ОС: desktop, web-панель или терминал зависят от системы. Команды управляют реальным состоянием сервера.</p><button class="btn btn-cyan btn-wide" data-action="open-session" data-id="${server.id}" ${running ? '' : 'disabled'}>${svgIcon('os')}Запустить интерактивную систему</button>`;
       html += `<div class="control-ai-row"><div><span class="control-label">LOCAL AI</span><strong>${model ? esc(model.name) : 'Модель не выбрана'}</strong><small>${model ? `${memory(model.ram)} RAM · ${model.cpu}% CPU` : 'от 0,5B до 70B · вход от 1 ГБ RAM'}</small></div><button class="btn btn-small btn-ghost" data-action="open-ai" data-id="${server.id}">Выбрать</button></div>`;
       html += `<div class="lab-heading"><span>TORTURE LAB</span><span>${stress ? esc(stress.name) : 'доход во время теста = 0'}</span></div>`;
       if (stress) html += `<div class="notice warning lab-active">${svgIcon('warning')}<div><strong>${esc(stress.name)} идёт</strong>Нагрузка настоящая: следите за температурой, RAM, питанием и шумом.</div></div><button class="btn btn-amber btn-wide" data-action="stop-stress" data-id="${server.id}">Остановить эксперимент</button>`;
@@ -156,7 +156,7 @@
       else if (this.session.mode === 'desktop') content = this.renderSessionDesktop(server);
       else content = this.renderSessionTerminal(server);
       const body = `<div class="os-session skin-${this.session.skin}"><div class="os-window"><div class="os-window-bar"><span class="os-window-logo">${os ? brandSvg(os.brand || 'server') : svgIcon('os')}</span><strong>${os ? esc(os.name) : 'BIOS'}</strong><span class="os-live-dot ${usable ? 'online' : ''}"></span><div class="os-window-actions"><button data-action="session-mode" data-mode="desktop" ${usable ? '' : 'disabled'}>Desktop</button><button data-action="session-mode" data-mode="terminal" ${usable ? '' : 'disabled'}>Shell</button></div></div>${content}</div><div class="session-footer"><span>${server.stress ? `TORTURE: ${esc(DATA.STRESS_TESTS[server.stress.id].name)}` : 'LOCAL SESSION · NO NETWORK'}</span><button data-action="session-back" data-id="${server.id}">К серверу</button></div></div>`;
-      this.modalRoot.innerHTML = this.modalShell(server.name, `${server.chassis.name} · CONTROL ROOM 4.0`, body);
+      this.modalRoot.innerHTML = this.modalShell(server.name, `${server.chassis.name} · CONTROL ROOM 5.0`, body);
       const sheet = $('.modal-sheet', this.modalRoot);
       if (sheet) sheet.classList.add('session-sheet');
       const output = $('[data-terminal-output]', this.modalRoot);

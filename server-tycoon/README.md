@@ -1,8 +1,32 @@
-# Server Tycoon: Datacenter Sandbox 4.0 — Control Room
+# Server Tycoon: Datacenter Sandbox 5.0 — Time Machine
 
 Мобильная offline-игра «Сисадмин: Песочница». Готовый установочный пакет: **`ServerTycoon.apk`**.
 
-## Control Room 4.0
+## Time Machine 5.0
+
+- при новой игре можно выбрать любой стартовый год с **1990 по 2026**, включая отдельный пресет 1995;
+- стартер, дополнительная RAM, Авито, каталог и загрузочные ОС соответствуют выбранной эпохе;
+- каждые **12 игровых дней** наступает следующий год: открываются новые технологии, обновляются лоты, начисляются XP и RP;
+- после 2026 года продолжаются циклы Modern R&D без выхода за границы архива;
+- Research имеет три ветки по пять уровней: охлаждение, энергоэффективность и доход хостинга; бонусы применяются к настоящей физике и экономике;
+- старые сохранения автоматически остаются в 2026 году со всем открытым контентом;
+- добавлены UNIX System V/386 4.0, NetWare 2.1 и MS-DOS 5.0, поэтому даже старт 1990 года имеет загрузочную ОС и работающие сервисы.
+
+### Исправление серверов 1990-х
+
+- каталог пакетов по умолчанию открывает фильтр **«Подходят»** и сортирует совместимые сервисы первыми;
+- для сервера 1995 года со Slackware/Debian 1.1 доступны NCSA/CERN HTTPd, Apache 1.3, BIND, Sendmail, FTP, NFS, Samba, Squid и другие исторические пакеты, а не только заблокированные приложения для Debian 12/13;
+- расширены совместимые списки legacy UNIX/Linux, Windows NT и NetWare;
+- добавлен регрессионный тест «сервер модели 1995 + Debian 1.1 + legacy-сервис + доход».
+
+### Secret Debug Console
+
+- открывается пятью быстрыми касаниями логотипа или командой `debug` в терминале;
+- подробный ring buffer на 1200 записей: тики, каждая симуляция сервера, CPU/RAM/ватты/температура, сохранения, действия, события, UI и терминальные команды;
+- фильтры, pause/resume, clear, copy log и полный Snapshot с состоянием игры, метриками, аудио, DOM, памятью и JSON сохранения;
+- подробная запись включается только после активации; данные не покидают устройство.
+
+## Control Room
 
 ### Интерактивные системы
 
@@ -44,7 +68,7 @@
 - **2 597 серверных конфигураций**: 81 исходная модель и 2 516 новых игровых вариантов на базе известных семейств;
 - **5 570 функциональных деталей**: CPU, RAM, HDD/SSD/NVMe, GPU, корпуса, БП и охлаждение;
 - **2 046 сервисов и редакций**: Web, базы данных, облака, DevOps, мониторинг, безопасность, медиа, AI, игры, бизнес, почта и сеть;
-- **58 ОС**, включая MS-DOS, Windows NT, NetWare, OS/2, IRIX, AIX, HP-UX, ранние Debian/Red Hat/FreeBSD и современные системы;
+- **61 ОС**, включая ранние UNIX/NetWare, MS-DOS, Windows NT, OS/2, IRIX, AIX, HP-UX, ранние Debian/Red Hat/FreeBSD и современные системы;
 - каждый год с **1990 по 2026** содержит 68 дополнительных конфигураций;
 - Compaq, DEC, SGI, Sun, IBM, HP, Dell, Supermicro, Cisco, Lenovo, Fujitsu, Huawei, Inspur, NEC, Bull, Hitachi, Unisys, Tandem, ARM и другие бренды;
 - SIMM/SDRAM/DDR–DDR5, SCSI/SATA/NVMe, сокеты и архитектуры x86, Alpha, MIPS, SPARC, POWER, PA-RISC и ARM;
@@ -71,12 +95,12 @@
 
 ## Android
 
-- version **4.0.0**, versionCode **4**; package `ru.vanc67.servertycoon`;
+- version **5.0.0**, versionCode **5**; package `ru.vanc67.servertycoon`;
 - minSdk 23 (Android 6.0), targetSdk 35, портретная ориентация;
 - нативная WebView-оболочка без Capacitor/Cordova runtime;
 - `android.permission.INTERNET` отсутствует: код, каталоги, логотипы и музыка находятся в `assets/www`;
 - APK подписан тем же project debug-ключом, что и предыдущие версии; схемы подписи v1/v2/v3;
-- ключ сохранения остаётся `server-tycoon-save-v4`, нормализованная версия состояния — 6;
+- ключ сохранения остаётся `server-tycoon-save-v4`, нормализованная версия состояния — 7;
 - скачивание APK — единственный необходимый сетевой шаг.
 
 Сборка выполняется напрямую через AAPT2, ECJ, D8 и APK Signer скриптом `build_apk.py`. Путь к toolchain передаётся через `ANDROID_BUILD_TOOLS`.
@@ -88,13 +112,15 @@ node tests/logic.test.cjs
 node tests/expansion.test.cjs
 node tests/mega.test.cjs
 node tests/lab.test.cjs
+node tests/timeline.test.cjs
 ```
 
 - 9 базовых сценариев: DDR, БП, ОС/BOINC, доход, перегрев, OOM, Авито, долги и дни;
 - 12 сценариев 2.0: GPU, RAID, сеть, инфраструктура, ИБП, контракты, события и миграция;
 - 10 сценариев Mega Archive: масштаб, все годы и бренды, уникальные ID, каждая из 2 597 конфигураций, legacy-ОС/сервис и покупка;
 - 14 сценариев Control Room: лёгкий/тяжёлый AI, старые saves, CPU-троттлинг и BSOD, OOM, Chaos/1990, команды, звук и очистка нагрузки;
-- JSDOM click-through: Linux terminal, AI 0,5B, OOM/recovery, Windows desktop, NAS dashboard, lo-fi и настройки звука;
-- Chromium 412×915: реальные WebAudio/WebView-совместимые потоки, интерактивные ОС, отсутствие overflow, ошибок и внешних запросов.
+- 15 сценариев Time Machine/Debug: все 37 стартовых лет, сервер 1995, ранние ОС, переход года, R&D, исследования, verbose-лог и миграция;
+- JSDOM click-through: Linux terminal, AI 0,5B, OOM/recovery, Windows desktop, NAS dashboard, lo-fi; отдельный сценарий старта 1995, совместимых пакетов, Research и обоих способов открыть debug;
+- Chromium 412×915: стартовый год, сервисы 1995, Research, Secret Debug, реальные WebAudio/WebView-совместимые потоки, отсутствие overflow, ошибок и внешних запросов.
 
 Лицензии и источники встроенной графики/музыки перечислены в `THIRD_PARTY.md` и `www/audio/LICENSES.md`.

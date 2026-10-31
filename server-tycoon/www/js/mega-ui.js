@@ -17,7 +17,7 @@
     };
     ui.catalogEra = 'all';
     ui.catalogQuery = '';
-    ui.softwareCategory = 'all';
+    ui.softwareCategory = 'compatible';
     ui.softwareQuery = '';
     ui.softwarePage = 0;
     ui.softwarePerPage = 16;
@@ -64,16 +64,21 @@
     proto.softwareTab = function (server) {
       const query = this.softwareQuery.trim().toLowerCase();
       const filtered = DATA.SOFTWARE.filter(app => {
+        if (this.softwareCategory === 'compatible' && (!server.os || !app.os.includes(server.os))) return false;
         if (this.softwareCategory === 'installed' && !server.software.includes(app.id)) return false;
-        if (!['all','installed'].includes(this.softwareCategory) && app.category !== this.softwareCategory) return false;
+        if (!['all','installed','compatible'].includes(this.softwareCategory) && app.category !== this.softwareCategory) return false;
         return !query || `${app.name} ${app.description} ${app.release || ''}`.toLowerCase().includes(query);
+      });
+      filtered.sort((a, b) => {
+        const compatible = Number(Boolean(server.os && b.os.includes(server.os))) - Number(Boolean(server.os && a.os.includes(server.os)));
+        return compatible || (a.year || 2020) - (b.year || 2020) || a.name.localeCompare(b.name);
       });
       const pages = Math.max(1,Math.ceil(filtered.length / this.softwarePerPage));
       this.softwarePage = Math.max(0,Math.min(this.softwarePage,pages - 1));
       const apps = filtered.slice(this.softwarePage * this.softwarePerPage,(this.softwarePage + 1) * this.softwarePerPage);
       let html = `<div class="notice" style="margin-bottom:10px">${svgIcon('os')}<div><strong>${server.os ? DATA.os(server.os).name : 'Нет операционной системы'}</strong>${server.os ? 'Поиск по тысячам пакетов. Доход начисляется только на включённом сервере.' : 'Запишите образ на флешку, затем установите ОС.'}</div></div><button class="btn btn-cyan btn-wide" data-action="os-select" data-id="${server.id}">${svgIcon('os')}${server.os ? 'Переустановить / сменить ОС' : 'Выбрать флешку и установить ОС'}</button>`;
       html += `<div class="section-label"><span>Каталог пакетов</span><span>${server.software.length} установлено</span></div><div class="archive-search software-search"><input type="search" data-software-query value="${esc(this.softwareQuery)}" placeholder="Название сервиса или редакции" aria-label="Поиск сервисов"><button class="btn btn-small btn-primary" data-action="software-search">Найти</button></div>`;
-      html += `<div class="filter-row software-filters">${[['all','Все'],['installed','Установленные'],...Object.entries(DATA.SERVICE_CATEGORIES)].map(([id,label]) => `<button class="filter-chip ${this.softwareCategory === id ? 'active' : ''}" data-action="software-category" data-category="${id}">${esc(label)}</button>`).join('')}<button class="filter-chip" data-action="software-reset">Сброс</button></div>`;
+      html += `<div class="filter-row software-filters">${[['compatible','Подходят'],['all','Все'],['installed','Установленные'],...Object.entries(DATA.SERVICE_CATEGORIES)].map(([id,label]) => `<button class="filter-chip ${this.softwareCategory === id ? 'active' : ''}" data-action="software-category" data-category="${id}">${esc(label)}</button>`).join('')}<button class="filter-chip" data-action="software-reset">Сброс</button></div>`;
       html += `<div class="section-label"><span>${filtered.length} пакетов</span><span>страница ${this.softwarePage + 1}/${pages}</span></div>`;
       if (!apps.length) html += this.emptyState('apps','Пакеты не найдены','Сбросьте фильтр или попробуйте другое название.','Сбросить','software-reset');
       else html += apps.map(app => {
@@ -91,7 +96,7 @@
 
     const baseOpenServer = proto.openServer;
     proto.openServer = function (serverId,tab = 'overview') {
-      if (!this.modal || this.modal.serverId !== serverId) this.softwarePage = 0;
+      if (!this.modal || this.modal.serverId !== serverId) { this.softwarePage = 0; this.softwareCategory = 'compatible'; }
       return baseOpenServer.call(this,serverId,tab);
     };
 
@@ -103,7 +108,7 @@
         case 'catalog-reset': this.catalogQuery = ''; this.catalogEra = 'all'; this.catalogBrand = 'all'; this.catalogPage = 0; this.renderView(); return;
         case 'software-category': this.softwareCategory = element.dataset.category; this.softwarePage = 0; this.renderModal(); return;
         case 'software-search': this.softwareQuery = ($('[data-software-query]',this.modalRoot) || {}).value || ''; this.softwarePage = 0; this.renderModal(); return;
-        case 'software-reset': this.softwareQuery = ''; this.softwareCategory = 'all'; this.softwarePage = 0; this.renderModal(); return;
+        case 'software-reset': this.softwareQuery = ''; this.softwareCategory = 'compatible'; this.softwarePage = 0; this.renderModal(); return;
         case 'software-page': this.softwarePage = Number(element.dataset.page); this.renderModal(); $('.modal-body',this.modalRoot).scrollTop = 0; return;
         default: return baseHandleAction.call(this,action,element,event);
       }

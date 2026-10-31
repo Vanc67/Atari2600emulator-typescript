@@ -2,7 +2,7 @@
 'use strict';
 const assert = require('node:assert/strict');
 global.window = global;
-for (const name of ['icons','brands','data','expansion','mega','game','systems','lab']) require(`../www/js/${name}.js`);
+for (const name of ['icons','brands','data','expansion','mega','game','systems','lab','timeline','debug']) require(`../www/js/${name}.js`);
 const Game = global.ServerTycoonGame;
 let passed = 0;
 function test(name,fn) { fn(); passed += 1; console.log(`✓ ${name}`); }
