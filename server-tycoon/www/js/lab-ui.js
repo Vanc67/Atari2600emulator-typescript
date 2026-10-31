@@ -79,8 +79,18 @@
     };
     proto.soundscapeView = function () {
       const settings = this.game.state.settings;
-      const active = this.game.state.servers.filter(server => server.powered).length;
-      return `<div class="card"><h3 class="card-title"><span>${svgIcon('noise')}Server Soundscape</span><span class="badge ${settings.serverSounds ? 'good' : ''}">${settings.serverSounds ? `${active} LIVE` : 'MUTED'}</span></h3><p class="muted tiny">Отдельный синтез для каждой машины: обороты вентиляторов, HDD, возраст железа и текущая нагрузка. Не использует сеть или аудиофайлы.</p><label class="volume-row">${svgIcon('noise')}<input type="range" min="0" max="1" step="0.01" value="${settings.serverVolume}" data-server-volume aria-label="Громкость серверов"><span data-server-volume-label>${Math.round(settings.serverVolume * 100)}%</span></label><button class="btn ${settings.serverSounds ? 'btn-danger' : 'btn-primary'} btn-wide" data-action="toggle-server-sounds">${settings.serverSounds ? 'Выключить звуки серверов' : 'Включить звуки серверов'}</button><p class="muted tiny">Работает независимо от музыки и SFX. При сворачивании все аудиоузлы останавливаются.</p></div>`;
+      const powered = this.game.state.servers.filter(server => server.powered && !this.game.state.powerOut);
+      let html = `<div class="card roar-master"><h3 class="card-title"><span>${svgIcon('noise')}ROAR 2.0 · Server Soundscape</span><span class="badge ${settings.serverSounds ? 'good' : ''}">${settings.serverSounds ? `${this.soundscape.sessions.size} LIVE` : 'MUTED'}</span></h3><p class="muted tiny">Супер-шумная стойка: 7 слоёв на машину — воздух, турбулентность, низкий гул, лопасти, подшипник, coil и механика HDD. Без аудиофайлов и сети.</p><label class="volume-row">${svgIcon('noise')}<input type="range" min="0" max="1" step="0.01" value="${settings.serverVolume}" data-server-volume aria-label="Громкость серверов"><span data-server-volume-label>${Math.round(settings.serverVolume * 100)}%</span></label><button class="btn ${settings.serverSounds ? 'btn-danger' : 'btn-primary'} btn-wide" data-action="toggle-server-sounds">${settings.serverSounds ? 'Выключить звуки серверов' : 'Включить громкую серверную'}</button><p class="muted tiny">Одиночный сервер уже звучит на полную: громкость голоса не делится на число машин. Компрессор защищает микс от клиппинга.</p></div>`;
+      if (!powered.length) return html;
+      html += `<div class="card roar-mixer ${settings.serverSounds ? '' : 'offline'}"><h3 class="card-title"><span>${svgIcon('server')}Микшер стойки</span><span class="badge info">${powered.length} ГОЛОСОВ</span></h3><p class="muted tiny">Свои RPM, фильтр, панорама и ритм у каждой машины. Solo помогает расслышать характер отдельного сервера.</p>`;
+      powered.forEach(server => {
+        const profile = this.soundscape.profile(server);
+        const muted = Boolean(settings.serverMuted && settings.serverMuted[server.id]);
+        const solo = settings.serverSolo === server.id;
+        const pan = profile.pan < -.12 ? `L ${Math.round(-profile.pan * 100)}%` : profile.pan > .12 ? `R ${Math.round(profile.pan * 100)}%` : 'CENTER';
+        html += `<div class="roar-channel ${muted ? 'muted' : ''} ${solo ? 'solo' : ''}"><div class="roar-channel-main"><span class="roar-pulse"></span><div><strong>${esc(server.name)}</strong><small>${esc(profile.label)} · ${profile.rpm} RPM · ${profile.hdd} HDD · ${pan}</small></div></div><div class="roar-channel-actions"><button class="btn btn-small ${solo ? 'btn-primary' : 'btn-ghost'}" data-action="sound-solo" data-id="${server.id}" aria-label="Solo ${esc(server.name)}">SOLO</button><button class="btn btn-small ${muted ? 'btn-danger' : 'btn-ghost'}" data-action="sound-mute" data-id="${server.id}">${muted ? 'MUTED' : 'MUTE'}</button></div></div>`;
+      });
+      return html + '</div>';
     };
 
     proto.openAIModels = function (serverId) {
@@ -214,7 +224,7 @@
     const baseHandleAction = proto.handleAction;
     proto.handleAction = function (action, element, event) {
       const id = element.dataset.id;
-      const own = ['open-session','open-ai','download-ai','start-stress','stop-stress','toggle-server-sounds','session-mode','session-command','session-back','session-power','session-reboot','session-repair','session-shutdown','session-stop-stress'];
+      const own = ['open-session','open-ai','download-ai','start-stress','stop-stress','toggle-server-sounds','sound-mute','sound-solo','session-mode','session-command','session-back','session-power','session-reboot','session-repair','session-shutdown','session-stop-stress'];
       if (own.includes(action) && this.audio) { this.audio.unlock(); this.audio.sfx('click'); }
       switch (action) {
         case 'open-session': this.openSession(id); return;
@@ -223,6 +233,8 @@
         case 'start-stress': this.game.startStress(id, element.dataset.profile); this.refresh(); return;
         case 'stop-stress': this.game.stopStress(id); this.refresh(); return;
         case 'toggle-server-sounds': this.soundscape.toggle(); this.refresh(); return;
+        case 'sound-mute': this.soundscape.toggleServerMute(id); this.refresh(); return;
+        case 'sound-solo': this.soundscape.soloServer(id); this.refresh(); return;
         case 'session-mode': if (this.session) { this.session.mode = element.dataset.mode; this.session.notice = ''; this.renderSession(); } return;
         case 'session-command': this.executeSessionCommand(id, element.dataset.command || ''); return;
         case 'session-back': this.openServer(id); return;

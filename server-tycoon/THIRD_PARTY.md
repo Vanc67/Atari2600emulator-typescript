@@ -16,9 +16,9 @@ The Ogg Vorbis files in `www/audio` were obtained from the `Stayingfalse/TechNew
 
 `night-rack-lofi.ogg` and `cold-aisle-lofi.ogg` were created specifically for Server Tycoon 4.0 with the reproducible `tools/generate_lofi.py` synthesizer. They use generated chords, bass, drums and vinyl noise, with no third-party samples.
 
-Server fan/HDD soundscapes are synthesized at runtime with WebAudio and do not use audio files.
+Server fan/HDD soundscapes, including the seven-layer ROAR 2.0 rack mixer in `www/js/server-sound.js`, are synthesized at runtime with WebAudio and do not use audio files.
 
-## Ultimate 7.0 procedural audio and graphics
+## Ultimate 7.0–7.1 procedural audio and graphics
 
 The 20-track, ten-hour lo-fi radio in `www/js/long-lofi.js` is generated at runtime from original oscillators, seeded arrangements and synthetic vinyl noise. It embeds no third-party recordings or samples. PC fan, HDD/SSD and coil sounds in `www/js/pc-sound.js` are also synthesized locally.
 
