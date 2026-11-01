@@ -88,6 +88,8 @@
   proto.createPC = function (year, options) { const machine = basePlusCreatePC.call(this, year, options); machineState(machine); return machine; };
   const basePlusBuildCustom = proto.buildCustomPC;
   proto.buildCustomPC = function (options) { const result = basePlusBuildCustom.call(this, options); if (result && result.machine) machineState(result.machine); return result; };
+  const basePlusBuildLaptop = proto.buildLaptopPC;
+  if (basePlusBuildLaptop) proto.buildLaptopPC = function (options) { const result = basePlusBuildLaptop.call(this, options); if (result && result.machine) machineState(result.machine); return result; };
 
   proto.pcSaveBlueprint = function (name) {
     const architect = this.pcPlusState(); const draft = this.pcPlusCleanDraft(architect.draft);

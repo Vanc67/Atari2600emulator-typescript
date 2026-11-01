@@ -144,20 +144,24 @@
   proto.buildCustomPC = function (options = {}) {
     const architect = this.pcArchitectState(); const report = this.pcDraftCompatibility(architect.draft, { ignoreEra: Boolean(options.ignoreEra) });
     if (!report.ok) { this.notify(report.errors[0] || 'Сборка не завершена', 'error'); return { ok: false, report }; }
-    if (!options.free && this.state.pc.money < report.metrics.total) { this.notify(`Для сборки нужно ${money(report.metrics.total)} ₽`, 'error'); return { ok: false, report }; }
-    if (!options.free) this.state.pc.money -= report.metrics.total;
+    const inventoryPlan = options.useInventory && this.pcInventoryPlan ? this.pcInventoryPlan(report.parts, 'desktop') : { uids: [], items: [], discount: 0, healthTotal: 0 };
+    const actualTotal = Math.max(0, report.metrics.total - inventoryPlan.discount);
+    if (!options.free && this.state.pc.money < actualTotal) { this.notify(`Доплата за сборку: ${money(actualTotal)} ₽`, 'error'); return { ok: false, report, inventoryPlan }; }
+    if (!options.free) this.state.pc.money -= actualTotal;
     const name = String(options.name || architect.name || `Custom PC ${architect.completed + 1}`).trim().slice(0, 60) || `Custom PC ${architect.completed + 1}`;
     const machine = this.createPC(report.metrics.year, { origin: 'owned', owner: 'PC Architect', os: null, name });
     const p = report.parts;
-    machine.custom = true; machine.partIds = Object.assign({}, architect.draft); machine.architect = { completedDay: this.state.pc.day, total: options.free ? 0 : report.metrics.total };
+    machine.custom = true; machine.partIds = Object.assign({}, architect.draft); machine.architect = { completedDay: this.state.pc.day, total: options.free ? 0 : actualTotal, catalogTotal: report.metrics.total, usedParts: inventoryPlan.uids.length, kind: 'desktop' };
+    machine.usedComponents = inventoryPlan.items.map(item => ({ uid: item.uid, catalogId: item.catalogId, condition: item.condition, health: item.health, paid: item.paid }));
     machine.cpu = p.cpu.name; machine.cpuScore = p.cpu.cpuScore; machine.ramType = p.ram.ramType; machine.ramMb = p.ram.capacityMb;
     machine.storageType = p.storage.storageType; machine.storageMb = p.storage.capacityMb; machine.gpu = p.gpu.name; machine.gpuScore = p.gpu.gpuScore;
-    machine.psuWatts = p.psu.watts; machine.cooling = report.metrics.cooling; machine.health = 100; machine.temp = 24; machine.powered = false; machine.os = null;
-    this.state.pc.computers.push(machine); architect.completed += 1; this.state.pc.stats.customBuilds = (this.state.pc.stats.customBuilds || 0) + 1;
+    machine.psuWatts = p.psu.watts; machine.cooling = report.metrics.cooling; machine.health = inventoryPlan.items.length ? round((inventoryPlan.healthTotal + (types.length - inventoryPlan.items.length) * 100) / types.length) : 100; machine.temp = 24; machine.powered = false; machine.os = null;
+    this.state.pc.computers.push(machine); if (this.pcConsumeInventory) this.pcConsumeInventory(inventoryPlan);
+    architect.completed += 1; this.state.pc.stats.customBuilds = (this.state.pc.stats.customBuilds || 0) + 1; this.state.pc.stats.pcPartsUsed = (this.state.pc.stats.pcPartsUsed || 0) + inventoryPlan.uids.length;
     architect.draft = emptyDraft(); this.addPCXP(160); this.advancePCMinutes(120);
-    this.pcLog(`PC Architect: собран ${name} из 8 компонентов за ${options.free ? 0 : report.metrics.total} ₽.`, 'good');
+    this.pcLog(`PC Architect: собран ${name} из 8 компонентов; склад ${inventoryPlan.uids.length}, доплата ${options.free ? 0 : actualTotal} ₽.`, 'good');
     this.notify(`${name} собран · установите ОС и запустите`, 'success'); this.save();
-    return { ok: true, machine, report };
+    return { ok: true, machine, report, inventoryPlan };
   };
   proto.pcCustomParts = function (machine) {
     if (!machine || !machine.custom || !machine.partIds) return [];

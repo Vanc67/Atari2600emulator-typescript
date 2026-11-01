@@ -17,7 +17,7 @@
       const button = document.createElement('button'); button.id = 'modeBtn'; button.className = 'mode-button'; button.dataset.action = 'open-mode-switch'; button.setAttribute('aria-label', 'Выбор режима');
       brandRow.insertBefore(button, $('#audioBtn'));
     }
-    document.title = 'Server Tycoon 8.1: PC Architect+ & OS Apps';
+    document.title = 'Server Tycoon 8.2: Laptop Architect & PC Avito';
 
     proto.readMarketFilters = function () {
       const fields = this.view.querySelectorAll('[data-market-field]');
@@ -105,7 +105,7 @@
       const pcMode = this.game.state.campaignMode === 'pc';
       const strong = $('.brand-copy strong'); const subtitle = $('.brand-copy span');
       if (strong) strong.textContent = pcMode ? 'PC WORKSHOP' : 'SERVER TYCOON';
-      if (subtitle) subtitle.textContent = 'ULTIMATE 8.1 // ARCHITECT+ · TUNING · OS APPS';
+      if (subtitle) subtitle.textContent = 'ULTIMATE 8.2 // LAPTOP · PC AVITO · BRANDS';
       const mode = $('#modeBtn'); if (mode) { mode.innerHTML = svgIcon(pcMode ? 'chip' : 'server'); mode.classList.toggle('pc', pcMode); }
       if (!pcMode) return baseRenderNav.call(this);
       const tabs = [['pc-workshop','wrench','Мастерская'],['pc-jobs','contract','Заказы'],['pc-dumpster','trash','Мусорка'],['pc-settings','music','Ещё']];
@@ -138,14 +138,14 @@
     proto.openModeSwitch = function () { this.openModal('modeSelect'); };
     proto.renderModeSelect = function () {
       const pc = this.game.state.pc;
-      const body = `<div class="mode-select-hero"><span>ULTIMATE DUAL MODE</span><strong>Две независимые карьеры</strong><p>Прогресс, деньги, время и железо сохраняются отдельно. Переключаться можно в любой момент.</p></div><div class="mode-choice-grid"><article class="mode-choice server"><span class="mode-choice-art">${svgIcon('server')}</span><small>РЕЖИМ 01</small><h3>Серверная ферма</h3><p>2 597 серверов, Time Machine, Deep Lab, Local AI, ОС и стойка.</p><b>${this.game.state.servers.length} серверов · ${Math.round(this.game.state.money).toLocaleString('ru-RU')} ₽</b><button class="btn btn-primary btn-wide" data-action="choose-server-mode">Продолжить ферму</button></article><article class="mode-choice pc"><span class="mode-choice-art">${svgIcon('chip')}</span><small>РЕЖИМ 02</small><h3>Папина PC-мастерская</h3><p>1990→2026, ремонт друзьям, заказы, мусорка, Windows и игровые тесты. PC Architect: 20 000 деталей и свои сборки.</p><b>${pc.started ? `${pc.year} · ${pc.completed} заказов · ${Math.round(pc.money).toLocaleString('ru-RU')} ₽` : 'Новая карьера · 2 500 ₽ от папы'}</b><button class="btn btn-cyan btn-wide" data-action="${pc.started ? 'continue-pc-mode' : 'start-pc-mode'}">${pc.started ? 'Продолжить мастерскую' : 'Начать в 1990 году'}</button></article></div>`;
-      this.modalRoot.innerHTML = this.modalShell('Выбор режима', 'SERVER TYCOON 8.1 // ARCHITECT+ · PC WORKSHOP', body, { center: true });
+      const body = `<div class="mode-select-hero"><span>ULTIMATE DUAL MODE</span><strong>Две независимые карьеры</strong><p>Прогресс, деньги, время и железо сохраняются отдельно. Переключаться можно в любой момент.</p></div><div class="mode-choice-grid"><article class="mode-choice server"><span class="mode-choice-art">${svgIcon('server')}</span><small>РЕЖИМ 01</small><h3>Серверная ферма</h3><p>2 597 серверов, Time Machine, Deep Lab, Local AI, ОС и стойка.</p><b>${this.game.state.servers.length} серверов · ${Math.round(this.game.state.money).toLocaleString('ru-RU')} ₽</b><button class="btn btn-primary btn-wide" data-action="choose-server-mode">Продолжить ферму</button></article><article class="mode-choice pc"><span class="mode-choice-art">${svgIcon('chip')}</span><small>РЕЖИМ 02</small><h3>Папина PC-мастерская</h3><p>1990→2026, ремонт друзьям, заказы, мусорка, Windows и игровые тесты. PC Architect: 20 000 деталей, Laptop Architect: 4 440, PC Авито и склад.</p><b>${pc.started ? `${pc.year} · ${pc.completed} заказов · ${Math.round(pc.money).toLocaleString('ru-RU')} ₽` : 'Новая карьера · 2 500 ₽ от папы'}</b><button class="btn btn-cyan btn-wide" data-action="${pc.started ? 'continue-pc-mode' : 'start-pc-mode'}">${pc.started ? 'Продолжить мастерскую' : 'Начать в 1990 году'}</button></article></div>`;
+      this.modalRoot.innerHTML = this.modalShell('Выбор режима', 'SERVER TYCOON 8.2 // LAPTOP ARCHITECT · PC AVITO', body, { center: true });
       const sheet = $('.modal-sheet', this.modalRoot); if (sheet) sheet.classList.add('mode-sheet');
     };
     const baseOnboarding = proto.renderOnboarding;
     proto.renderOnboarding = function () {
       if (this.showServerOnboarding || this.game.state.flags.modeChosen) return baseOnboarding.call(this);
-      const body = `<div class="onboarding-logo ultimate-logo">${svgIcon('chip')}</div><h2 class="onboarding-title">ULTIMATE 8.1</h2><div class="onboarding-sub">СИСАДМИН: ПЕСОЧНИЦА // DUAL MODE</div><p class="timeline-intro">Выберите первую карьеру. Вторая останется доступна через кнопку режима в верхней панели.</p><div class="mode-choice-grid onboarding-modes"><button class="mode-choice server" data-action="onboard-server"><span class="mode-choice-art">${svgIcon('server')}</span><h3>Серверный сисадмин</h3><p>Time Machine, ферма, Авито, Deep Lab и Local AI.</p><b>ВЫБРАТЬ СЕРВЕРЫ →</b></button><button class="mode-choice pc" data-action="onboard-pc"><span class="mode-choice-art">${svgIcon('chip')}</span><h3>Обычные ПК</h3><p>Папа ремонтирует друзьям, 1990 год, первая мастерская. Добавлен PC Architect: 20 000 деталей.</p><b>НАЧАТЬ У ПАПЫ →</b></button></div><p class="muted tiny timeline-offline">Офлайн · все сохранения и ассеты внутри APK</p>`;
+      const body = `<div class="onboarding-logo ultimate-logo">${svgIcon('chip')}</div><h2 class="onboarding-title">ULTIMATE 8.2</h2><div class="onboarding-sub">СИСАДМИН: ПЕСОЧНИЦА // DUAL MODE</div><p class="timeline-intro">Выберите первую карьеру. Вторая останется доступна через кнопку режима в верхней панели.</p><div class="mode-choice-grid onboarding-modes"><button class="mode-choice server" data-action="onboard-server"><span class="mode-choice-art">${svgIcon('server')}</span><h3>Серверный сисадмин</h3><p>Time Machine, ферма, Авито, Deep Lab и Local AI.</p><b>ВЫБРАТЬ СЕРВЕРЫ →</b></button><button class="mode-choice pc" data-action="onboard-pc"><span class="mode-choice-art">${svgIcon('chip')}</span><h3>Обычные ПК</h3><p>Папа ремонтирует друзьям, 1990 год, первая мастерская. PC Architect: 20 000 деталей · Laptop Architect: 4 440 · PC Авито и фирменные SVG.</p><b>НАЧАТЬ У ПАПЫ →</b></button></div><p class="muted tiny timeline-offline">Офлайн · все сохранения и ассеты внутри APK</p>`;
       this.modalRoot.innerHTML = this.modalShell('Ultimate Edition', 'ВЫБЕРИТЕ СВОЮ ИСТОРИЮ', body, { center: true, noClose: true });
     };
     const baseRenderModal = proto.renderModal;
