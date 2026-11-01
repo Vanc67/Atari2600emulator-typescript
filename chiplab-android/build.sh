@@ -35,13 +35,14 @@ echo "[build] 2/7 compile game (javac -bootclasspath android.jar, Java 7 bytecod
 rm -rf "$BUILD/classes"; mkdir -p "$BUILD/classes"
 javac8 -source 1.7 -target 1.7 -bootclasspath "$TC/android.jar" -encoding UTF-8 -nowarn \
     -d "$BUILD/classes" \
-    src/com/chiplab/ChipBin.java src/com/chiplab/Cpu.java src/com/chiplab/MainActivity.java
+    src/com/chiplab/ChipBin.java src/com/chiplab/Cpu.java src/com/chiplab/DieLayout.java \
+    src/com/chiplab/MainActivity.java
 
 echo "[build] 3/7 Smoke test: run every example CPU on the desktop JVM"
 rm -rf "$BUILD/test-classes"; mkdir -p "$BUILD/test-classes"
 javac8 -source 1.7 -target 1.7 -bootclasspath "$TC/android.jar" -encoding UTF-8 -nowarn \
     -d "$BUILD/test-classes" \
-    src/com/chiplab/ChipBin.java src/com/chiplab/Cpu.java \
+    src/com/chiplab/ChipBin.java src/com/chiplab/Cpu.java src/com/chiplab/DieLayout.java \
     harness/com/chiplab/harness/Smoke.java
 "$JAVA" -cp "$BUILD/test-classes" com.chiplab.harness.Smoke assets
 

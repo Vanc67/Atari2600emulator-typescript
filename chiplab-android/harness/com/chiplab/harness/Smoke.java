@@ -2,6 +2,7 @@ package com.chiplab.harness;
 
 import com.chiplab.ChipBin;
 import com.chiplab.Cpu;
+import com.chiplab.DieLayout;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -113,6 +114,80 @@ public class Smoke {
         boolean rejected = false;
         try { ChipBin.parse(new byte[]{1, 2, 3}); } catch (IllegalArgumentException e) { rejected = true; }
         check(rejected, "parser rejects garbage");
+
+        // DieLayout: realistic silicon geometry exists for every chip, is
+        // deterministic, stays on the die, fills the floorplan and reacts
+        // to the actual simulated state.
+        ChipBin[] all = {c1, c4, c8, c16, r1, r2, g, s, custom, customScr};
+        boolean countsOk = true, boundsOk = true, partOk = true, detOk = true;
+        int minSegs = Integer.MAX_VALUE, maxSegs = 0;
+        float minOcc = 1f;
+        for (int i = 0; i < all.length; i++) {
+            DieLayout d = DieLayout.wholeDie(all[i]);
+            minSegs = Math.min(minSegs, d.segs.size());
+            maxSegs = Math.max(maxSegs, d.segs.size());
+            if (d.segs.size() < 3000 || d.segs.size() > 150000) countsOk = false;
+            if (d.staticSegs.size() + d.dynamicSegs.size() != d.segs.size()) partOk = false;
+            if (d.dynamicSegs.size() == 0) partOk = false;
+            boolean[] tiles = new boolean[32 * 32];
+            for (int j = 0; j < d.segs.size(); j++) {
+                DieLayout.Seg sg = d.segs.get(j);
+                if (sg.x < -0.01f || sg.y < -0.01f || sg.x + sg.w > d.widthU + 0.01f
+                        || sg.y + sg.h > d.heightU + 0.01f || sg.w <= 0 || sg.h <= 0) boundsOk = false;
+                int tx0 = Math.max(0, Math.min(31, (int) (sg.x / d.widthU * 32)));
+                int ty0 = Math.max(0, Math.min(31, (int) (sg.y / d.heightU * 32)));
+                int tx1 = Math.max(0, Math.min(31, (int) ((sg.x + sg.w) / d.widthU * 32)));
+                int ty1 = Math.max(0, Math.min(31, (int) ((sg.y + sg.h) / d.heightU * 32)));
+                for (int ty = ty0; ty <= ty1; ty++)
+                    for (int tx = tx0; tx <= tx1; tx++) tiles[ty * 32 + tx] = true;
+            }
+            int marked = 0;
+            for (int j = 0; j < tiles.length; j++) if (tiles[j]) marked++;
+            minOcc = Math.min(minOcc, marked / (float) tiles.length);
+            if (DieLayout.wholeDie(all[i]).segs.size() != d.segs.size()) detOk = false;
+        }
+        check(countsOk, "DieLayout segment counts sane (min=" + minSegs + ", max=" + maxSegs + ")");
+        check(partOk, "DieLayout static+dynamic partition complete");
+        check(boundsOk, "DieLayout all segments inside die bounds");
+        check(detOk, "DieLayout deterministic for same chip");
+        check(minOcc > 0.80f, "DieLayout floorplan occupancy >80% (min=" + minOcc + ")");
+
+        DieLayout d8 = DieLayout.wholeDie(c8);
+        Cpu live = new Cpu(c8);
+        DieLayout.Ctx ctxA = new DieLayout.Ctx(c8, live);
+        int[] before = new int[d8.dynamicSegs.size()];
+        for (int j = 0; j < before.length; j++) before[j] = DieLayout.colorFor(d8.dynamicSegs.get(j), ctxA);
+        live.run(300);
+        DieLayout.Ctx ctxB = new DieLayout.Ctx(c8, live);
+        int changed = 0;
+        for (int j = 0; j < d8.dynamicSegs.size(); j++) {
+            if (before[j] != DieLayout.colorFor(d8.dynamicSegs.get(j), ctxB)) changed++;
+        }
+        check(changed > 20, "DieLayout colours react to simulation (changed=" + changed + ")");
+
+        ChipBin.Block aluBlk = null, regsBlk = null;
+        ChipBin.Block[] bs8 = c8.blocksOrDefault();
+        for (int i = 0; i < bs8.length; i++) {
+            if (bs8[i].kind == ChipBin.KIND_ALU && aluBlk == null) aluBlk = bs8[i];
+            if (bs8[i].kind == ChipBin.KIND_REGS && regsBlk == null) regsBlk = bs8[i];
+        }
+        check(aluBlk != null && DieLayout.blockDetail(c8, aluBlk, true).segs.size() > 300,
+                "DieLayout ALU macro detail generated");
+        boolean regColourOk = false;
+        if (regsBlk != null) {
+            DieLayout rd = DieLayout.blockDetail(c8, regsBlk, true);
+            Cpu rc = new Cpu(c8);
+            DieLayout.Ctx cOff = new DieLayout.Ctx(c8, rc);
+            int[] off = new int[rd.dynamicSegs.size()];
+            for (int j = 0; j < off.length; j++) off[j] = DieLayout.colorFor(rd.dynamicSegs.get(j), cOff);
+            rc.regs[0] = c8.mask();
+            rc.lastRegWrite = 0;
+            DieLayout.Ctx cOn = new DieLayout.Ctx(c8, rc);
+            for (int j = 0; j < rd.dynamicSegs.size() && !regColourOk; j++) {
+                if (off[j] != DieLayout.colorFor(rd.dynamicSegs.get(j), cOn)) regColourOk = true;
+            }
+        }
+        check(regColourOk, "DieLayout register cells light up with real bits");
 
         System.out.println(failed == 0 ? "[Smoke] ALL PASS" : "[Smoke] " + failed + " FAILURES");
         System.exit(failed == 0 ? 0 : 1);

@@ -7,6 +7,7 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
@@ -24,6 +25,7 @@ import android.widget.Toast;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 /**
  * ChipLab - chip creation simulator.
@@ -128,7 +130,19 @@ public class MainActivity extends Activity {
         class Pulse { float sx, sy, ex, ey; long t0; int color; }
         final ArrayList<Pulse> pulses = new ArrayList<Pulse>();
         int lastActiveKind = -1;
-        RectF dieRect; // last drawn die area (for pulses/block hits)
+        RectF dieRect; // inner floorplan of last drawn die (pulses/block hits)
+
+        // realistic silicon layout (DieLayout) caches: geometry per chip,
+        // a baked static bitmap per layout+size and a dynamic overlay bitmap
+        // that is re-baked only when the simulated state actually changes.
+        final HashMap<String, DieLayout> dieLayouts = new HashMap<String, DieLayout>();
+        final HashMap<String, Bitmap> dieStaticBmps = new HashMap<String, Bitmap>();
+        final HashMap<String, Bitmap> dieDynBmps = new HashMap<String, Bitmap>();
+        final HashMap<String, Long> dieDynStamps = new HashMap<String, Long>();
+        final HashMap<String, Cpu> dieThumbCpus = new HashMap<String, Cpu>();
+        final Paint diePaint = new Paint();
+        long dieUiTick = 0;      // bumps on manual memory edits
+        long lastDieBakeMs = 0;  // dynamic re-bake throttle
 
         final String[] QUEST_NAMES = {
                 "Первый бит", "Счёт до пятнадцати", "Фибоначчи в кремнии", "Сумма Гаусса",
@@ -152,6 +166,7 @@ public class MainActivity extends Activity {
             pMono.setTypeface(Typeface.MONOSPACE);
             pBold.setAntiAlias(true);
             pBold.setTypeface(Typeface.DEFAULT_BOLD);
+            diePaint.setFilterBitmap(true);
             prefs = a.getSharedPreferences("chiplab", Context.MODE_PRIVATE);
             credits = prefs.getInt("credits", 1000);
             questMask = prefs.getInt("quests", 0);
@@ -365,6 +380,7 @@ public class MainActivity extends Activity {
                     cpu.lastMemAddr = selCell;
                     cpu.lastMemWrite = true;
                     cpu.lastMemCycle = cpu.cycles;
+                    dieUiTick++;
                 }
                 return;
             }
@@ -394,7 +410,7 @@ public class MainActivity extends Activity {
                 case B_RAM_MINUS: if (cpu != null) { cpu.mem[selCell] = (cpu.mem[selCell] - 1) & cpu.chip.mask(); markMem(); } break;
                 case B_RAM_TEST: ramTestIdx = 0; ramTestMs = 0; break;
                 case B_RAM_CLEAR:
-                    if (cpu != null) { for (int i = 0; i < cpu.mem.length; i++) cpu.mem[i] = 0; }
+                    if (cpu != null) { for (int i = 0; i < cpu.mem.length; i++) cpu.mem[i] = 0; dieUiTick++; }
                     break;
                 case B_CT_TYPE: cycleType(); break;
                 case B_CT_BITS: ctBits = ctBits == 1 ? 4 : ctBits == 4 ? 8 : ctBits == 8 ? 16 : 1; fixCtName(); break;
@@ -412,6 +428,7 @@ public class MainActivity extends Activity {
             cpu.lastMemAddr = selCell;
             cpu.lastMemWrite = true;
             cpu.lastMemCycle = cpu.cycles;
+            dieUiTick++;
         }
 
         void fixCtName() {
@@ -801,60 +818,191 @@ public class MainActivity extends Activity {
             textR(c, credits + " кр.", W - dp(10), dp(34), dp(14), C_AMBER, pBold);
         }
 
-        // chip die rendering (shared by overview / microscope / catalog)
-        void drawDie(Canvas c, ChipBin chip, float x, float y, float size, boolean detailed,
-                     int selected, long now, boolean registerHits) {
-            float sizeH = size * 0.92f;
-            if (registerHits) dieRect = new RectF(x, y, x + size, y + sizeH);
-            // pins
-            p.setStyle(Paint.Style.FILL);
-            p.setColor(0xFF9E9E9E);
-            int pins = 10;
-            float pinL = dp(7);
-            for (int i = 0; i < pins; i++) {
-                float t = (i + 0.5f) / pins;
-                c.drawRect(x + t * size - dp(2), y - pinL, x + t * size + dp(2), y, p);
-                c.drawRect(x + t * size - dp(2), y + sizeH, x + t * size + dp(2), y + sizeH + pinL, p);
-                c.drawRect(x - pinL, y + t * sizeH - dp(2), x, y + t * sizeH + dp(2), p);
-                c.drawRect(x + size, y + t * sizeH - dp(2), x + size + pinL, y + t * sizeH + dp(2), p);
-            }
-            roundRect(c, x, y, size, sizeH, dp(6), 0xFF231B4E);
-            strokeRect(c, x, y, size, sizeH, 0xFF4A3F8F, dp(1.5f));
-            float ux = size / 16f, uy = sizeH / 16f;
+        // ------------------------------------------ realistic die rendering
+        // Structural key: the builder re-creates its preview ChipBin every
+        // frame, so identity keys would never hit the cache.
+        String chipKey(ChipBin chip) {
+            StringBuffer sb = new StringBuffer();
+            sb.append(chip.name).append('|').append(chip.type).append('|').append(chip.bits)
+                    .append('|').append(chip.regs).append('|').append(chip.memSize).append('|')
+                    .append(chip.screenW).append('x').append(chip.screenH).append('|')
+                    .append(chip.transistors);
+            int hv = 0x1234567;
+            for (int i = 0; i < chip.program.length; i++) hv = hv * 31 + chip.program[i];
+            sb.append('|').append(chip.program.length).append('|').append(hv);
             ChipBin.Block[] bs = chip.blocksOrDefault();
             for (int i = 0; i < bs.length; i++) {
                 ChipBin.Block b = bs[i];
-                float bx = x + b.x * ux, by = y + b.y * uy, bw = b.w * ux, bh = b.h * uy;
-                int col = KIND_COLORS[b.kind >= 0 && b.kind < 7 ? b.kind : 0];
-                boolean active = detailed && cpu != null && cpu.chip == chip
-                        && cpu.activeKind == b.kind && (running || cpu.cycles > 0);
-                float pulse = active ? (0.72f + 0.28f * (float) Math.sin(now / 120.0)) : 0.55f;
-                int fill = blend(0xFF231B4E, col, pulse);
-                roundRect(c, bx + dp(1), by + dp(1), bw - dp(2), bh - dp(2), dp(3), fill);
-                if (i == selected && detailed) {
-                    p.setStyle(Paint.Style.STROKE);
-                    p.setColor(0xFFFFFFFF);
-                    p.setStrokeWidth(dp(2));
-                    c.drawRoundRect(new RectF(bx + dp(1), by + dp(1), bx + bw - dp(1), by + bh - dp(1)), dp(3), dp(3), p);
-                    p.setStyle(Paint.Style.FILL);
+                sb.append('|').append(b.name).append(',').append(b.x).append(',').append(b.y)
+                        .append(',').append(b.w).append(',').append(b.h).append(',').append(b.kind)
+                        .append(',').append(b.param).append(',').append(b.transistors);
+            }
+            return sb.toString();
+        }
+
+        DieLayout getDieLayout(String key, ChipBin chip, ChipBin.Block block, int mode) {
+            DieLayout d = dieLayouts.get(key);
+            if (d != null) return d;
+            if (dieLayouts.size() >= 14) dieLayouts.clear();
+            if (mode == 0) d = DieLayout.wholeDie(chip);
+            else d = DieLayout.blockDetail(chip, block, mode == 2);
+            dieLayouts.put(key, d);
+            return d;
+        }
+
+        /** Pre-run simulation used so catalog/menu thumbnails show live data. */
+        Cpu thumbCpu(String key, ChipBin chip) {
+            Cpu t = dieThumbCpus.get(key);
+            if (t != null) return t;
+            t = new Cpu(chip);
+            if (chip.isCpuLike()) {
+                t.run(chip.hasScreen() ? 12000 : 240);
+            } else if (t.mem.length > 0) {
+                t.lastMemAddr = Math.min(0x5A, t.mem.length - 1);
+                t.lastMemWrite = true;
+                t.lastMemCycle = t.cycles;
+            }
+            dieThumbCpus.put(key, t);
+            return t;
+        }
+
+        long dieStateStamp(Cpu sim) {
+            if (sim == null) return dieUiTick;
+            long s = sim.cycles * 1000003L ^ (sim.outCount * 9176L) ^ ((sim.lastMemAddr + 2) * 131L)
+                    ^ (sim.fbCursor * 17L) ^ (sim.lastOut * 7L) ^ ((sim.lastRegWrite + 2) * 3L)
+                    ^ (dieUiTick * 1009L) ^ sim.pc ^ (sim.halted ? 1L : 0L);
+            for (int i = 0; i < sim.regs.length; i++) s ^= (sim.regs[i] + 1L) << (i % 24);
+            return s;
+        }
+
+        void drawSegRect(Canvas bc, DieLayout.Seg s, float kx, float ky) {
+            float x0 = s.x * kx, y0 = s.y * ky;
+            float x1 = (s.x + s.w) * kx, y1 = (s.y + s.h) * ky;
+            if (x1 < x0 + 1f) x1 = x0 + 1f;
+            if (y1 < y0 + 1f) y1 = y0 + 1f;
+            bc.drawRect(x0, y0, x1, y1, diePaint);
+        }
+
+        Bitmap bakeStaticDie(DieLayout layout, int pxW, int pxH) {
+            Bitmap bmp = Bitmap.createBitmap(pxW, pxH, Bitmap.Config.ARGB_8888);
+            Canvas bc = new Canvas(bmp);
+            bc.drawColor(0xFF05030F);
+            float kx = pxW / layout.widthU, ky = pxH / layout.heightU;
+            diePaint.setStyle(Paint.Style.FILL);
+            // All segments in true z-order at base colour; the dynamic overlay
+            // then only repaints conductors whose live colour differs.
+            for (int i = 0; i < layout.segs.size(); i++) {
+                DieLayout.Seg s = layout.segs.get(i);
+                // Dynamic channel markers are invisible until energized.
+                if (s.layer == DieLayout.L_MARK && DieLayout.isDynamic(s)) continue;
+                diePaint.setColor(DieLayout.baseColor(s));
+                drawSegRect(bc, s, kx, ky);
+            }
+            for (int i = 0; i < layout.labels.size(); i++) {
+                DieLayout.Label lb = layout.labels.get(i);
+                float ts = lb.size * kx;
+                if (ts < 7f) continue;
+                pMono.setColor(lb.color);
+                pMono.setTextSize(ts);
+                pMono.setTextAlign(Paint.Align.LEFT);
+                bc.drawText(lb.text, lb.x * kx, lb.y * ky + ts * 0.85f, pMono);
+            }
+            return bmp;
+        }
+
+        void bakeDynamicDie(Bitmap bmp, DieLayout layout, ChipBin chip, Cpu sim) {
+            bmp.eraseColor(0x00000000);
+            Canvas bc = new Canvas(bmp);
+            float kx = bmp.getWidth() / layout.widthU, ky = bmp.getHeight() / layout.heightU;
+            DieLayout.Ctx ctx = new DieLayout.Ctx(chip, sim);
+            diePaint.setStyle(Paint.Style.FILL);
+            for (int i = 0; i < layout.dynamicSegs.size(); i++) {
+                DieLayout.Seg s = layout.dynamicSegs.get(i);
+                int col = DieLayout.colorFor(s, ctx);
+                if (col == DieLayout.baseColor(s) || (col >>> 24) == 0) continue;
+                diePaint.setColor(col);
+                drawSegRect(bc, s, kx, ky);
+            }
+        }
+
+        /** Draws one layout (whole die or block detail) at x,y,w; returns height. */
+        float drawLayoutImage(Canvas c, DieLayout layout, String key, ChipBin chip, Cpu sim,
+                              float x, float y, float w, long now) {
+            float h = w * layout.heightU / layout.widthU;
+            int pxW = (int) Math.min(1024, Math.max(256, Math.round(w / 64f) * 64));
+            int pxH = Math.max(64, Math.round(pxW * h / w));
+            String bmpKey = key + "@" + pxW;
+            Bitmap stat = dieStaticBmps.get(bmpKey);
+            if (stat == null) {
+                if (dieStaticBmps.size() >= 12) {
+                    for (Bitmap b0 : dieStaticBmps.values()) b0.recycle();
+                    for (Bitmap b0 : dieDynBmps.values()) b0.recycle();
+                    dieStaticBmps.clear();
+                    dieDynBmps.clear();
+                    dieDynStamps.clear();
                 }
-                if (detailed && cpu != null && cpu.chip == chip) {
-                    if (b.kind == ChipBin.KIND_SCREEN && cpu.framebuffer != null) {
-                        drawFbInto(c, bx + dp(3), by + dp(3), bw - dp(6), bh - dp(6));
-                    } else if (b.kind == ChipBin.KIND_RAM) {
-                        drawMemMini(c, bx + dp(3), by + dp(3), bw - dp(6), bh - dp(6));
-                    } else if (b.kind == ChipBin.KIND_REGS) {
-                        drawRegsMini(c, bx + dp(3), by + dp(3), bw - dp(6), bh - dp(6));
+                stat = bakeStaticDie(layout, pxW, pxH);
+                dieStaticBmps.put(bmpKey, stat);
+            }
+            Bitmap dyn = dieDynBmps.get(bmpKey);
+            long stamp = dieStateStamp(sim);
+            Long old = dieDynStamps.get(bmpKey);
+            if (dyn == null || old == null || old.longValue() != stamp) {
+                if (dyn == null || now - lastDieBakeMs >= 50) {
+                    if (dyn == null) {
+                        dyn = Bitmap.createBitmap(pxW, pxH, Bitmap.Config.ARGB_8888);
+                        dieDynBmps.put(bmpKey, dyn);
                     }
+                    bakeDynamicDie(dyn, layout, chip, sim);
+                    dieDynStamps.put(bmpKey, Long.valueOf(stamp));
+                    lastDieBakeMs = now;
                 }
-                if (bw > dp(44) && bh > dp(18)) {
-                    float ts = Math.min(dp(10), bh * 0.42f);
-                    String label = b.name;
-                    pBold.setTextSize(ts);
-                    while (label.length() > 1 && pBold.measureText(label) > bw - dp(6)) {
-                        label = label.substring(0, label.length() - 1);
+            }
+            RectF dst = new RectF(x, y, x + w, y + h);
+            c.drawBitmap(stat, null, dst, diePaint);
+            if (dyn != null) c.drawBitmap(dyn, null, dst, diePaint);
+            strokeRect(c, x, y, w, h, 0xFF4A3F8F, dp(1.2f));
+            return h;
+        }
+
+        // chip die rendering (shared by overview / microscope / catalog)
+        void drawDie(Canvas c, ChipBin chip, float x, float y, float size, boolean detailed,
+                     int selected, long now, boolean registerHits) {
+            String key = chipKey(chip);
+            DieLayout layout = getDieLayout(key + "#die", chip, null, 0);
+            Cpu sim = (cpu != null && cpu.chip == chip) ? cpu : thumbCpu(key, chip);
+            drawLayoutImage(c, layout, key + "#die", chip, sim, x, y, size, now);
+            float k = size / layout.widthU;
+            if (registerHits) {
+                dieRect = new RectF(x + layout.innerX * k, y + layout.innerY * k,
+                        x + (layout.innerX + layout.innerW) * k,
+                        y + (layout.innerY + layout.innerH) * k);
+            }
+            // block overlays: name plates, selection, activity, tap targets
+            ChipBin.Block[] bs = chip.blocksOrDefault();
+            for (int i = 0; i < bs.length && i < layout.blockAreas.size(); i++) {
+                ChipBin.Block b = bs[i];
+                DieLayout.Area a = layout.blockAreas.get(i);
+                float bx = x + a.x * k, by = y + a.y * k, bw = a.w * k, bh = a.h * k;
+                if (detailed) {
+                    boolean active = cpu != null && sim == cpu && cpu.activeKind == b.kind
+                            && (running || cpu.cycles > 0);
+                    if (active) {
+                        strokeRect(c, bx + 1, by + 1, bw - 2, bh - 2,
+                                KIND_COLORS[b.kind >= 0 && b.kind < 7 ? b.kind : 0], dp(1.6f));
                     }
-                    textC(c, label, bx + bw / 2, by + bh / 2 + ts * 0.36f, ts, 0xFF0D0A26, pBold);
+                    if (i == selected) strokeRect(c, bx, by, bw, bh, 0xFFFFFFFF, dp(2));
+                    if (bw > dp(54) && bh > dp(20)) {
+                        float ts = Math.min(dp(10), bh * 0.30f);
+                        String label = b.name;
+                        pBold.setTextSize(ts);
+                        while (label.length() > 1 && pBold.measureText(label) > bw - dp(10)) {
+                            label = label.substring(0, label.length() - 1);
+                        }
+                        float tw = pBold.measureText(label);
+                        rect(c, bx + dp(2), by + dp(2), tw + dp(8), ts + dp(5), 0xB30A0618);
+                        text(c, label, bx + dp(6), by + dp(4) + ts * 0.92f, ts, 0xFFFFFFFF, pBold);
+                    }
                 }
                 if (registerHits) addHit(B_BLOCK_BASE + i, bx, by, bw, bh);
             }
@@ -864,13 +1012,13 @@ public class MainActivity extends Activity {
                     Pulse pl = pulses.get(i);
                     float t = (now - pl.t0) / 380f;
                     if (t >= 1f) { pulses.remove(i); continue; }
-                    for (int k = 0; k < 3; k++) {
-                        float tt = t - k * 0.07f;
+                    for (int kk = 0; kk < 3; kk++) {
+                        float tt = t - kk * 0.07f;
                         if (tt < 0) continue;
                         float px = pl.sx + (pl.ex - pl.sx) * tt;
                         float py = pl.sy + (pl.ey - pl.sy) * tt;
                         p.setColor(pl.color);
-                        c.drawCircle(px, py, dp(3.4f - k * 0.9f), p);
+                        c.drawCircle(px, py, dp(3.4f - kk * 0.9f), p);
                     }
                 }
             }
@@ -979,7 +1127,7 @@ public class MainActivity extends Activity {
                 drawDie(c, fake, cx - s / 2, y, s, false, -1, now, false);
                 cpu = save;
             }
-            y += s * 0.92f + dp(26);
+            y += s + dp(26);
             textC(c, "ChipLab", cx, y, dp(38), C_AMBER, pBold);
             y += dp(24);
             textC(c, "СИМУЛЯТОР СОЗДАНИЯ ЧИПОВ", cx, y, dp(14), C_CYAN, pBold);
@@ -1078,7 +1226,7 @@ public class MainActivity extends Activity {
             if (y + size > top - dp(40) && y < H) {
                 drawDie(c, chip, dx, y + dp(10), size, true, selBlock, now, true);
             }
-            y += size * 0.92f + dp(24);
+            y += size + dp(24);
             textC(c, "нажми на блок - откроется под микроскопом", W / 2, y, dp(11.5f), C_DIM, p);
             y += dp(14);
             // stats
@@ -1127,10 +1275,26 @@ public class MainActivity extends Activity {
             drawButton(c, B_ZOOM1, "БЛОК", margin + zw + dp(4), y, zw, dp(34), false, microZoom == 1);
             drawButton(c, B_ZOOM2, "ТРАНЗИСТОРЫ", margin + 2 * zw + dp(8), y, zw, dp(34), false, microZoom == 2);
             y += dp(42);
-            float size = Math.min(W - 2 * margin - dp(16), dp(320));
-            float dx = (W - size) / 2;
-            drawDie(c, chip, dx, y + dp(8), size, true, selBlock, now, true);
-            y += size * 0.92f + dp(18);
+            ChipBin.Block[] bsTop = chip.blocksOrDefault();
+            if (selBlock < 0 || selBlock >= bsTop.length) selBlock = 0;
+            if (microZoom == 2) {
+                // Macro shot: the selected block's real layout, full width.
+                String key = chipKey(chip);
+                ChipBin.Block bb = bsTop[selBlock];
+                DieLayout macro = getDieLayout(key + "#blk2#" + selBlock, chip, bb, 2);
+                Cpu sim = (cpu != null && cpu.chip == chip) ? cpu : thumbCpu(key, chip);
+                float iw = W - 2 * margin;
+                float ih = drawLayoutImage(c, macro, key + "#blk2#" + selBlock, chip, sim,
+                        margin, y + dp(4), iw, now);
+                y += ih + dp(12);
+                textC(c, "топология блока: слои масок, транзисторы, дорожки", W / 2, y + dp(4), dp(11.5f), C_DIM, p);
+                y += dp(16);
+            } else {
+                float size = Math.min(W - 2 * margin - dp(16), dp(320));
+                float dx = (W - size) / 2;
+                drawDie(c, chip, dx, y + dp(8), size, true, selBlock, now, true);
+                y += size + dp(18);
+            }
             // sim mini controls
             if (chip.isCpuLike()) {
                 float bw = (W - 2 * margin - dp(16)) / 4;
@@ -1158,6 +1322,14 @@ public class MainActivity extends Activity {
             textR(c, b.transistors + " транзисторов", W - margin, y + dp(8), dp(12.5f), C_DIM, p);
             y += dp(20);
             float innerW = W - 2 * margin;
+            if (microZoom == 1) {
+                // The block enlarged: real synthesized layout over live signals.
+                String key = chipKey(chip);
+                DieLayout det = getDieLayout(key + "#blk1#" + selBlock, chip, b, 1);
+                Cpu sim = (cpu != null && cpu.chip == chip) ? cpu : thumbCpu(key, chip);
+                y += drawLayoutImage(c, det, key + "#blk1#" + selBlock, chip, sim,
+                        margin, y, innerW, now) + dp(12);
+            }
             if (cpu != null) {
                 switch (b.kind) {
                     case ChipBin.KIND_REGS:
@@ -1709,7 +1881,7 @@ public class MainActivity extends Activity {
             text(c, "транзисторов: ~" + preview.transistors, ix, y + dp(82), dp(12.5f), C_TEXT, pMono);
             text(c, "размер .bin: " + preview.raw.length + " байт", ix, y + dp(100), dp(12.5f), C_DIM, pMono);
             text(c, "цена сборки: " + constructorCost() + " кр.", ix, y + dp(124), dp(13.5f), C_AMBER, pBold);
-            y += size * 0.92f + dp(30);
+            y += size + dp(30);
             // controls
             y = ctRow(c, y, "ТИП ЧИПА", ChipBin.typeName(ctType), B_CT_TYPE, margin);
             y = ctRow(c, y, "РАЗРЯДНОСТЬ", ctBits + " бит (0.." + ((1 << ctBits) - 1) + ")", B_CT_BITS, margin);
