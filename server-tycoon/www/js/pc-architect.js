@@ -96,6 +96,7 @@
     const draft = filters.draft || this.pcArchitectState().draft;
     const baseErrors = filters.compatibleOnly ? new Set(this.pcDraftCompatibility(draft, { partial: true, ignoreEra: true }).errors) : null;
     let items = source.filter(part => {
+      if (filters.favoritesOnly && !(this.pcArchitectState().favorites || []).includes(part.id)) return false;
       if (query && !normalize(`${part.name} ${part.sku || ''} ${part.brand} ${part.summary} ${part.socket || ''} ${part.ramType || ''}`).includes(query)) return false;
       if (filters.brand && filters.brand !== 'all' && part.brand !== filters.brand) return false;
       if (filters.socket && filters.socket !== 'all' && part.socket !== filters.socket && !(part.sockets || []).includes(filters.socket)) return false;

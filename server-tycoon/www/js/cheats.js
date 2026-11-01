@@ -101,9 +101,12 @@
   proto.cheatFreePC = function (year = this.state.pc.year) {
     if (!validTarget(this, 'pc')) return false;
     year = clamp(round(number(year) || this.state.pc.year), 1990, 2026);
+    const architect = this.pcArchitectState();
+    const previous = { draft: Object.assign({}, architect.draft), name: architect.name, selectedYear: architect.selectedYear };
     const report = this.pcAutoDraft(year);
-    if (!report) { this.notify('Не удалось подобрать совместимую сборку', 'error'); return false; }
+    if (!report) { architect.draft = previous.draft; architect.name = previous.name; architect.selectedYear = previous.selectedYear; this.notify('Не удалось подобрать совместимую сборку', 'error'); return false; }
     const result = this.buildCustomPC({ free: true, ignoreEra: true, name: `Cheat Custom ${year}` });
+    architect.draft = previous.draft; architect.name = previous.name; architect.selectedYear = previous.selectedYear; this.save();
     if (!result.ok) return false;
     record(this, 'pc', 'FREE CUSTOM PC', `${year} · ${result.machine.id}`);
     return result.machine;

@@ -369,12 +369,14 @@
     if (benchmarkId !== 'stability' && !machine.os) { this.notify('Сначала установите ОС', 'warning'); return false; }
     const unresolved = machine.issues.filter(issue => !issue.resolved).length;
     let fps; let passed;
+    const scores = this.pcPerformanceScores ? this.pcPerformanceScores(machine) : { cpu: machine.cpuScore, gpu: machine.gpuScore };
+    const stabilityPenalty = this.pcStabilityPenalty ? this.pcStabilityPenalty(machine) : 0;
     if (benchmarkId === 'stability') {
-      fps = clamp(100 - unresolved * 24 - Math.max(0, machine.temp - 75) * 1.5, 0, 100);
+      fps = clamp(100 - unresolved * 24 - Math.max(0, machine.temp - 75) * 1.5 - stabilityPenalty, 0, 100);
       passed = unresolved === 0 && fps >= 60 && !machine.crashed;
     } else {
-      const cpuRatio = machine.cpuScore / benchmark.cpu;
-      const gpuRatio = machine.gpuScore / benchmark.gpu;
+      const cpuRatio = scores.cpu / benchmark.cpu;
+      const gpuRatio = scores.gpu / benchmark.gpu;
       const ramRatio = machine.ramMb / benchmark.ramMb;
       const storage = machine.storageType === 'NVMe' ? 1.15 : machine.storageType === 'SSD' ? 1.08 : 1;
       const os = osById(machine.os);
@@ -387,7 +389,7 @@
     const result = { benchmarkId, fps: round(fps * 10) / 10, score: round(clamp(fps / benchmark.target * 100, 0, 100)), passed,
       samples, temp: round(machine.temp * 10) / 10, day: this.state.pc.day, year: this.state.pc.year };
     machine.benchmarks[benchmarkId] = result; machine.lastBenchmark = benchmarkId; machine.load = 1;
-    machine.temp += benchmarkId === 'stability' ? 3 : clamp(4 + machine.gpuScore / 250, 4, 18);
+    machine.temp += benchmarkId === 'stability' ? 3 : clamp(4 + scores.gpu / 250, 4, 18);
     if (machine.temp >= 95) { machine.temp = 95; machine.crashed = true; machine.powered = false; result.passed = false; }
     this.state.pc.stats.benchmarks += 1; this.addPCXP(benchmarkId === 'stability' ? 25 : 40); this.advancePCMinutes(30);
     this.pcLog(`${machine.name}: ${benchmark.name} · ${result.fps}${benchmarkId === 'stability' ? ' points' : ' FPS'} · ${passed ? 'PASS' : 'FAIL'}.`, passed ? 'good' : 'bad');
