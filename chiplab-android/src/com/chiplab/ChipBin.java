@@ -253,7 +253,9 @@ public final class ChipBin {
     public static Block[] defaultBlocks(int type, int bits, int regs, int memSize, boolean screen) {
         int aluT = 28 * bits + 40;
         int regT = 6 * bits * regs + 16;
-        int ramT = 6 * bits * memSize;
+        // The CHIPBIN1 transistor fields are u16; cap the educational model
+        // instead of silently wrapping huge constructor configurations.
+        int ramT = Math.min(60000, 6 * bits * memSize);
         int ctrlT = 120 + 30 * bits;
         if (type == TYPE_RAM || type == TYPE_ROM) {
             return new Block[]{
@@ -278,7 +280,7 @@ public final class ChipBin {
         Block[] bs = defaultBlocks(type, bits, regs, memSize, screen);
         int sum = 0;
         for (int i = 0; i < bs.length; i++) sum += bs[i].transistors;
-        return sum;
+        return Math.min(65535, sum);
     }
 
     /** Full numeric description: header, blocks, program disassembly (for the BIN tab). */

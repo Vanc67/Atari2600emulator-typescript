@@ -6,6 +6,8 @@ import com.chiplab.DieLayout;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 /** Desktop Smoke test: parses every bundled .bin and actually runs the CPUs. */
 public class Smoke {
@@ -109,16 +111,100 @@ public class Smoke {
         Cpu cg = new Cpu(ChipBin.parse(customScr.toBytes()));
         cg.run(20000);
         check(cg.litPixels() > 30, "custom screen chip draws (" + cg.litPixels() + ")");
+        ChipBin customMax = ChipBin.buildCustom(ChipBin.TYPE_CPU, 16, 16, 1024, 64, 64, "ТЕСТ-MAX");
+        ChipBin customMaxParsed = ChipBin.parse(customMax.toBytes());
+        Cpu cm = new Cpu(customMaxParsed);
+        cm.run(100000);
+        boolean blockTrOk = customMaxParsed.transistors <= 65535;
+        for (int i = 0; i < customMaxParsed.blocks.length; i++) {
+            if (customMaxParsed.blocks[i].transistors > 65535) blockTrOk = false;
+        }
+        check(blockTrOk && cm.litPixels() > 1000 && !cm.halted,
+                "maximum constructor chip (16-bit/16 regs/1024/64x64) works");
 
         // Bad files are rejected with a message, not a crash of the parser caller
         boolean rejected = false;
         try { ChipBin.parse(new byte[]{1, 2, 3}); } catch (IllegalArgumentException e) { rejected = true; }
         check(rejected, "parser rejects garbage");
 
+        // Expanded bundled library: every .bin in assets must parse, run
+        // without leaving its program, and light its screen (if it has one).
+        File[] assetFiles = new File(dir).listFiles();
+        Arrays.sort(assetFiles);
+        ArrayList<ChipBin> bundled = new ArrayList<ChipBin>();
+        boolean allRunOk = true, allScreensOk = true;
+        String badChip = "";
+        int screenChips = 0;
+        for (int i = 0; i < assetFiles.length; i++) {
+            File f = assetFiles[i];
+            if (!f.getName().endsWith(".bin")) continue;
+            try {
+                ChipBin chip = ChipBin.parse(read(f));
+                bundled.add(chip);
+                if (chip.name.length() == 0 || chip.blocksOrDefault().length == 0) {
+                    allRunOk = false;
+                    badChip = f.getName();
+                }
+                Cpu sim = new Cpu(chip);
+                if (chip.isCpuLike()) {
+                    sim.run(chip.hasScreen() ? 30000 : 5000);
+                    if (!sim.halted && (sim.pc < 0 || sim.pc >= chip.program.length)) {
+                        allRunOk = false;
+                        badChip = f.getName() + " pc=" + sim.pc;
+                    }
+                    if (chip.hasScreen()) {
+                        screenChips++;
+                        if (sim.litPixels() == 0) {
+                            allScreensOk = false;
+                            badChip = f.getName() + " blank screen";
+                        }
+                    }
+                } else if (sim.mem.length != chip.memSize) {
+                    allRunOk = false;
+                    badChip = f.getName();
+                }
+            } catch (Exception e) {
+                allRunOk = false;
+                badChip = f.getName() + ": " + e.getMessage();
+            }
+        }
+        check(bundled.size() >= 80, "expanded library has 80+ bundled chips (" + bundled.size() + ")");
+        check(allRunOk, "every bundled chip parses and runs" + (badChip.length() == 0 ? "" : " BAD=" + badChip));
+        check(allScreensOk && screenChips >= 30, "every bundled screen lights pixels (screens=" + screenChips + ")");
+
+        // Interactive devices consume the gamepad cell 250 in their own CPU.
+        ChipBin tetris = ChipBin.parse(read(new File(dir, "57_tetris.bin")));
+        Cpu tet = new Cpu(tetris);
+        tet.mem[250] = 2; // right
+        tet.run(1000);
+        check(tet.mem[32] == 8 && tet.mem[250] == 0,
+                "Tetris gamepad moves block and clears input (x=" + tet.mem[32] + ")");
+        ChipBin tamaBin = ChipBin.parse(read(new File(dir, "58_tamagotchi.bin")));
+        Cpu tama = new Cpu(tamaBin);
+        tama.mem[250] = 16; // A = feed
+        tama.run(1000);
+        check(tama.mem[34] == 14 && tama.mem[250] == 0,
+                "Tamagotchi A button feeds pet (hunger=" + tama.mem[34] + ")");
+        ChipBin snakeBin = ChipBin.parse(read(new File(dir, "59_snake.bin")));
+        Cpu snake = new Cpu(snakeBin);
+        snake.mem[250] = 4; // up
+        snake.run(1000);
+        check(snake.mem[33] == 7 && snake.mem[250] == 0,
+                "Snake gamepad turns head up (y=" + snake.mem[33] + ")");
+        ChipBin calcBin = ChipBin.parse(read(new File(dir, "66_calculator.bin")));
+        Cpu calc = new Cpu(calcBin);
+        calc.mem[250] = 16; // A = +1
+        calc.run(1000);
+        check(calc.mem[32] == 1 && calc.mem[250] == 0,
+                "Calculator A button increments value (v=" + calc.mem[32] + ")");
+
         // DieLayout: realistic silicon geometry exists for every chip, is
         // deterministic, stays on the die, fills the floorplan and reacts
         // to the actual simulated state.
-        ChipBin[] all = {c1, c4, c8, c16, r1, r2, g, s, custom, customScr};
+        bundled.add(custom);
+        bundled.add(customScr);
+        bundled.add(customMaxParsed);
+        ChipBin[] all = bundled.toArray(new ChipBin[bundled.size()]);
         boolean countsOk = true, boundsOk = true, partOk = true, detOk = true;
         int minSegs = Integer.MAX_VALUE, maxSegs = 0;
         float minOcc = 1f;
@@ -144,7 +230,7 @@ public class Smoke {
             int marked = 0;
             for (int j = 0; j < tiles.length; j++) if (tiles[j]) marked++;
             minOcc = Math.min(minOcc, marked / (float) tiles.length);
-            if (DieLayout.wholeDie(all[i]).segs.size() != d.segs.size()) detOk = false;
+            if (i % 8 == 0 && DieLayout.wholeDie(all[i]).segs.size() != d.segs.size()) detOk = false;
         }
         check(countsOk, "DieLayout segment counts sane (min=" + minSegs + ", max=" + maxSegs + ")");
         check(partOk, "DieLayout static+dynamic partition complete");

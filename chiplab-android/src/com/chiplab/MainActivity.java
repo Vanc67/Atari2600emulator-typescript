@@ -25,6 +25,7 @@ import android.widget.Toast;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 
 /**
@@ -63,7 +64,13 @@ public class MainActivity extends Activity {
                 B_RAM_PLUS = 30, B_RAM_MINUS = 31, B_RAM_TEST = 32, B_RAM_CLEAR = 33,
                 B_CT_TYPE = 40, B_CT_BITS = 41, B_CT_REGS_M = 42, B_CT_REGS_P = 43,
                 B_CT_MEM = 44, B_CT_SCREEN = 45, B_CT_NAME = 46, B_CT_MAKE = 47,
+                B_FILTER_BASE = 70,
+                B_PAD_LEFT = 90, B_PAD_UP = 91, B_PAD_DOWN = 92, B_PAD_RIGHT = 93,
+                B_PAD_A = 94, B_PAD_B = 95,
                 B_CHIP_BASE = 1000, B_BLOCK_BASE = 2000, B_CELL_BASE = 3000, B_BIT_BASE = 5000;
+        // catalog categories
+        static final int CAT_ALL = 0, CAT_CPU = 1, CAT_MEMORY = 2, CAT_VIDEO = 3,
+                CAT_CIRCUIT = 4, CAT_DEVICE = 5, CAT_PC = 6, CAT_MINE = 7;
 
         // colors
         static final int C_BG = 0xFF0B1020, C_PANEL = 0xFF151C30, C_PANEL2 = 0xFF1D2742,
@@ -83,12 +90,16 @@ public class MainActivity extends Activity {
 
         int screen = SCR_MENU;
         int chipTab = TAB_OVERVIEW;
+        int catalogFilter = CAT_ALL;
+        final String[] CAT_NAMES = {"ВСЕ", "ПРОЦЕССОРЫ", "ПАМЯТЬ", "ВИДЕО",
+                "СХЕМЫ", "УСТРОЙСТВА", "ПК", "МОИ"};
         float scrollY = 0;
         float maxScroll = 0;
 
         // data
         final ArrayList<ChipBin> chips = new ArrayList<ChipBin>();
         final ArrayList<Boolean> chipCustom = new ArrayList<Boolean>();
+        final ArrayList<Integer> chipCats = new ArrayList<Integer>(); // cached catalog categories
         String promptText = "";
         int curChip = -1;
         Cpu cpu;
@@ -115,8 +126,9 @@ public class MainActivity extends Activity {
         // constructor state
         int ctType = ChipBin.TYPE_CPU, ctBits = 8, ctRegs = 4, ctMemIdx = 2, ctScreenIdx = 0;
         String ctName = "МОЙ-ЧИП-8";
-        final int[] MEM_OPTIONS = {4, 16, 64, 256};
-        final int[][] SCREEN_OPTIONS = {{0, 0}, {16, 8}, {16, 16}, {32, 16}};
+        final int[] MEM_OPTIONS = {4, 16, 64, 256, 512, 1024};
+        final int[][] SCREEN_OPTIONS = {{0, 0}, {16, 8}, {16, 16}, {32, 16},
+                {32, 32}, {64, 32}, {64, 64}};
         final int[] TYPE_CYCLE = {ChipBin.TYPE_CPU, ChipBin.TYPE_RAM, ChipBin.TYPE_GPU, ChipBin.TYPE_DISPLAY};
 
         // touch / buttons
@@ -191,22 +203,21 @@ public class MainActivity extends Activity {
         }
 
         void loadAssets() {
-            String[] order = {"01_cpu1.bin", "02_cpu4.bin", "03_cpu8.bin", "04_cpu16.bin",
-                    "05_ram16x4.bin", "06_sram256.bin", "07_gpu32.bin", "08_screen16.bin"};
-            for (int i = 0; i < order.length; i++) {
-                byte[] data = readAsset(order[i]);
-                if (data == null) continue;
-                try {
-                    chips.add(ChipBin.parse(data));
-                    chipCustom.add(Boolean.FALSE);
-                } catch (Exception ignored) { }
-            }
+            // The whole bundled library is discovered dynamically: dropping a
+            // new numbered .bin into assets is enough for it to appear here.
             try {
-                byte[] extra = null;
                 String[] all = act.getAssets().list("");
                 if (all != null) {
+                    Arrays.sort(all);
                     for (int i = 0; i < all.length; i++) {
-                        if ("prompt.txt".equals(all[i])) {
+                        if (all[i].endsWith(".bin")) {
+                            byte[] data = readAsset(all[i]);
+                            if (data == null) continue;
+                            try {
+                                chips.add(ChipBin.parse(data));
+                                chipCustom.add(Boolean.FALSE);
+                            } catch (Exception ignored) { }
+                        } else if ("prompt.txt".equals(all[i])) {
                             byte[] pb = readAsset("prompt.txt");
                             if (pb != null) promptText = new String(pb, "UTF-8");
                         }
@@ -222,6 +233,87 @@ public class MainActivity extends Activity {
                     chipCustom.add(Boolean.TRUE);
                 } catch (Exception ignored) { }
             }
+        }
+
+        boolean nameHas(String n, String[] keys) {
+            for (int i = 0; i < keys.length; i++) {
+                if (n.contains(keys[i])) return true;
+            }
+            return false;
+        }
+
+        int chipCategory(int idx) {
+            if (idx < 0 || idx >= chips.size()) return CAT_ALL;
+            if (chipCats.size() != chips.size()) {
+                chipCats.clear();
+                for (int i = 0; i < chips.size(); i++) {
+                    chipCats.add(Integer.valueOf(computeChipCategory(i)));
+                }
+            }
+            return chipCats.get(idx).intValue();
+        }
+
+        int computeChipCategory(int idx) {
+            if (chipCustom.get(idx)) return CAT_MINE;
+            ChipBin ch = chips.get(idx);
+            String n = ch.name.toUpperCase();
+            if (n.startsWith("СХЕМА") || n.contains("СХЕМА:")) return CAT_CIRCUIT;
+            if (nameHas(n, new String[]{"ПК", "КОМПЬЮТЕР", "НОУТБУК", "СЕРВЕР",
+                    "РАБОЧАЯ СТАНЦИЯ", "СУПЕРКОМПЬЮТЕР", "ТЕРМИНАЛ"})) return CAT_PC;
+            if (nameHas(n, new String[]{"ТЕТРИС", "ТАМАГОЧИ", "ЗМЕЙКА", "ПОНГ",
+                    "ФЛАППИ", "АРКАНОИД", "ГОНКИ", "ЗАЩИТНИК", "ПРИСТАВКА",
+                    "КАЛЬКУЛЯТОР", "СИНТЕЗАТОР", "ЧАСЫ", "РОБОТ", "ДРОН",
+                    "ПЛАНШЕТ", "ИГРА «", "ИГРОВАЯ ПРИСТАВКА"})) return CAT_DEVICE;
+            if (ch.type == ChipBin.TYPE_RAM || ch.type == ChipBin.TYPE_ROM) return CAT_MEMORY;
+            if (ch.type == ChipBin.TYPE_GPU || ch.type == ChipBin.TYPE_DISPLAY) return CAT_VIDEO;
+            return CAT_CPU;
+        }
+
+        int catalogCount(int cat) {
+            if (cat == CAT_ALL) return chips.size();
+            int count = 0;
+            for (int i = 0; i < chips.size(); i++) {
+                if (chipCategory(i) == cat) count++;
+            }
+            return count;
+        }
+
+        boolean usesGamepad() {
+            if (curChip < 0 || curChip >= chips.size() || cpu == null) return false;
+            ChipBin ch = chips.get(curChip);
+            if (!ch.hasScreen() || ch.memSize <= 250) return false;
+            int cat = chipCategory(curChip);
+            if (cat == CAT_DEVICE || cat == CAT_PC) return true;
+            String n = ch.name.toUpperCase();
+            return nameHas(n, new String[]{"ТЕТРИС", "ТАМАГОЧИ", "ЗМЕЙКА", "ПОНГ",
+                    "ФЛАППИ", "АРКАНОИД", "ГОНКИ", "ПРИСТАВКА", "КАЛЬКУЛЯТОР",
+                    "СИНТЕЗАТОР", "РОБОТ", "ДРОН", "ПК", "КОМПЬЮТЕР"});
+        }
+
+        void pressPad(int buttonId) {
+            if (cpu == null || cpu.mem.length <= 250) return;
+            int[] masks = {1, 4, 8, 2, 16, 32}; // left, up, down, right, A, B
+            int idx = buttonId - B_PAD_LEFT;
+            if (idx < 0 || idx >= masks.length) return;
+            cpu.mem[250] = masks[idx] & cpu.chip.mask();
+            cpu.lastMemAddr = 250;
+            cpu.lastMemWrite = true;
+            cpu.lastMemCycle = cpu.cycles;
+            dieUiTick++;
+            if (!cpu.halted) running = true;
+        }
+
+        float drawGamepad(Canvas c, float x, float y, float w) {
+            String[] labels = {"<", "^", "v", ">", "A", "B"};
+            int[] ids = {B_PAD_LEFT, B_PAD_UP, B_PAD_DOWN, B_PAD_RIGHT, B_PAD_A, B_PAD_B};
+            float bw = (w - dp(25)) / 6f;
+            for (int i = 0; i < labels.length; i++) {
+                drawButton(c, ids[i], labels[i], x + i * (bw + dp(5)), y, bw, dp(40),
+                        i >= 4, false);
+            }
+            textC(c, "геймпад устройства: код кнопки пишется в ячейку ввода 250",
+                    x + w / 2, y + dp(54), dp(11), C_DIM, p);
+            return dp(60);
         }
 
         void saveProgress() {
@@ -384,6 +476,15 @@ public class MainActivity extends Activity {
                 }
                 return;
             }
+            if (id >= B_FILTER_BASE && id < B_FILTER_BASE + CAT_NAMES.length) {
+                catalogFilter = id - B_FILTER_BASE;
+                scrollY = 0;
+                return;
+            }
+            if (id >= B_PAD_LEFT && id <= B_PAD_B) {
+                pressPad(id);
+                return;
+            }
             switch (id) {
                 case B_BACK: handleBack(); break;
                 case B_CATALOG: go(SCR_CATALOG); break;
@@ -413,9 +514,9 @@ public class MainActivity extends Activity {
                     if (cpu != null) { for (int i = 0; i < cpu.mem.length; i++) cpu.mem[i] = 0; dieUiTick++; }
                     break;
                 case B_CT_TYPE: cycleType(); break;
-                case B_CT_BITS: ctBits = ctBits == 1 ? 4 : ctBits == 4 ? 8 : ctBits == 8 ? 16 : 1; fixCtName(); break;
+                case B_CT_BITS: ctBits = ctBits % 16 + 1; fixCtName(); break;
                 case B_CT_REGS_M: ctRegs = Math.max(1, ctRegs - 1); break;
-                case B_CT_REGS_P: ctRegs = Math.min(8, ctRegs + 1); break;
+                case B_CT_REGS_P: ctRegs = Math.min(16, ctRegs + 1); break;
                 case B_CT_MEM: ctMemIdx = (ctMemIdx + 1) % MEM_OPTIONS.length; fixConstructor(); break;
                 case B_CT_SCREEN: ctScreenIdx = (ctScreenIdx + 1) % SCREEN_OPTIONS.length; fixConstructor(); break;
                 case B_CT_NAME: showNameDialog(); break;
@@ -619,18 +720,19 @@ public class MainActivity extends Activity {
         static final String HELP_TEXT =
                 "ChipLab - симулятор создания микросхем.\n\n"
                 + "КАЖДЫЙ ЧИП - ЭТО .BIN ФАЙЛ\n"
-                + "Процессор, память, видеокарта и монитор описаны одним форматом CHIPBIN1: "
-                + "разрядность, регистры, память, блоки кристалла с транзисторами и программа. "
+                + "Процессоры, память, видеокарты, схемы, игровые устройства и целые ПК описаны одним форматом CHIPBIN1: "
+                + "разрядность, регистры, память, блоки кристалла с транзисторами и программа. В каталоге есть фильтры: процессоры, память, видео, схемы, устройства, ПК и мои чипы. "
                 + "Вкладка «.BIN» покажет файл как есть: структуру с цифрами и шестнадцатеричный дамп.\n\n"
-                + "МИКРОСКОП\n"
-                + "Открой любой чип и вкладку МИКРОСКОП: виден кристалл, его блоки, а внутри блоков - "
-                + "регистры-триггеры, ячейки памяти и цепочка сумматоров АЛУ с настоящими сигналами 0 и 1. "
-                + "Нажимай ШАГ/ПУСК прямо под микроскопом и смотри, как бегут импульсы по шине.\n\n"
+                + "ПРОСМОТР ПРОЦЕССОРА\n"
+                + "В любом устройстве - Тетрисе, Тамагочи, приставке, роботе, дроне или ПК - нажми большую кнопку «ПРОСМОТР ПРОЦЕССОРА: КАК ОН РАБОТАЕТ» на обзоре или вкладке РАБОТА. Откроется микроскоп: кристалл, блоки, регистры-триггеры, ячейки памяти и цепочка сумматоров АЛУ с настоящими сигналами 0 и 1. "
+                + "Нажимай ШАГ/ПУСК и кнопки геймпада прямо под микроскопом.\n\n"
+                + "ИГРЫ И УСТРОЙСТВА\n"
+                + "У Тетриса, Тамагочи, Змейки, Понга, калькулятора, ПК и других устройств на вкладке РАБОТА есть виртуальный геймпад. Он записывает код кнопки в ячейку памяти 250, а программа устройства сама читает и очищает её процессором. Для плавной игры включи скорость x100.\n\n"
                 + "РАБОТА\n"
                 + "Честная симуляция по тактам: регистры, флаги Z и C, память, вывод OUT и экран. "
                 + "У чипов памяти можно трогать ячейки и переключать биты пальцем.\n\n"
                 + "КОНСТРУКТОР\n"
-                + "Собери свой процессор (1/4/8/16 бит), ОЗУ или экран: игра посчитает транзисторы и "
+                + "Собери свой процессор любой разрядности 1..16 бит, до 16 регистров, до 1024 ячеек ОЗУ или экран до 64x64: игра посчитает транзисторы и "
                 + "сгенерирует настоящий .bin файл, который тут же заработает.\n\n"
                 + "ЧИПЫ ОТ НЕЙРОСЕТЕЙ\n"
                 + "В меню есть готовый ПРОМТ ДЛЯ ИИ: скопируй его в любую нейросеть, попроси чип "
@@ -643,7 +745,9 @@ public class MainActivity extends Activity {
         void updateSim(long now) {
             if (cpu != null && running && !cpu.halted && cpu.chip.isCpuLike()) {
                 if (speed == 2) {
-                    cpu.run(cpu.chip.hasScreen() ? 600 : 300);
+                    // Enough cycles for interactive devices to consume the
+                    // gamepad cell and redraw several game frames per second.
+                    cpu.run(cpu.chip.hasScreen() ? 2400 : 1000);
                     checkQuests();
                 } else {
                     long interval = speed == 0 ? 220 : 30;
@@ -1132,7 +1236,7 @@ public class MainActivity extends Activity {
             y += dp(24);
             textC(c, "СИМУЛЯТОР СОЗДАНИЯ ЧИПОВ", cx, y, dp(14), C_CYAN, pBold);
             y += dp(18);
-            textC(c, "процессоры - память - видеокарты - мониторы", cx, y, dp(12), C_DIM, p);
+            textC(c, "процессоры - схемы - игры - тамагочи - ПК", cx, y, dp(12), C_DIM, p);
             y += dp(26);
             float bw = Math.min(W - dp(48), dp(340)), bx = cx - bw / 2;
             float bh = dp(48), gap = dp(10);
@@ -1150,14 +1254,31 @@ public class MainActivity extends Activity {
         }
 
         float drawCatalog(Canvas c, long now) {
-            drawHeader(c, "Каталог чипов", true);
+            drawHeader(c, "Каталог чипов и устройств", true);
             float top = dp(60);
             drawButton(c, B_IMPORT, "+ ИМПОРТ ОТ ИИ", dp(10), top, (W - dp(30)) / 2, dp(38), false, false);
             drawButton(c, B_BUILDER, "+ КОНСТРУКТОР", W / 2 + dp(5), top, (W - dp(30)) / 2, dp(38), false, false);
+            float fy = top + dp(46);
+            float fw = (W - dp(20) - dp(9)) / 4f;
+            for (int i = 0; i < CAT_NAMES.length; i++) {
+                float fx = dp(10) + (i % 4) * (fw + dp(3));
+                float fyy = fy + (i / 4) * dp(37);
+                drawButton(c, B_FILTER_BASE + i, CAT_NAMES[i] + " " + catalogCount(i),
+                        fx, fyy, fw, dp(32), false, catalogFilter == i);
+            }
+            fy += dp(76);
+            textC(c, "показано: " + catalogCount(catalogFilter) + " из " + chips.size()
+                    + " - нажми карточку, а внутри будет кнопка просмотра процессора",
+                    W / 2, fy + dp(4), dp(11.5f), C_DIM, p);
             priorityBtnCount = btns.size();
-            float y = top + dp(50) - scrollY;
+            float y = fy + dp(16) - scrollY;
             float margin = dp(10);
+            int shown = 0;
+            c.save();
+            c.clipRect(0, fy + dp(8), W, H);
             for (int i = 0; i < chips.size(); i++) {
+                if (catalogFilter != CAT_ALL && chipCategory(i) != catalogFilter) continue;
+                shown++;
                 ChipBin ch = chips.get(i);
                 float cardH = dp(92);
                 if (y + cardH > dp(52) && y < H) {
@@ -1182,13 +1303,20 @@ public class MainActivity extends Activity {
                     text(c, "транзисторов: " + ch.transistors + " - файл: "
                             + (ch.raw != null ? ch.raw.length : 0) + " байт .bin", tx, y + dp(60), dp(12), C_DIM, p);
                     if (chipCustom.get(i)) {
-                        text(c, "МОЙ ЧИП / ОТ ИИ", tx, y + dp(78), dp(11), C_AMBER, pBold);
+                        text(c, "МОИ - мой чип / от ИИ", tx, y + dp(78), dp(11), C_AMBER, pBold);
                     } else {
-                        text(c, "пример из игры", tx, y + dp(78), dp(11), C_DIM, p);
+                        text(c, CAT_NAMES[chipCategory(i)] + " - пример из игры",
+                                tx, y + dp(78), dp(11), C_DIM, p);
                     }
                     addHit(B_CHIP_BASE + i, margin, y, W - 2 * margin, cardH);
                 }
                 y += cardH + dp(10);
+            }
+            c.restore();
+            if (shown == 0) {
+                textC(c, "в этой категории пока пусто - собери чип в конструкторе или импортируй от ИИ",
+                        W / 2, fy + dp(52), dp(12.5f), C_DIM, p);
+                return fy + dp(80);
             }
             return y + scrollY;
         }
@@ -1228,7 +1356,12 @@ public class MainActivity extends Activity {
             }
             y += size + dp(24);
             textC(c, "нажми на блок - откроется под микроскопом", W / 2, y, dp(11.5f), C_DIM, p);
-            y += dp(14);
+            y += dp(10);
+            drawButton(c, B_TAB1,
+                    chip.isCpuLike() ? "ПРОСМОТР ПРОЦЕССОРА: КАК ОН РАБОТАЕТ"
+                            : "ПРОСМОТР КРИСТАЛЛА ПОД МИКРОСКОПОМ",
+                    margin, y, W - 2 * margin, dp(44), true, false);
+            y += dp(54);
             // stats
             roundRect(c, margin, y, W - 2 * margin, dp(118), dp(10), C_PANEL);
             float sx = margin + dp(12), sy = y + dp(20);
@@ -1247,6 +1380,7 @@ public class MainActivity extends Activity {
             text(c, "Частота: " + (chip.clockKhz >= 1000 ? (chip.clockKhz / 1000.0) + " МГц" : chip.clockKhz + " кГц"),
                     W / 2 + dp(6), sy + dp(19), dp(13), C_TEXT, p);
             text(c, "Файл: " + (chip.raw != null ? chip.raw.length : 0) + " байт", W / 2 + dp(6), sy + dp(38), dp(13), C_TEXT, p);
+            text(c, "Категория: " + CAT_NAMES[chipCategory(curChip)], W / 2 + dp(6), sy + dp(57), dp(13), C_AMBER, pBold);
             y += dp(130);
             // description
             text(c, "КАК ЭТО РАБОТАЕТ", margin, y + dp(6), dp(13), C_AMBER, pBold);
@@ -1309,6 +1443,9 @@ public class MainActivity extends Activity {
                             margin, y + dp(4), dp(12.5f), C_CYAN, pMono);
                 }
                 y += dp(16);
+                if (usesGamepad()) {
+                    y += drawGamepad(c, margin, y, W - 2 * margin);
+                }
             }
             priorityBtnCount = btns.size();
             // selected block detail
@@ -1679,6 +1816,9 @@ public class MainActivity extends Activity {
             drawButton(c, B_STEP, "ШАГ", margin + bw + dp(5), y, bw, dp(40), false, false);
             drawButton(c, B_RUN, running ? "ПАУЗА" : "ПУСК", margin + 2 * bw + dp(10), y, bw, dp(40), true, false);
             drawButton(c, B_SPEED, "СКОР. x" + (speed == 0 ? 1 : speed == 1 ? 8 : 100), margin + 3 * bw + dp(15), y, bw, dp(40), false, false);
+            y += dp(48);
+            drawButton(c, B_TAB1, "ПРОСМОТР ПРОЦЕССОРА: КАК ОН РАБОТАЕТ",
+                    margin, y, W - 2 * margin, dp(40), false, false);
             priorityBtnCount = btns.size();
             y += dp(50);
             y -= scrollY;
@@ -1698,6 +1838,11 @@ public class MainActivity extends Activity {
                 text(c, "ЭКРАН " + chip.screenW + "x" + chip.screenH, margin, y + dp(10), dp(13), C_AMBER, pBold);
                 y += dp(16);
                 y += drawScreenDetail(c, margin, y, W - 2 * margin) + dp(6);
+                if (usesGamepad()) {
+                    text(c, "УПРАВЛЕНИЕ УСТРОЙСТВОМ", margin, y + dp(10), dp(13), C_AMBER, pBold);
+                    y += dp(16);
+                    y += drawGamepad(c, margin, y, W - 2 * margin) + dp(4);
+                }
             }
             // registers
             text(c, "РЕГИСТРЫ", margin, y + dp(10), dp(13), C_AMBER, pBold);

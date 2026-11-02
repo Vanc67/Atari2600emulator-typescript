@@ -183,8 +183,8 @@ def make_manifest(attr_ids):
 
     manifest_attrs = [
         (0xFFFFFFFF, pool.add("package"), None, None),  # placeholder fixed below
-        iattr("versionCode", 2),
-        sattr("versionName", "1.1"),
+        iattr("versionCode", 3),
+        sattr("versionName", "1.2"),
     ]
     pkg_si = pool.add("com.chiplab")
     manifest_attrs[0] = (0xFFFFFFFF, pool.add("package"), (pkg_si, pkg_si), TYPE_STRING)

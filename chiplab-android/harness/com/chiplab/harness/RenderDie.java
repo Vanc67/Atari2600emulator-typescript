@@ -55,6 +55,40 @@ public class RenderDie {
         System.out.println("[render] " + outPath + " segs=" + layout.segs.size() + " " + W + "x" + H);
     }
 
+    static void renderScreen(ChipBin chip, Cpu cpu, int scale, String outPath) throws Exception {
+        int W = chip.screenW * scale, H = chip.screenH * scale;
+        FileOutputStream fos = new FileOutputStream(outPath);
+        fos.write(("P6\n" + W + " " + H + "\n255\n").getBytes("ASCII"));
+        byte[] row = new byte[W * 3];
+        for (int y = 0; y < H; y++) {
+            int sy = y / scale;
+            for (int x = 0; x < W; x++) {
+                int sx = x / scale;
+                int v = cpu.framebuffer[sy * chip.screenW + sx] & 15;
+                int c = DieLayout.SCREEN_PALETTE[v];
+                row[x * 3] = (byte) ((c >> 16) & 0xFF);
+                row[x * 3 + 1] = (byte) ((c >> 8) & 0xFF);
+                row[x * 3 + 2] = (byte) (c & 0xFF);
+            }
+            fos.write(row);
+        }
+        fos.close();
+        System.out.println("[render] " + outPath + " screen " + W + "x" + H
+                + " lit=" + cpu.litPixels() + " cycles=" + cpu.cycles);
+    }
+
+    static void pressAndRun(Cpu cpu, int mask, int steps) {
+        if (cpu.mem.length > 250) cpu.mem[250] = mask;
+        cpu.run(steps);
+    }
+
+    /** Run to the next framebuffer wrap so screenshots are complete frames. */
+    static void finishFrame(Cpu cpu) {
+        if (cpu.framebuffer == null) return;
+        int guard = 0;
+        while (cpu.fbCursor != 0 && guard++ < 5000) cpu.run(100);
+    }
+
     static ChipBin load(String dir, String name) throws Exception {
         java.io.File f = new java.io.File(dir, name);
         java.io.FileInputStream in = new java.io.FileInputStream(f);
@@ -96,5 +130,38 @@ public class RenderDie {
         cr.lastMemAddr = 0x5A;
         cr.lastMemWrite = true;
         render(DieLayout.wholeDie(ram), new DieLayout.Ctx(ram, cr), 900, out + "/die_sram256.ppm");
+
+        // Interactive devices: staged gamepad presses through memory cell 250,
+        // exactly like MainActivity.pressPad does on the phone.
+        ChipBin tetris = load(dir, "57_tetris.bin");
+        Cpu tet = new Cpu(tetris);
+        int[] tetMoves = {1, 1, 8, 2, 2, 2, 8, 16, 1, 8, 2, 1};
+        for (int i = 0; i < 96; i++) pressAndRun(tet, tetMoves[i % tetMoves.length], 20000);
+        finishFrame(tet);
+        renderScreen(tetris, tet, 28, out + "/screen_tetris.ppm");
+        render(DieLayout.wholeDie(tetris), new DieLayout.Ctx(tetris, tet), 900, out + "/die_tetris.ppm");
+
+        ChipBin tama = load(dir, "58_tamagotchi.bin");
+        Cpu pet = new Cpu(tama);
+        int[] petMoves = {16, 2, 32, 1, 16, 32};
+        for (int i = 0; i < 48; i++) pressAndRun(pet, petMoves[i % petMoves.length], 12000);
+        finishFrame(pet);
+        renderScreen(tama, pet, 34, out + "/screen_tamagotchi.ppm");
+        render(DieLayout.wholeDie(tama), new DieLayout.Ctx(tama, pet), 900, out + "/die_tamagotchi.ppm");
+
+        ChipBin snake = load(dir, "59_snake.bin");
+        Cpu sn = new Cpu(snake);
+        int[] snakeMoves = {2, 2, 4, 4, 1, 1, 8, 8, 2, 4};
+        for (int i = 0; i < snakeMoves.length; i++) pressAndRun(sn, snakeMoves[i], 25000);
+        finishFrame(sn);
+        renderScreen(snake, sn, 34, out + "/screen_snake.ppm");
+
+        ChipBin pc = load(dir, "71_mini_pc.bin");
+        Cpu desktop = new Cpu(pc);
+        int[] pcMoves = {2, 2, 8, 2, 8, 1};
+        for (int i = 0; i < pcMoves.length; i++) pressAndRun(desktop, pcMoves[i], 30000);
+        finishFrame(desktop);
+        renderScreen(pc, desktop, 22, out + "/screen_mini_pc.ppm");
+        render(DieLayout.wholeDie(pc), new DieLayout.Ctx(pc, desktop), 900, out + "/die_mini_pc.ppm");
     }
 }
