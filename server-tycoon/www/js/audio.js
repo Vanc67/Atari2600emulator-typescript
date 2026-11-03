@@ -12,7 +12,7 @@
 
     settings() {
       if (!this.game.state.settings) {
-        this.game.state.settings = { music: true, sfx: true, volume: 0.32, track: 'electro', musicMode: 'lofi' };
+        this.game.state.settings = { music: true, sfx: true, volume: 0.58, track: 'electro', musicMode: 'lofi' };
       }
       if (!this.game.state.settings.musicMode) this.game.state.settings.musicMode = this.game.state.flags && this.game.state.flags.onboarded ? 'tracks' : 'lofi';
       return this.game.state.settings;
@@ -21,6 +21,10 @@
     radio() {
       if (!window.lofiRadio && window.LongLofiRadio) window.lofiRadio = new window.LongLofiRadio(this);
       return window.lofiRadio || null;
+    }
+
+    outputVolume() {
+      return Math.max(0, Math.min(1, this.settings().volume * 1.25));
     }
 
     unlock() {
@@ -64,7 +68,7 @@
       const track = (window.DATA.MUSIC_TRACKS || []).find(item => item.id === trackId) || (window.DATA.MUSIC_TRACKS || [])[0];
       if (!track) return;
       if (this.audio && this.trackId === track.id) {
-        this.audio.volume = this.settings().volume;
+        this.audio.volume = this.outputVolume();
         if (this.audio.paused) {
           const resumed = this.audio.play();
           if (resumed && typeof resumed.catch === 'function') resumed.catch(() => {});
@@ -80,7 +84,7 @@
       this.audio = new window.Audio(track.file);
       this.audio.loop = true;
       this.audio.preload = 'auto';
-      this.audio.volume = this.settings().volume;
+      this.audio.volume = this.outputVolume();
       const started = this.audio.play();
       if (started && typeof started.catch === 'function') started.catch(() => {
         // WebView может потребовать ещё один жест; следующий tap повторит запуск.
@@ -127,7 +131,7 @@
     setVolume(value) {
       const volume = Math.max(0, Math.min(1, Number(value)));
       this.settings().volume = volume;
-      if (this.audio) this.audio.volume = volume;
+      if (this.audio) this.audio.volume = this.outputVolume();
       if (window.lofiRadio) window.lofiRadio.setVolume();
       this.game.save();
     }

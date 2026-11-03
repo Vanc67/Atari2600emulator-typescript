@@ -13,7 +13,7 @@
     const result = baseNormalize.call(this);
     const s = this.state;
     s.version = 5;
-    s.settings = Object.assign({ music: true, sfx: true, volume: .32, track: 'electro' }, s.settings || {});
+    s.settings = Object.assign({ music: true, sfx: true, volume: .58, track: 'electro' }, s.settings || {});
     s.networkId = s.networkId || 'home100';
     s.upgrades = Object.assign({ ac: 0, pdu: 0, ups: 0 }, s.upgrades || {});
     s.xp = Number.isFinite(s.xp) ? s.xp : 0;

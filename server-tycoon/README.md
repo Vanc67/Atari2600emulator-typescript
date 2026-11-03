@@ -1,6 +1,52 @@
-# Server Tycoon 8.3 — OS World, Offline Games & Services
+# Server Tycoon 8.4 — Real Hardware, Mobile Avito & OS Setup
 
 Мобильная offline-игра «Сисадмин: Песочница». Готовый установочный пакет: **`ServerTycoon.apk`**.
+
+## Real Hardware & OS 8.4
+
+### Железо и тюнинг любого компьютера
+
+- **Hardware Inspector** добавлен на каждый PC: custom PC Architect/Laptop Architect, обычные поколения, купленные prebuilt, клиентские job-заказы и находки с мусорки. Показывает CPU/GPU/RAM/storage/питание/охлаждение, а у mobile-ПК также дисплей и батарею;
+- прежний CPU/GPU +0/+10/+20 и Silent/Balanced/Turbo стал **универсальным tuning**. Доступен любой origin и форм-фактор; выключение, PSU/adapter headroom, ватты, температура, шум и Stability проверяются тем же существующим движком;
+- OS responsiveness, оценка boot, CPU/GPU scores и ревизия тюнинга видны в интерфейсе. Старые custom tuning UI и сохранённые результаты не удалены.
+
+### Готовые ноутбуки и нетбуки на Mobile Авито
+
+- отдельный рынок содержит **31 готовую модель**, а не только Laptop Architect: IBM/Lenovo ThinkPad, Dell, HP, ASUS, Acer, MSI, Samsung, Nokia, Apple, Framework и другие;
+- есть маленькие слабые нетбуки 2007–2009 годов, включая легендарный **ASUS Eee PC 900 с Intel Celeron M 353 900 МГц**, 8.9″ 1024×600, весом 0.99 кг и BGA CPU;
+- typed-name поиск, формат laptop/netbook, бренд, точный год, цена от/до и сортировки работают offline. Состояние, health, продавец, возраст и состояние рынка формируют разные цены;
+- купленная модель становится полноценной машиной с ОС, батареей, OS World, диагностикой, играми и сохранением. Повторная покупка sold-лота и нехватка денег не изменяют состояние;
+- prebuilt real upgrade разрешает **storage по интерфейсу, RAM по типу/слотам/лимиту и CPU только на сменном сокете с подходящим TDP**. BGA CPU отклоняется. Для разборки нужно выключить ПК и отключить адаптер;
+- совместимую деталь можно взять из существующего 200-slot component inventory — тогда она расходуется вместо денег. История апгрейдов и исходная модель сохраняются; при замене диска данные считаются клонированными, поэтому ОС не теряется.
+
+### 58 ОС и настоящий USB → BIOS → timed setup
+
+- к прежним 13 consumer OS добавлены **45 образов**: DOS/FreeDOS, Windows NT/2000/ME/XP x64/Vista/7/8/10/11 и LTSC, Windows Server, ReactOS, Ubuntu/Debian/Lubuntu/Xubuntu/Mint/antiX/Puppy/Slax/Arch/Fedora/openSUSE/Zorin, ChromeOS Flex, Android-x86/Bliss OS, FreeBSD/OpenBSD и Haiku;
+- графический выбор ОС теперь начинает сохраняемый сценарий: **запись флешки → BIOS Boot Menu → явный выбор USB → копирование/драйверы → завершение и загрузка**. Setup продолжается на game tick после закрытия окна и останавливается на глобальной паузе;
+- длительность зависит от образа, CPU, RAM и HDD/SSD/NVMe/eMMC: от нескольких минут на подходящем железе до **4 часов** на крайне слабой конфигурации. На «Долгой» скорости одна кнопка пропускает ровно **10 секунд**, на «Сюжетной» и «Быстрой» — **10 минут**;
+- universal timed boot работает на любой ОС и машине. Windows XP на Eee PC 900 загружается около минуты, а Windows 11 на том же Celeron — почти два часа. Legacy «Пропустить анимацию» сохранён отдельно от новых timed skip-кнопок;
+- OS responsiveness влияет на RAM/CPU load, FPS и фактическую скорость downloads. Прежний мгновенный `installPCOS()` остаётся для совместимости Shell, saves, cheats и программных сценариев.
+
+### 46 benchmarks, игры, эмуляторы и реалистичный FPS
+
+- к прежней Benchmark Library добавлены **35 новых тестов**: Wolfenstein 3D, DOOM II, Duke Nukem 3D, Quake II/III, Unreal/UT99, Deus Ex, Max Payne, Morrowind, Far Cry, Half-Life 2, CS Source, F.E.A.R., Oblivion, S.T.A.L.K.E.R., Portal, TF2, BioShock, GTA IV/V, Skyrim, CS:GO/CS2, DOOM 2016 и другие;
+- emulator benchmarks: **PCSX2, Dolphin, RetroArch и PPSSPP**, плюс DOSBox/ScummVM compatibility packages. FPS учитывает CPU/GPU/RAM/storage/health/tuning/OS/power plan и имеет frame caps, 1% low и 16 samples;
+- стоковый desktop 2007 года выдаёт **105 FPS в DOOM** и **180 FPS в CS 1.6**, а слабый Eee PC 900 получает заметно меньший результат в тяжёлых играх. Прежние 11 tests остаются отдельной исходной секцией;
+- `games.local` сохраняет исходные 10 packages. Новые игры и эмуляторы находятся на `realism.local`; все используют общий Download Manager и per-machine saves.
+
+### Supermium, Wine, DOSBox и совместимый Browser
+
+- `compatibility.local` содержит **Supermium 132**, Firefox ESR, K-Meleon, MyPal, Chrome 109, Links, Wine, DOSBox, ScummVM, VMware, 7-Zip и VLC;
+- на Windows XP `modern.local` и `newest-web.local` сначала показывают реальную причину блокировки. После скачивания и установки **Supermium** browser engine машины становится 132 и современные локальные страницы открываются. Chrome 109 на XP при этом отклоняется;
+- новые DOS-игры на современной ОС требуют DOSBox, Windows-игры на Linux/BSD — Wine. Проверяются также семейство ОС, минимальный год и RAM. Старые 10 games сохраняют прежние правила совместимости;
+- фильтрация магазинов меняет только отображаемый каталог: installed packages, downloads, games и история конкретного ПК не удаляются.
+
+### Более громкая музыка
+
+- новый music default — **0.58** вместо 0.32; классические дорожки получают output gain ×1.25, lo-fi — ×1.05 с безопасным потолком 0.85;
+- существующая пользовательская громкость и mute продолжают работать. Server ROAR, независимые громкие голоса и все PC sound layers сохранены без active-count normalization.
+
+Всё из 8.3 и ранних версий остаётся: 20,000 desktop parts, 4,440 laptop parts, оба Architect, PC-Авито с годами/ценой/сокетом, 2,597 серверов, 5,570 серверных деталей, 2,046 services, 61 server OS, обе кампании, приложения, cheats и прежние saves.
 
 ## OS World 8.3: настоящие системы на каждом ПК и сервере
 
@@ -300,9 +346,9 @@
 
 ## Android
 
-- version **8.3.0**, versionCode **12**; package `ru.vanc67.servertycoon`;
-- APK: **3 347 364 байта**, SHA-256 `4f0748f8515ed0528d2f70af74011c2223c3d4c50dab5f7f17995b49d5258ad9`;
-- проверены ZIP CRC, v1/v2/v3 и **63/63** побайтно совпадающих Web-ресурсов (70 ZIP entries); сертификат SHA-256 `8f1eebcb9c18301b4225c4060249c262a9eed9a18a89d483c7dd655a108255ca`;
+- version **8.4.0**, versionCode **13**; package `ru.vanc67.servertycoon`;
+- APK: **3 384 526 байта**, SHA-256 `9d1af8192d42331c30f552c397c4e2a1f3c48c03b7b6768deda05a0701be9917`;
+- проверены ZIP CRC, v1/v2/v3 и **67/67** побайтно совпадающих Web-ресурсов (74 ZIP entries); сертификат SHA-256 `8f1eebcb9c18301b4225c4060249c262a9eed9a18a89d483c7dd655a108255ca`;
 - minSdk 23 (Android 6.0), targetSdk 35, портретная ориентация;
 - нативная WebView-оболочка без Capacitor/Cordova runtime;
 - `android.permission.INTERNET` отсутствует: код, каталоги, логотипы и музыка находятся в `assets/www`;
@@ -327,6 +373,7 @@ node tests/architect-cheats.test.cjs
 node tests/plus.test.cjs
 node tests/laptop-market.test.cjs
 node tests/os-world.test.cjs
+node tests/pc-realism.test.cjs
 ```
 
 - **OS World 8.3: 23/23 Node-сценария** — per-machine browser/state, скорости и storage guard, pause/resume/cancel, питание/пауза, year/ownership, install/play/FPS, hardware/power plans, файлы, PC/server Shell, настоящий nginx, stop/start/restart и revenue, uninstall/RAID lifecycle, save/reload и 70 GB package — **всего 190 Node-сценариев**;

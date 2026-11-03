@@ -37,7 +37,7 @@
       const context = this.audio.context;
       if (this.bus) { try { this.bus.disconnect(); } catch (_) {} }
       this.bus = context.createGain();
-      this.bus.gain.value = clamp(this.audio.settings().volume * .75, 0, .6);
+      this.bus.gain.value = clamp(this.audio.settings().volume * 1.05, 0, .85);
       this.bus.connect(context.destination);
       this.makeVinyl();
     }
@@ -59,7 +59,7 @@
       if (this.noise) { try { this.noise.stop(); } catch (_) {} this.noise = null; }
       if (this.bus) { try { this.bus.disconnect(); } catch (_) {} this.bus = null; }
     }
-    setVolume() { if (this.bus) this.bus.gain.value = clamp(this.audio.settings().volume * .75, 0, .6); }
+    setVolume() { if (this.bus) this.bus.gain.value = clamp(this.audio.settings().volume * 1.05, 0, .85); }
     selectTrack(index) {
       index = ((Number(index) || 0) % this.tracks.length + this.tracks.length) % this.tracks.length;
       const wasPlaying = this.playing; if (wasPlaying) this.stop();
