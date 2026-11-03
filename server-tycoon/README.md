@@ -1,6 +1,40 @@
-# Server Tycoon 8.2 — Laptop Architect, PC Avito & Brand Icons
+# Server Tycoon 8.3 — OS World, Offline Games & Services
 
 Мобильная offline-игра «Сисадмин: Песочница». Готовый установочный пакет: **`ServerTycoon.apk`**.
+
+## OS World 8.3: настоящие системы на каждом ПК и сервере
+
+### Offline Browser и Download Manager
+
+- у каждого desktop/laptop/job ПК и каждого сервера появился собственный сохраняемый `osWorld`: адрес, Back/Forward, закладки, параллельные загрузки, файлы, процессы, игры, power plan и состояние служб не смешиваются между машинами;
+- графический **Offline Browser** поддерживает typed URL, настоящие переходы, Back/Forward и закладки. Локальные сайты: `home.local`, `games.local`, `repo.local`/`packages.local`, `downloads.local`, `docs.local`/`handbook.local`, `avito.local`, `services.local` и `status.local`. Неизвестный адрес показывает offline-страницу; внешний HTTP(S)-запрос никогда не выполняется;
+- четыре профиля: **Slow 1 Мбит/с, Normal 25, Fast 100 и Fiber 500 Мбит/с**. Фактическая скорость учитывает HDD/SSD/NVMe на ПК и uplink/outage на сервере. Загрузки идут на существующем game tick, продвигаются параллельно, поддерживают pause/resume и смену профиля;
+- отмена освобождает зарезервированное место, но оставляет запись в истории. Duplicate guard не создаёт второй активный пакет. Нехватка диска, future year, чужой job PC и несовместимая server OS отклоняют операцию до изменения состояния;
+- выключенная или аварийная ОС останавливает передачу без потери прогресса. Глобальная пауза также останавливает загрузки. После reload восстанавливаются точные МБ, скорость, статус и очередь.
+
+### Игры, FPS, файлы, процессы и питание ПК
+
+- **10 offline game packages** созданы на основе существующих не-stability benchmarks: DOOM 40 МБ, Quake 120 МБ, Half-Life 350 МБ, CS 1.6 550 МБ, GTA III 1,5 ГБ, DOOM 3 2,2 ГБ, Crysis 6,5 ГБ, Minecraft 500 МБ, Witcher 3 35 ГБ и Cyberpunk 2077 70 ГБ;
+- после скачивания пакет нужно установить. **My Games** запускает прежний `runPCBenchmark()` и показывает последний/лучший FPS, PASS/LOW FPS и график всех 16 samples. Запущенная игра появляется в Processes и добавляет реальную нагрузку; её можно завершить без удаления установки;
+- FPS по-прежнему зависит от CPU, GPU, RAM, storage, ОС, health и tuning. **Eco / Balanced / Performance** дополнительно меняют CPU/GPU scores, ватты, целевую температуру, шум и звук, а не только подпись в меню;
+- **File Manager** создаёт и редактирует локальные текстовые файлы с revision history на каждой машине. **Processes** показывает kernel, downloads, games и services с PID/CPU/RAM/status и рабочими Stop/Pause/Resume;
+- старые System Monitor, Проводник, Benchmark Library, DOS/terminal, Notes, Calculator и Minesweeper не заменены. В Shell добавлены `store`, `download`, `downloads`, `pause/resume/cancel`, `play`, `stopgame`, `plan`, `files`.
+
+### Server Package Manager и настоящие службы
+
+- графические **Browser, Packages, Downloads, Files, Processes и Services** доступны и из server desktop, и из launcher в Shell;
+- Packages ищет среди всех **2,046 существующих `DATA.SOFTWARE` пакетов**, учитывает год и совместимость с ОС и выдаёт ограниченную для мобильного DOM страницу без удаления каталога;
+- server package сначала скачивается, затем вызывает настоящий `installSoftware()` со всеми проверками RAM/ОС/питания. **Start/Stop/Restart** не удаляет installed ID: остановленная служба исчезает из CPU/RAM/revenue-расчёта и возвращается после start/restart;
+- старый uninstall, OS reinstall, RAID и завершение Torture Lab синхронизируют package/stopped state. Файлы и скачанные пакеты сохраняются, phantom stopped flags не остаются;
+- Shell дополнен `packages/store`, `fetch`, `downloads`, `services`, `start/stop/restart <serviceId>`. Прежние AI Model Manager, Torture Lab, мониторинг и Control Room работают как раньше.
+
+### Более convincing процедурный звук ПК
+
+- исходные fan, harmonic, coil, HDD/SSD clicks сохранены. Поверх добавлены пять независимых слоёв: тихий PSU, GPU electronics, memory hum, filtered air и медленная LFO-модуляция;
+- тембр и частоты зависят от machine ID, storage, CPU/GPU/RAM load, шума, laptop/desktop и power plan. Дополнительный короткий head transient дополняет прежние дисковые щелчки;
+- весь звук синтезируется WebAudio без аудиофайлов и сети. Остановка/закрытие PC OS очищает и старые, и новые audio nodes. ROAR 2.0 и независимые громкие голоса серверов не изменены.
+
+Все 20,000 desktop parts, 4,440 laptop parts, PC-Авито с годами/ценой/сокетом, 200-slot inventory, 2,597 серверов, 5,570 серверных деталей, 61 server OS, 13 consumer OS, 11 benchmarks, обе кампании, cheats и прежние saves остаются на месте.
 
 ## Laptop Architect, PC Авито и фирменные детали 8.2
 
@@ -266,9 +300,9 @@
 
 ## Android
 
-- version **8.2.0**, versionCode **11**; package `ru.vanc67.servertycoon`;
-- APK: **3 322 421 байт**, SHA-256 `2983d7bb8c4216d7bfde1507af7055ed20baf08e99617c5170cb8096e4b408bf`;
-- проверены ZIP CRC, v1/v2/v3 и **58/58** побайтно совпадающих Web-ресурсов (65 ZIP entries); сертификат SHA-256 `8f1eebcb9c18301b4225c4060249c262a9eed9a18a89d483c7dd655a108255ca`;
+- version **8.3.0**, versionCode **12**; package `ru.vanc67.servertycoon`;
+- APK: **3 347 364 байта**, SHA-256 `4f0748f8515ed0528d2f70af74011c2223c3d4c50dab5f7f17995b49d5258ad9`;
+- проверены ZIP CRC, v1/v2/v3 и **63/63** побайтно совпадающих Web-ресурсов (70 ZIP entries); сертификат SHA-256 `8f1eebcb9c18301b4225c4060249c262a9eed9a18a89d483c7dd655a108255ca`;
 - minSdk 23 (Android 6.0), targetSdk 35, портретная ориентация;
 - нативная WebView-оболочка без Capacitor/Cordova runtime;
 - `android.permission.INTERNET` отсутствует: код, каталоги, логотипы и музыка находятся в `assets/www`;
@@ -292,8 +326,14 @@ node tests/roar-market.test.cjs
 node tests/architect-cheats.test.cjs
 node tests/plus.test.cjs
 node tests/laptop-market.test.cjs
+node tests/os-world.test.cjs
 ```
 
+- **OS World 8.3: 23/23 Node-сценария** — per-machine browser/state, скорости и storage guard, pause/resume/cancel, питание/пауза, year/ownership, install/play/FPS, hardware/power plans, файлы, PC/server Shell, настоящий nginx, stop/start/restart и revenue, uninstall/RAID lifecycle, save/reload и 70 GB package — **всего 190 Node-сценариев**;
+- **OS World JSDOM: 14/14** click-through сценариев от PC Browser до Games/FPS и server Packages/Services, включая сохранность Notes/Calculator/Minesweeper;
+- **OS World offline mobile/desktop Chromium: 20/20** при `browser offline = true` (390×844 и 1280×800): живой tick, pause, install, 16 FPS bars, пять новых WebAudio-слоёв, mobile file editor, power plan, nginx/service stop, overflow, desktop resize, 0 console errors и 0 внешних запросов;
+- **Legacy offline Chromium smoke: 18/18** — onboarding 8.3, обе кампании, AI, Torture Lab, Shell, cheats, Avito years/search/socket/price, 10-slot Laptop Architect, custom PC и 11 прежних benchmarks;
+- статические проверки 8.3: **45/45 JS syntax**, **56/56 index resources**, **5/5 embedded audio refs**, `git diff --check`; физическое Android-устройство не использовалось;
 - 9 базовых сценариев: DDR, БП, ОС/BOINC, доход, перегрев, OOM, Авито, долги и дни;
 - 12 сценариев 2.0: GPU, RAID, сеть, инфраструктура, ИБП, контракты, события и миграция;
 - 10 сценариев Mega Archive: масштаб, все годы и бренды, уникальные ID, каждая из 2 597 конфигураций, legacy-ОС/сервис и покупка;
