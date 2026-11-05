@@ -381,7 +381,14 @@ def init_gpu(a, fill=0x02000810):
 
 
 def gp0(a, word):
-    """Emits two instructions: t2 = word; store to GP0."""
+    """Emits the store of one GP0 word.
+
+    The GP0 base is reloaded every time on purpose. It used to live in t1 and
+    helpers such as draw_number() borrowed that register for their own loops,
+    which sent the following stores to address 1..5 and raised address-error
+    exceptions in the middle of a frame.
+    """
+    a.li(9, GP0)
     a.li(10, word & 0xFFFFFFFF)
     a.sw(10, 0, 9)
 
@@ -430,8 +437,11 @@ def wait_vblank(a):
     a.label(l_poll)
     a.lw_safe(13, 0, 11)
     a.srl(13, 13, 31)
-    a.beq(13, 12, l_poll)       # wait until the field flips over
-    a.addiu(6, 6, 1)
+    # The flip is the *good* case, so branch out on difference. The old code
+    # branched back on difference while the counter was still small, which made
+    # every demo wait for the poll bound and run at half speed.
+    a.bne(13, 12, l_done)
+    a.addiu(6, 6, 1)            # delay slot: count this poll
     a.sltiu(7, 6, 40000)        # give up after 40k polls
     a.bne(7, 0, l_poll)
     a.nop()
@@ -1128,13 +1138,16 @@ def demo_pong():
     read_pad(a, 6, 7)
 
     # ---- player paddle --------------------------------------------------
+    # The pad reports active low: a cleared bit means "pressed", so a set bit
+    # jumps over the movement. (This used to be inverted, which made the
+    # paddle move while nothing was pressed.)
     a.andi(8, 6, 0x10)            # UP
-    a.beq(8, 0, "no_up")
+    a.bne(8, 0, "no_up")
     a.nop()
     a.addiu(16, 16, -10)
     a.label("no_up")
     a.andi(8, 6, 0x40)            # DOWN
-    a.beq(8, 0, "no_down")
+    a.bne(8, 0, "no_down")
     a.nop()
     a.addiu(16, 16, 10)
     a.label("no_down")

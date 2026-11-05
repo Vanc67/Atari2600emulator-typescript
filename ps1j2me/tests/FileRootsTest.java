@@ -76,6 +76,23 @@ public final class FileRootsTest {
         check(!FileRoots.isUsable(base + "/nope/"), "missing folder is not usable");
         check(!FileRoots.isUsable(base + "/readme.txt"), "a file is not a usable root");
         check(!FileRoots.isUsable(null), "null is not usable");
+
+        /* a firmware that throws from isDirectory() must not hide the card */
+        System.setProperty("jsr75.stub.isDirectoryBroken", "1");
+        try {
+            check(FileRoots.isUsable(url), "usable when isDirectory() throws");
+            System.setProperty("fileconn.dir.memorycard", url);
+            Vector roots = FileRoots.discoverRoots();
+            boolean found = false;
+            for (int i = 0; i < roots.size(); i++) {
+                if (("file://" + url).equals(((FileRoots.Root) roots.elementAt(i)).url)) found = true;
+            }
+            check(found, "root discovered when isDirectory() throws");
+            System.clearProperty("fileconn.dir.memorycard");
+        } finally {
+            System.clearProperty("jsr75.stub.isDirectoryBroken");
+        }
+        check(!FileRoots.isUsable(base + "/readme.txt"), "a file is still not a root");
     }
 
     private static void discovery(String base) throws Exception {

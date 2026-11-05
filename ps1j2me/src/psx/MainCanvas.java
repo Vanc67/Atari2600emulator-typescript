@@ -35,7 +35,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     private static final int MODE_MESSAGE = 7;
     private static final int MODE_INFO = 8;
 
-    public static final String VERSION = "1.7.0";
+    public static final String VERSION = "1.7.2";
 
     /* CHD/MDF/NRG need a decompressor or a proprietary header: they are not
        listed as games so a tap on them cannot fail with an empty screen. */
@@ -270,8 +270,21 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     private volatile int padButtons = 0xFFFF;
     /** Storage roots found on this handset (see FileRoots). */
     private Vector roots = new Vector();
+    /**
+     * True once the background memory card scan has finished one way or the
+     * other. The UI renders before the scan returns otherwise, which used to
+     * make screenshots (and the first frame on a slow phone) flip between the
+     * browser and the "no card" message.
+     */
+    private boolean discovered;
     /** True while the browser shows the list of storage devices. */
     private boolean showingRoots;
+    /** Set while the settings screen re-reads the folder: keeps MODE_SETTINGS. */
+    private boolean keepModeOnList;
+    /** Games found in the current folder, for the header counter. */
+    private int gameCountNow;
+    /** True when the folder had more entries than MAX_ENTRIES. */
+    private boolean listTruncated;
     private static final int MAX_ENTRIES = 512;
     private int fps;
     private int framesThisSecond;
@@ -322,6 +335,17 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     /* ==================================================================== */
 
     public void run() {
+        try {
+            discover();
+        } finally {
+            discovered = true;
+        }
+    }
+
+    /** Used by the desktop tests to wait for the background scan. */
+    public boolean isDiscovered() { return discovered; }
+
+    private void discover() {
         try {
             roots = FileRoots.discoverRoots();
             if (roots.size() == 0) {
@@ -395,6 +419,8 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         showingRoots = false;
         boolean ok = false;
         int gameCount = 0;
+        listTruncated = false;
+        gameCountNow = 0;
         try {
             FileConnection dir = (FileConnection) Connector.open(url, Connector.READ);
             try {
@@ -410,7 +436,13 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                 Vector others = new Vector();
                 String base = url.endsWith("/") ? url : url + "/";
                 int total = 0;
-                while (list != null && list.hasMoreElements() && total < MAX_ENTRIES) {
+                while (list != null && list.hasMoreElements()) {
+                    if (total >= MAX_ENTRIES) {
+                        /* a card can hold thousands of files: say so instead of
+                           silently showing a short list */
+                        listTruncated = true;
+                        break;
+                    }
                     String raw = (String) list.nextElement();
                     if (raw == null) continue;
                     total++;
@@ -443,6 +475,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                 addSorted(games);
                 addSorted(others);
                 gameCount = games.size();
+                gameCountNow = gameCount;
                 ok = true;
             } finally {
                 dir.close();
@@ -451,11 +484,11 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             currentTitle = title;
             rootUrl = rootOf(currentUrl);
             showingRoots = false;
-            mode = MODE_BROWSER;
+            if (!keepModeOnList) mode = MODE_BROWSER;
             if (entries.size() == 0) {
                 status = "Папка пуста";
             } else {
-                status = entries.size() + " элементов, " + gameCount + " игр(ы)";
+                status = entries.size() + " файлов, игр: " + gameCount;
             }
             /* keep the last folder, but do not hit RMS on every repaint */
             if (config.lastUrl == null || !config.lastUrl.equals(currentUrl)) {
@@ -546,10 +579,16 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     /* ==================================================================== */
 
     protected void keyPressed(int keyCode) {
-        int act = translate(keyCode);
+        if (mode == MODE_GAME) {
+            gameKey(keyCode, translate(keyCode), true);
+            return;
+        }
+        /* Every other screen uses the layout independent translation: "5" must
+           confirm and "0" must go back in all three pad layouts, otherwise the
+           "cross/circle" layout turns "0" into "launch the selected game". */
+        int act = translateUi(keyCode);
         switch (mode) {
             case MODE_BROWSER: browserKey(keyCode, act); break;
-            case MODE_GAME: gameKey(keyCode, act, true); break;
             case MODE_PAUSE: pauseKey(keyCode, act); break;
             case MODE_SETTINGS: settingsKey(keyCode, act); break;
             case MODE_HELP: helpKey(keyCode, act); break;
@@ -557,9 +596,16 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             case MODE_INFO: infoKey(keyCode, act); break;
             default:
                 if (act == KeyMap.START || keyCode == KEY_STAR) {
-                    mode = MODE_BOOT;
-                    repaint();
-                    new Thread(this).start();
+                    if (booting) {
+                        /* a second search would race with the running boot */
+                        overlay("Загрузка уже идёт, подождите...");
+                    } else {
+                        stopGame();
+                        mode = MODE_BOOT;
+                        status = "Поиск карты памяти...";
+                        repaint();
+                        new Thread(this, "ps1-scan").start();
+                    }
                 } else if (uiFire(keyCode, act)) {
                     openDemos();
                 }
@@ -568,12 +614,24 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     }
 
     protected void keyReleased(int keyCode) {
-        if (mode != MODE_GAME) return;
+        /* Releases must be delivered even when the pause menu is open: a key
+           held while the menu appeared would otherwise stay pressed on the pad
+           and the character would run away after "Продолжить игру". */
+        if (machine == null) return;
         gameKey(keyCode, translate(keyCode), false);
+    }
+
+    /** Menu translation: same keys, but the pad layout is not applied. */
+    private int translateUi(int keyCode) {
+        return translateAs(keyCode, KeyMap.LAYOUT_STANDARD);
     }
 
     /** Translates a raw MIDP key code into a KeyMap action, never throwing. */
     private int translate(int keyCode) {
+        return translateAs(keyCode, config.keyLayout);
+    }
+
+    private int translateAs(int keyCode, int layout) {
         int action = 0;
         try {
             action = getGameAction(keyCode);
@@ -581,7 +639,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             /* some firmwares throw for unknown codes */
         }
         try {
-            return KeyMap.action(keyCode, action, config.keyLayout);
+            return KeyMap.action(keyCode, action, layout);
         } catch (Throwable t) {
             return KeyMap.NONE;
         }
@@ -659,6 +717,9 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             listDirectory(e.url, e.name);
         } else if (e.game) {
             startFileGame(e);
+        } else {
+            /* shown only in the "all files" mode: never stay silent */
+            overlay("Это не образ игры: " + e.name);
         }
     }
 
@@ -669,20 +730,26 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         }
         for (int i = 0; i < roots.size(); i++) {
             if (currentUrl.equals(((FileRoots.Root) roots.elementAt(i)).url)) {
-                openRoots();
+                leaveRootFolder();
                 return;
             }
         }
         String parent = FileRoots.parent(currentUrl);
         if (parent == null || parent.equals(currentUrl)) {
-            openRoots();
+            leaveRootFolder();
             return;
         }
         if (rootUrl != null && parent.equals(rootUrl)) {
-            openRoots();
+            leaveRootFolder();
             return;
         }
         listDirectory(parent, nameOf(parent));
+    }
+
+    /** Goes one level above a device: the picker, or the menu if there is one. */
+    private void leaveRootFolder() {
+        if (roots.size() > 1) openRoots();
+        else openPauseMenu();
     }
 
     /* ---- pause menu ------------------------------------------------------ */
@@ -700,6 +767,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
 
     private void openPauseMenu() {
         pauseSelection = 0;
+        releasePad();
         if (mode == MODE_GAME) paused = true;
         mode = MODE_PAUSE;
         repaint();
@@ -718,6 +786,8 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                     if (machine != null) {
                         paused = false;
                         mode = MODE_GAME;
+                        /* the phone call / task switch may have stopped it */
+                        if (config.sound && audio == null) startAudioAsync(machine);
                     } else {
                         mode = MODE_BROWSER;
                     }
@@ -843,8 +913,15 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
                 break;
             case 7:
                 config.showAllFiles = !config.showAllFiles;
-                if (mode != MODE_GAME && currentUrl != null && !showingRoots) {
-                    listDirectory(currentUrl, currentTitle);
+                /* refresh the folder but stay on this screen */
+                if (currentUrl != null && !showingRoots) {
+                    keepModeOnList = true;
+                    try {
+                        listDirectory(currentUrl, currentTitle);
+                    } finally {
+                        keepModeOnList = false;
+                    }
+                    mode = MODE_SETTINGS;
                 }
                 break;
             case 8:
@@ -930,6 +1007,14 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             if (pressed) padButtons &= ~(1 << bit);
             else padButtons |= (1 << bit);
         }
+        PS1Machine m = machine;
+        if (m != null) m.setButtons(padButtons);
+    }
+
+    /** Releases every pad button (no stuck directions after pausing). */
+    private void releasePad() {
+        if (padButtons == 0xFFFF) return;
+        padButtons = 0xFFFF;
         PS1Machine m = machine;
         if (m != null) m.setButtons(padButtons);
     }
@@ -1304,6 +1389,7 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             case MODE_INFO: paintInfo(g, bold, plain, barH); break;
             default: paintBrowser(g, bold, plain, barH); break;
         }
+        paintOverlay(g);
     }
 
     /** True when the next txt() call should use the pseudo-bold font. */
@@ -1424,6 +1510,26 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
         }
         int percent = (int) ((helpScroll * 100L) / Math.max(1, maxScroll));
         hint(g, "2/8 - листать " + percent + "%");
+    }
+
+    /** Short counter shown in the header: "7 игр" or "список обрезан". */
+    private String browserCount() {
+        if (showingRoots) return "";
+        if (listTruncated) return "обрезан";
+        int n = gameCountNow;
+        if (n <= 0) return "";
+        return n + " " + gamesWord(n);
+    }
+
+    /** Russian plural for "игра" (1 игра, 2 игры, 5 игр). */
+    public static String gamesWord(int n) {
+        int mod100 = n % 100;
+        if (mod100 >= 11 && mod100 <= 14) return "игр";
+        switch (n % 10) {
+            case 1: return "игра";
+            case 2: case 3: case 4: return "игры";
+            default: return "игр";
+        }
     }
 
     private void paintSettings(Graphics g, Font bold, Font plain, int barH) {
@@ -1640,7 +1746,14 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
 
         g.setColor(COLOR_DIM);
         boldFlag = false;
-        txt(g, currentTitle, 6, barH + 4, Graphics.LEFT | Graphics.TOP);
+        String count = browserCount();
+        int countW = count.length() > 0 ? TinyFont.stringWidth(count) + 10 : 0;
+        txt(g, TinyFont.ellipsize(currentTitle, viewW - 12 - countW), 6, barH + 4,
+                Graphics.LEFT | Graphics.TOP);
+        if (count.length() > 0) {
+            g.setColor(listTruncated ? COLOR_ACCENT : COLOR_DIM);
+            txt(g, count, viewW - 6, barH + 4, Graphics.RIGHT | Graphics.TOP);
+        }
 
         int visible = listH / rowH;
         if (visible < 1) visible = 1;
@@ -1762,15 +1875,22 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
             txt(g, TinyFont.ellipsize(note, viewW - 8), viewW / 2, viewH - 12,
                     Graphics.HCENTER | Graphics.TOP);
         }
-        if (overlayMessage != null && System.currentTimeMillis() < overlayUntil) {
-            g.setColor(0x000000);
-            g.fillRect(0, viewH - 16, viewW, 16);
-            g.setColor(COLOR_TEXT);
-            txt(g, TinyFont.ellipsize(overlayMessage, viewW - 8), 4, viewH - 14,
-                    Graphics.LEFT | Graphics.TOP);
-        } else if (overlayMessage != null && System.currentTimeMillis() >= overlayUntil) {
+        paintOverlay(g);
+    }
+
+    /** Transient message strip; painted on the game screen and in the menus. */
+    private void paintOverlay(Graphics g) {
+        if (overlayMessage == null) return;
+        if (System.currentTimeMillis() >= overlayUntil) {
             overlayMessage = null;
+            return;
         }
+        g.setColor(0x000000);
+        g.fillRect(0, viewH - 16, viewW, 16);
+        g.setColor(COLOR_TEXT);
+        boldFlag = false;
+        txt(g, TinyFont.ellipsize(overlayMessage, viewW - 8), 4, viewH - 14,
+                Graphics.LEFT | Graphics.TOP);
     }
 
     /**
@@ -1877,6 +1997,33 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
     /*  lifecycle                                                           */
     /* ==================================================================== */
 
+    /**
+     * Called when the MIDlet is paused by the system (incoming call, task
+     * switch, screen lock). The emulation thread is stopped instead of being
+     * left to burn the battery in the background, and the pause menu is shown
+     * so that returning to the game is a deliberate action.
+     */
+    public void onAppPause() {
+        releasePad();
+        if (machine != null && mode == MODE_GAME) {
+            paused = true;
+            pauseSelection = 0;
+            mode = MODE_PAUSE;
+        }
+        if (audio != null) {
+            try { audio.stop(); } catch (Throwable t) { }
+            audio = null;
+        }
+        repaint();
+    }
+
+    /** Called when the MIDlet comes back to the foreground. */
+    public void onAppResume() {
+        /* nothing is resumed automatically: whichever screen was open stays,
+           the player decides whether to continue. */
+        repaint();
+    }
+
     protected void hideNotify() {
         /* Deliberately does not pause: several devices deliver hideNotify()
            during start-up, which used to leave the game frozen forever. The
@@ -1890,13 +2037,19 @@ public final class MainCanvas extends Canvas implements Runnable, CommandListene
 
     public void shutdown() {
         running = false;
+        gameThread = null;
         if (audio != null) {
-            audio.stop();
+            try { audio.stop(); } catch (Throwable t) { }
             audio = null;
         }
         if (cd != null) {
-            cd.close();
+            try { cd.close(); } catch (Throwable t) { }
             cd = null;
         }
+        machine = null;
+        columnMap = null;
+        rowMap = null;
+        scaledFrame = new int[0];
+        System.gc();
     }
 }

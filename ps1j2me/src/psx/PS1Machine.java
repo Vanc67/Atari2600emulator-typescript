@@ -312,6 +312,12 @@ public final class PS1Machine {
 
     public int getFrameHeight() { return gpu.getViewportHeight(); }
 
+    /** Exceptions the CPU took; used by tests to catch bogus memory access. */
+    public int getExceptionCount() { return cpu.exceptions; }
+
+    /** ExcCode of the last exception (4 = ADEL, 5 = ADES, 8 = Syscall, ...). */
+    public int getLastExceptionCode() { return cpu.lastExcCode; }
+
     public void setViewport(int w, int h) {
         gpu.setViewport(w, h);
     }

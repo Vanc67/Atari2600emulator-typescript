@@ -28,6 +28,7 @@ public final class Cdrom {
     private int setlocPending;
     private int setlocMm, setlocSs, setlocFf;
     private boolean reading;
+    private boolean bufferRequested;
     private boolean motorOn = true;
     private int mode;
 
@@ -49,6 +50,7 @@ public final class Cdrom {
         currentLba = 150;
         seekLba = 150;
         reading = false;
+        bufferRequested = false;
         motorOn = true;
         mode = 0;
         pendingInt = -1;
@@ -58,31 +60,43 @@ public final class Cdrom {
     /*  register interface                                                  */
     /* ==================================================================== */
 
+    /**
+     * Register reads, bank by bank (psx-spx: cdromdrive.md).
+     *
+     * <pre>
+     *   bank 0: 0 status | 1 RESULT  | 2 RDDATA | 3 HINTMSK
+     *   bank 1: 0 status | 1 RESULT  | 2 RDDATA | 3 HINTSTS
+     *   bank 2: 0 status | 1 RESULT  | 2 RDDATA | 3 HINTMSK
+     *   bank 3: 0 status | 1 RESULT  | 2 RDDATA | 3 HINTSTS
+     * </pre>
+     *
+     * RESULT and RDDATA are readable from every bank; the masks live in banks
+     * 0/2 and the flags in banks 1/3. The previous code returned the interrupt
+     * enable for banks 1 and 3 of register 1 and 2, so a game that polled its
+     * HINTSTS there saw nonsense.
+     */
     public int read(int a) {
         int reg = a & 3;
         if (reg == 0) {
             int st = index & 3;
-            if (responseLen > 0) st |= 0x20;    /* response FIFO not empty */
-            if (dataLen > 0) st |= 0x40;         /* data FIFO not empty     */
-            if (paramCount == 0) st |= 0x08;
-            st |= 0x10;                          /* param FIFO not full     */
-            if ((irqFlags & 0x0F) != 0) st |= 0x01;
+            if (responseLen > 0) st |= 0x20;    /* RSLRRDY: result FIFO not empty */
+            if (dataPos < dataLen) st |= 0x40;   /* DRQSTS:  data request          */
+            if (paramCount == 0) st |= 0x08;     /* PRMEMPT: parameter FIFO empty   */
+            st |= 0x10;                          /* PRMWRDY: parameter write ready  */
+            if (pendingInt >= 0) st |= 0x80;     /* BUSYSTS: command in progress    */
+            if ((irqFlags & 0x07) != 0) st |= 0x01; /* INTSTS mirror                 */
             return st;
         }
         if (reg == 1) {
-            if (index == 0 || index == 1 || index == 2) {
-                if (responsePos < responseLen) return response[responsePos++] & 0xFF;
-                return 0x00;
-            }
-            return irqEnable;
+            if (responsePos < responseLen) return response[responsePos++] & 0xFF;
+            return 0x00;
         }
         if (reg == 2) {
-            if (index == 3) return irqEnable;
-            return dataLen > 0 ? (data[dataPos++] & 0xFF) : 0;
+            return dataPos < dataLen ? (data[dataPos++] & 0xFF) : 0;
         }
-        /* reg 3 */
+        /* reg 3: banks 0/2 hide the enable mask, banks 1/3 show the flags */
         if (index == 0 || index == 2) return irqEnable;
-        return (irqEnable & 0xE0) | (irqFlags & 0x1F);
+        return 0xE0 | (irqFlags & 0x1F);
     }
 
     public void write(int a, int v) {
@@ -92,44 +106,53 @@ public final class Cdrom {
             return;
         }
         if (reg == 1) {
-            if (index == 0) {
-                command(v & 0xFF);
-            } else {
-                irqEnable = v & 0x1F;
-            }
+            if (index == 0) command(v & 0xFF);
             return;
         }
         if (reg == 2) {
             if (index == 0) {
+                /* PARAMETER: the FIFO is written before the command byte. */
                 if (paramCount < param.length) param[paramCount++] = (byte) v;
-            } else if (index == 3) {
-                irqEnable = v & 0xFF;
+            } else if (index == 1) {
+                /* HINTMSK (bank 1): which of the flags may raise IRQ0. */
+                irqEnable = v & 0x1F;
             }
             return;
         }
         /* reg 3 */
         if (index == 0) {
-            irqEnable = v & 0x1F;
+            /* HCHPCTL: bit7 = BFRD (sector buffer read), bit6 = BFWR. */
+            bufferRequested = (v & 0x80) != 0;
         } else if (index == 1) {
-            /* request register: bit 7 = BFRD */
-            irqFlags &= ~(v & 0x1F);
-            if ((v & 0x80) != 0) {
-                /* start/stop data request - already handled by DMA */
+            /* HCLRCTL: acknowledge the flags and optionally clear FIFOs. */
+            irqFlags &= ~(v & 0x07);
+            if ((v & 0x40) != 0) paramCount = 0;
+            if ((v & 0x80) != 0) {                       /* CHPRST */
+                reading = false;
+                dataLen = dataPos = 0;
+                responseLen = responsePos = 0;
             }
-        } else {
-            irqEnable = v & 0xFF;
         }
+        /* banks 2/3: ATV1/ATV3 CD audio volumes - not mixed here */
     }
 
-    /** Word read used by DMA channel 3 (little endian). */
+    /**
+     * Word read used by DMA channel 3 (little endian).
+     *
+     * A partly filled word keeps the bytes it has instead of collapsing to
+     * zero, which is what the hardware does for the tail of a 800h-byte
+     * transfer requested as whole words.
+     */
     public int readWord() {
-        if (dataPos + 3 >= dataLen) return 0;
-        int b0 = data[dataPos++] & 0xFF;
-        int b1 = data[dataPos++] & 0xFF;
-        int b2 = data[dataPos++] & 0xFF;
-        int b3 = data[dataPos++] & 0xFF;
-        return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
+        int v = 0;
+        for (int i = 0; i < 4; i++) {
+            if (dataPos < dataLen) v |= (data[dataPos++] & 0xFF) << (i * 8);
+        }
+        return v;
     }
+
+    /** True after HCHPCTL asked for a sector buffer read (bit 7). */
+    public boolean isBufferRequested() { return bufferRequested; }
 
     public boolean hasData() {
         return dataPos < dataLen;
@@ -140,7 +163,11 @@ public final class Cdrom {
     /* ==================================================================== */
 
     private void command(int cmd) {
+        /* A new command drops whatever the previous one left in the result
+           FIFO. Without this the answers piled up and a game reading GetID
+           after GetStat saw the old status byte first. */
         responsePos = 0;
+        responseLen = 0;
         int need = paramWords(cmd);
         /* The BIOS sends parameters before the command byte in index 0 mode;
            we accumulate them here and execute on the command write. */

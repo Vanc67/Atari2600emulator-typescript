@@ -200,21 +200,36 @@ public final class FileRoots {
         out.addElement(new Root(url, label(url)));
     }
 
-    /** Opens and lists a directory; false on any error, never throws. */
+    /**
+     * Opens and lists a directory; false on any error, never throws.
+     *
+     * <p>The only trustworthy test is "it opened and it can be listed". A few
+     * firmwares leave {@code exists()} at false for a mounted card, or throw
+     * from {@code isDirectory()}; rejecting such a root would hide the player's
+     * memory card entirely, so both calls are treated as hints only.</p>
+     */
     public static boolean isUsable(String url) {
         FileConnection fc = null;
         try {
             fc = (FileConnection) Connector.open(url, Connector.READ);
-            if (fc != null && fc.exists() && fc.isDirectory()) {
-                Enumeration e = fc.list();
-                return e != null;
+            if (fc == null) return false;
+            try {
+                if (!fc.isDirectory()) return false;
+            } catch (Throwable ignore) {
+                /* firmware does not implement it: keep going */
             }
+            Enumeration e;
+            try {
+                e = fc.list();
+            } catch (Throwable t) {
+                e = fc.list("*", false);
+            }
+            return e != null;
         } catch (Throwable t) {
             return false;
         } finally {
             close(fc);
         }
-        return false;
     }
 
     static void close(FileConnection fc) {

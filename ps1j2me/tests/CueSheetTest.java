@@ -25,6 +25,7 @@ public final class CueSheetTest {
         plainIso();
         cueWithAbsoluteWindowsPath();
         cueMode1Raw();
+        cueMixedMode();
         cueMissingPayload();
         cueWithoutTrack();
 
@@ -86,6 +87,31 @@ public final class CueSheetTest {
         check(signature(sec), "raw sector user data at offset 16");
         cd.close();
         check(bin != null, "raw payload existed");
+    }
+
+    /**
+     * A pressed disc starts with two seconds of CD-DA, so the sheet has a
+     * FILE/TRACK AUDIO pair before the data track. Opening the first FILE
+     * would read silence and the game would never boot.
+     */
+    private static void cueMixedMode() throws Exception {
+        newIso("AUDIO.BIN", 20, 2352, 0);              /* zeros: no CD001 */
+        newIso("DATA.BIN", 20, 2352, 16);              /* real data track */
+        String cue = writeCue("MIXED.CUE",
+                "FILE \"AUDIO.BIN\" BINARY\r\n"
+                + "  TRACK 01 AUDIO\r\n"
+                + "    INDEX 01 00:00:00\r\n"
+                + "FILE \"DATA.BIN\" BINARY\r\n"
+                + "  TRACK 02 MODE1/2352\r\n"
+                + "    INDEX 01 00:00:00\r\n");
+        VirtualCD cd = new VirtualCD();
+        cd.open(cue);
+        check("DATA.BIN".equals(cd.getCueFile()), "data track file chosen, not the CD-DA track");
+        same(VirtualCD.LAYOUT_2352_MODE1, cd.getLayout(), "mixed sheet layout");
+        byte[] sec = new byte[2048];
+        cd.readSector(16, sec, 0);
+        check(signature(sec), "mixed sheet reads the data track");
+        cd.close();
     }
 
     private static void cueMissingPayload() {

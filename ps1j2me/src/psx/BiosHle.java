@@ -26,7 +26,17 @@ public final class BiosHle {
     private static final int DEFAULT_HEAP = 0x80100000;
     private static final int HEAP_LIMIT = 0x801F0000;
     private int heapBase, heapTop, heapEnd;
+    private int kHeapBase = 0x801E0000;
     private int kHeapTop = 0x801E0000;
+    private int kHeapLimit = 0x801FF000;
+
+    /* ---- kernel state touched by the C table --------------------------- */
+    /** ChangeClearRCnt flags: 0 = timer 0..2, 3 = vblank. */
+    private final int[] clearRCnt = new int[4];
+    /** SetIrqAutoAck flags for IRQ0..IRQ10. */
+    private final boolean[] irqAutoAck = new boolean[11];
+    private int cardFindMode;
+    private int ttyFlag;
 
     /* ---- events -------------------------------------------------------- */
     private static final int EV_MAX = 32;
@@ -78,7 +88,13 @@ public final class BiosHle {
         heapBase = DEFAULT_HEAP;
         heapTop = DEFAULT_HEAP;
         heapEnd = HEAP_LIMIT;
-        kHeapTop = 0x801E0000;
+        kHeapBase = 0x801E0000;
+        kHeapTop = kHeapBase;
+        kHeapLimit = 0x801FF000;
+        for (int i = 0; i < clearRCnt.length; i++) clearRCnt[i] = 0;
+        for (int i = 0; i < irqAutoAck.length; i++) irqAutoAck[i] = false;
+        cardFindMode = 0;
+        ttyFlag = 0;
         nextEvent = 0xF1000001;
         errno = 0;
         exited = false;
@@ -287,18 +303,20 @@ public final class BiosHle {
         switch (f) {
             case 0x00: return allocKernelMemory(gpr(4));
             case 0x01: return 0;
-            case 0x02: return 0;                                  /* init_timer */
-            case 0x03: return 0;                                  /* get_timer  */
-            case 0x04: return 0;                                  /* enable t irq */
-            case 0x05: return 0;
-            case 0x06: return 0;
+            case 0x02: return initTimer(gpr(4), gpr(5), gpr(6));
+            case 0x03: return getTimer(gpr(4));
+            case 0x04: return enableTimerIrq(gpr(4));
+            case 0x05: return disableTimerIrq(gpr(4));
+            case 0x06: return restartTimer(gpr(4));
             case 0x07: return deliverEvent(gpr(4), gpr(5));
             case 0x08: return openEvent(gpr(4), gpr(5), gpr(6), gpr(7));
             case 0x09: return closeEvent(gpr(4));
             case 0x0A: return waitEvent(gpr(4));
             case 0x0B: return testEvent(gpr(4));
+            /* Enable/DisableEvent always report success, even for a handle
+               that was never opened (that is what the real kernel does). */
             case 0x0C:
-            case 0x0D: return 0;                                  /* enable / disable */
+            case 0x0D: return 1;
             case 0x0E: return 1;                                  /* OpenTh  */
             case 0x0F: return 0;                                  /* CloseTh */
             case 0x10: return 1;                                  /* ChangeTh */
@@ -309,12 +327,21 @@ public final class BiosHle {
                 padSize2 = gpr(7);
                 return 0;
             case 0x13:
-            case 0x14:
-            case 0x15:
-            case 0x16: return 0;                                  /* pad control */
+            case 0x14: return 0;                                  /* Start/StopPAD2 */
+            case 0x15: {                                          /* PAD_init2 */
+                int type = gpr(4);
+                return (type == 0x20000000 || type == 0x20000001) ? 2 : 0;
+            }
+            case 0x16: return 0;                                  /* PAD_dr */
             case 0x17: return 0;                                  /* ReturnFromException */
             case 0x18:
             case 0x19: return 0;                                  /* entry int hooks */
+            /* "SystemError" stubs that no program is supposed to call. They
+               answer 0 instead of being reported as unknown functions. */
+            case 0x1A: case 0x1B: case 0x1C: case 0x1D: case 0x1E: case 0x1F: return 0;
+            case 0x21: case 0x22: case 0x23: return 0;
+            case 0x2A: case 0x2B: return 0;
+            case 0x52: case 0x5A: return 0;
             case 0x20: return undeLiverEvent(gpr(4), gpr(5));
             case 0x32: return open(path(gpr(4)), gpr(5));
             case 0x33: return lseek(gpr(4), gpr(5), gpr(6));
@@ -330,29 +357,23 @@ public final class BiosHle {
             case 0x3D: return putchar(gpr(4));
             case 0x3E: return 0;
             case 0x3F: return puts(gpr(4));
-            case 0x40:
-            case 0x41:
-            case 0x42:
-            case 0x43:
-            case 0x44:
-            case 0x45:
-            case 0x46:
-            case 0x47:
-            case 0x48:
-            case 0x49: return 0;
-            case 0x4A:
-            case 0x4B:
-            case 0x4C:
-            case 0x4D:
-            case 0x4E:
-            case 0x4F: return 0;                                  /* memory card */
+            /* cd()/format()/firstfile2()/nextfile()/rename()/erase()/
+               undelete() on a read-only disc, plus the driver table helpers:
+               nothing to do, but they must not look like unknown calls. */
+            case 0x40: case 0x41: case 0x42: case 0x43: case 0x44:
+            case 0x45: case 0x46: case 0x47: case 0x48: case 0x49: return 0;
+            case 0x4A: case 0x4B: case 0x4C: case 0x4D:               /* memory card */
+            case 0x4E: case 0x4F: return 0;
             case 0x50: return 1;                                  /* _new_card */
+            /* No BIOS font in HLE mode: -1 (error) is the documented answer. */
+            case 0x51: return -1;                                 /* Krom2RawAdd */
+            case 0x53: return 0;                                  /* Krom2Offset */
             case 0x54: return errno;                              /* _get_errno */
             case 0x55: return 0;                                  /* _get_error */
             case 0x56: return 0xC0;                               /* GetC0Table */
             case 0x57: return 0xB0;                               /* GetB0Table */
             case 0x58: return 0;
-            case 0x59: return 0;                                  /* testdevice */
+            case 0x59: return testDevice(path(gpr(4)));           /* testdevice */
             case 0x5B: return 0;                                  /* ChangeClearPAD */
             case 0x5C: return 1;                                  /* _card_status */
             case 0x5D: return 0;                                  /* _card_wait   */
@@ -368,12 +389,150 @@ public final class BiosHle {
 
     private int callC(int f) {
         switch (f) {
-            case 0x04: return 1;                                  /* free EvCB slot */
-            case 0x05: return 1;                                  /* free TCB slot  */
-            case 0x1D: return 0;
+            /* ---- exception / interrupt plumbing -------------------------- */
+            case 0x00: return 1;                                  /* EnqueueTimerAndVblankIrqs */
+            case 0x01: return 1;                                  /* EnqueueSyscallHandler     */
+            case 0x02: return 1;                                  /* SysEnqIntRP */
+            case 0x03: return 1;                                  /* SysDeqIntRP */
+            case 0x04: return 1;                                  /* get_free_EvCB_slot */
+            case 0x05: return 1;                                  /* get_free_TCB_slot  */
+            case 0x06: return 0;                                  /* ExceptionHandler vector */
+            case 0x07: return 0;                                  /* InstallExceptionHandlers */
+            case 0x08: return sysInitMemory(gpr(4), gpr(5));
+            case 0x09: return sysInitKernelVariables();
+            case 0x0A: return changeClearRCnt(gpr(4), gpr(5));
+            case 0x0B: return 0;                                  /* SystemError */
+            case 0x0C: return 1;                                  /* InitDefInt */
+            case 0x0D: return setIrqAutoAck(gpr(4), gpr(5));
+
+            /* ---- DTL-H2000 serial port stubs ----------------------------- */
+            case 0x0E: case 0x0F: case 0x10: case 0x11: case 0x14: return 0;
+
+            /* ---- devices and character I/O ------------------------------- */
+            case 0x12: return installDevices(gpr(4));
+            case 0x13: return 0;                                  /* FlushStdInOutPut */
+            case 0x15: return 0;                                  /* _cdevinput */
+            case 0x16: return 0;                                  /* _cdevscan  */
+            case 0x17: return -1;                                 /* _circgetc: empty */
+            case 0x18: return 0;                                  /* _circputc  */
+            case 0x19: return 0;                                  /* _ioabort   */
+            case 0x1A: cardFindMode = gpr(4) & 1; return 0;       /* set_card_find_mode */
+            case 0x1B: ttyFlag = gpr(4); return 0;                /* KernelRedirect */
+            case 0x1C: return 0;                                  /* AdjustA0Table */
+            case 0x1D: return cardFindMode;                       /* get_card_find_mode */
             default:
+                /* N/A entries (C(1Eh..7Fh)) jump to 00000000h on hardware, ie.
+                   they are a program error; report them like any other. */
+                unknown('C', f);
                 return 0;
         }
+    }
+
+    /* -------------------------------------------------------------------- */
+    /*  C table helpers                                                     */
+    /* -------------------------------------------------------------------- */
+
+    /** C(08h) SysInitMemory(addr, size): (re)sets the kernel memory region. */
+    private int sysInitMemory(int addr, int size) {
+        if (size <= 0) {
+            kHeapBase = 0x801E0000;
+            kHeapTop = kHeapBase;
+            kHeapLimit = 0x801FF000;
+        } else {
+            kHeapBase = addr;
+            kHeapTop = addr;
+            kHeapLimit = addr + (size & ~15);
+            if (kHeapLimit > 0x801FF000 || kHeapLimit < kHeapBase) kHeapLimit = 0x801FF000;
+        }
+        return 0;
+    }
+
+    /** C(09h) SysInitKernelVariables(): zerofills the kernel structures. */
+    private int sysInitKernelVariables() {
+        for (int i = 0; i < clearRCnt.length; i++) clearRCnt[i] = 0;
+        for (int i = 0; i < irqAutoAck.length; i++) irqAutoAck[i] = false;
+        cardFindMode = 0;
+        ttyFlag = 0;
+        return 0;
+    }
+
+    /** C(0Ah) ChangeClearRCnt(t, flag): returns the previous flag value. */
+    private int changeClearRCnt(int t, int flag) {
+        if (t < 0 || t > 3) return 0;
+        int old = clearRCnt[t];
+        clearRCnt[t] = flag != 0 ? 1 : 0;
+        return old;
+    }
+
+    /** C(0Dh) SetIrqAutoAck(irq, flag). */
+    private int setIrqAutoAck(int irq, int flag) {
+        if (irq >= 0 && irq < irqAutoAck.length) irqAutoAck[irq] = flag != 0;
+        return 0;
+    }
+
+    /** C(12h) InstallDevices(ttyflag). */
+    private int installDevices(int flag) {
+        ttyFlag = flag;
+        return 0;
+    }
+
+    /* -------------------------------------------------------------------- */
+    /*  B table helpers: root counters                                      */
+    /* -------------------------------------------------------------------- */
+
+    private static final int TIMER_BASE = 0x1F801100;
+    private static final int I_MASK = 0x1F801074;
+
+    /**
+     * B(02h) init_timer(t, reload, flags).
+     *
+     * The kernel does not just store the values, it translates the caller's
+     * flag word into the hardware mode word: bit4 picks the sync mode, bit0
+     * disables the clock source bit and bit12 sets the IRQ-on-target bit.
+     */
+    private int initTimer(int t, int reload, int flags) {
+        if (t < 0 || t > 2) return 0;
+        int base = TIMER_BASE + t * 0x10;
+        bus.write16(base + 4, 0);
+        bus.write16(base + 8, reload & 0xFFFF);
+        int mode = ((flags & 0x10) != 0) ? 0x49 : 0x48;
+        if ((flags & 0x01) == 0) mode |= 0x100;
+        if ((flags & 0x1000) != 0) mode |= 0x10;
+        bus.write16(base + 4, mode);
+        return 1;
+    }
+
+    /** B(03h) get_timer(t): the current 16 bit counter. */
+    private int getTimer(int t) {
+        if (t < 0 || t > 2) return 0;
+        return bus.read16(TIMER_BASE + t * 0x10) & 0xFFFF;
+    }
+
+    /** B(04h) enable_timer_irq(t): t=3 is the vblank IRQ. */
+    private int enableTimerIrq(int t) {
+        int bit;
+        if (t >= 0 && t <= 2) bit = 4 + t;
+        else if (t == 3) bit = 0;
+        else return 0;
+        bus.write16(I_MASK, (bus.read16(I_MASK) | (1 << bit)) & 0xFFFF);
+        return t == 3 ? 0 : 1;
+    }
+
+    /** B(05h) disable_timer_irq(t): always reports success. */
+    private int disableTimerIrq(int t) {
+        int bit;
+        if (t >= 0 && t <= 2) bit = 4 + t;
+        else if (t == 3) bit = 0;
+        else return 1;
+        bus.write16(I_MASK, (bus.read16(I_MASK) & ~(1 << bit)) & 0xFFFF);
+        return 1;
+    }
+
+    /** B(06h) restart_timer(t): resets the counter to zero. */
+    private int restartTimer(int t) {
+        if (t < 0 || t > 2) return 0;
+        bus.write16(TIMER_BASE + t * 0x10, 0);
+        return 1;
     }
 
     /* ==================================================================== */
@@ -446,6 +605,23 @@ public final class BiosHle {
     /* ==================================================================== */
     /*  files                                                               */
     /* ==================================================================== */
+
+    /**
+     * B(59h) testdevice(name): 1 when the device driver is installed.
+     *
+     * Only the CD-ROM (and the console) really exist here; memory cards are
+     * reported as absent so a game takes its "no card" path instead of
+     * waiting for one that will never answer.
+     */
+    private int testDevice(String name) {
+        if (name == null) return 0;
+        String n = name.toLowerCase();
+        int colon = n.indexOf(':');
+        if (colon >= 0) n = n.substring(0, colon);
+        if (n.equals("cdrom") || n.equals("cd")) return 1;
+        if (n.equals("tty") || n.equals("con")) return 1;
+        return 0;
+    }
 
     private int open(String name, int mode) {
         if (name == null) {
@@ -945,7 +1121,7 @@ public final class BiosHle {
         if (size <= 0) return 0;
         size = (size + 15) & ~15;
         int p = kHeapTop;
-        if (p + size > 0x801FF000) return 0;
+        if (p + size > kHeapLimit) return 0;
         kHeapTop += size;
         return p;
     }
